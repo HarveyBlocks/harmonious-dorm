@@ -2355,23 +2355,21 @@ export default function LegacyDormApp() {
                       >
                         {t.selectAll}
                       </button>
-                      {notificationFilter === 'unread' ? (
-                        <button
-                          type="button"
-                          disabled={selectedNoticeCount === 0 || readSelectedNoticeMutation.isPending}
-                          onClick={() => {
-                            readSelectedNoticeMutation.mutate(selectionPayload, {
-                              onSuccess: () => {
-                                clearNoticeSelection();
-                              },
-                            });
-                            setNotificationMenuOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold disabled:opacity-50"
-                        >
-                          {t.markSelectedRead}
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        disabled={selectedNoticeCount === 0 || readSelectedNoticeMutation.isPending}
+                        onClick={() => {
+                          readSelectedNoticeMutation.mutate(selectionPayload, {
+                            onSuccess: () => {
+                              clearNoticeSelection();
+                            },
+                          });
+                          setNotificationMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold disabled:opacity-50"
+                      >
+                        {t.markSelectedRead}
+                      </button>
                       <button
                         type="button"
                         disabled={selectedNoticeCount === 0 || deleteSelectedNoticeMutation.isPending}
