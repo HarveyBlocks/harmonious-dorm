@@ -1,26 +1,42 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
-    "module": "ESNext",
     "lib": [
-      "ES2022",
       "DOM",
-      "DOM.Iterable"
+      "DOM.Iterable",
+      "ES2022"
     ],
+    "allowJs": false,
     "skipLibCheck": true,
-    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
     "isolatedModules": true,
-    "moduleDetection": "force",
-    "allowJs": true,
-    "jsx": "react-jsx",
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
       ]
     },
-    "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "harmoniousdorm-oldversion"
+  ]
 }

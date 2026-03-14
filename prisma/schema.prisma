@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Dorm {
+  id         Int      @id @default(autoincrement())
+  name       String
+  inviteCode String   @unique
+  users      User[]
+  duties     Duty[]
+  bills      Bill[]
+  chats      ChatMessage[]
+  notifications Notification[]
+  createdAt  DateTime @default(now())
+
+  @@map("dorms")
+}
+
+model User {
+  id         Int               @id @default(autoincrement())
+  email      String            @unique
+  name       String
+  avatarPath String?           @map("avatar_path")
+  language   String            @default("zh-CN")
+  dormId     Int               @map("dorm_id")
+  dorm       Dorm              @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  isLeader   Boolean           @default(false) @map("is_leader")
+  duties     Duty[]
+  bills      Bill[]            @relation("BillCreatedBy")
+  status     Status?
+  createdAt  DateTime          @default(now()) @map("created_at")
+  billShares BillParticipant[]
+  chats      ChatMessage[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Duty {
+  id        Int      @id @default(autoincrement())
+  dormId    Int      @map("dorm_id")
+  dorm      Dorm     @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  completed Boolean  @default(false)
+  imageUrl  String?  @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([dormId, date, userId])
+  @@index([dormId, date])
+  @@map("duties")
+}
+
+model Bill {
+  id           Int               @id @default(autoincrement())
+  dormId       Int               @map("dorm_id")
+  dorm         Dorm              @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  totalAmount  Float             @map("total_amount")
+  description  String?
+  category     String            @default("其他")
+  customCategory String?         @map("custom_category")
+  createdBy    Int?              @map("created_by")
+  creator      User?             @relation("BillCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  participants BillParticipant[]
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([dormId, createdAt])
+  @@map("bills")
+}
+
+model BillParticipant {
+  billId Int   @map("bill_id")
+  userId Int   @map("user_id")
+  paid   Boolean @default(false)
+  bill   Bill  @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([billId, userId])
+  @@map("bill_participants")
+}
+
+model Status {
+  userId    Int      @id @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("status")
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  dormId    Int      @map("dorm_id")
+  dorm      Dorm     @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([dormId, createdAt])
+  @@map("chat_messages")
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  dormId      Int      @map("dorm_id")
+  dorm        Dorm     @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  userId      Int?     @map("user_id")
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  content     String
+  targetPath  String?  @map("target_path")
+  groupKey    String?  @map("group_key")
+  unreadCount Int      @default(1) @map("unread_count")
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([dormId, userId, isRead, updatedAt])
+  @@index([dormId, userId, groupKey, isRead])
+  @@map("notifications")
+}

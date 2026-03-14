@@ -1,0 +1,18 @@
+import { NextResponse } from 'next/server';
+
+import { ApiError } from '@/lib/errors';
+import { requireSessionOrThrow, withApiGuard } from '@/lib/route';
+import { findChatAnchorByTime } from '@/lib/services/chat-service';
+
+export async function GET(request: Request) {
+  return withApiGuard(async () => {
+    const session = requireSessionOrThrow();
+    const { searchParams } = new URL(request.url);
+    const from = searchParams.get('from');
+    if (!from) {
+      throw new ApiError(400, '时间参数错误');
+    }
+    const anchorId = await findChatAnchorByTime(session, from);
+    return NextResponse.json({ anchorId });
+  });
+}
