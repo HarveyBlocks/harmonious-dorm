@@ -138,13 +138,13 @@ export async function getOldestUnreadChatNotificationTime(dormId: number, userId
       type: 'chat',
     },
     orderBy: {
-      updatedAt: 'asc',
+      createdAt: 'asc',
     },
     select: {
-      updatedAt: true,
+      createdAt: true,
     },
   });
-  return row ? row.updatedAt.toISOString() : null;
+  return row ? row.createdAt.toISOString() : null;
 }
 
 export async function markNotificationRead(dormId: number, userId: number, id: number) {
@@ -184,17 +184,24 @@ export async function bulkOperateNotifications(input: {
   status: 'all' | 'unread' | 'read';
   selectAll: boolean;
   ids: number[];
+  types?: string[];
 }) {
-  const { dormId, userId, action, status, selectAll, ids } = input;
+  const { dormId, userId, action, status, selectAll, ids, types } = input;
   const sanitizedIds = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+  const sanitizedTypes = [...new Set((types || []).map((item) => item.trim()).filter((item) => item.length > 0))];
 
   const whereBase =
     status === 'all'
-      ? { dormId, userId }
+      ? {
+          dormId,
+          userId,
+          ...(sanitizedTypes.length > 0 ? { type: { in: sanitizedTypes } } : {}),
+        }
       : {
           dormId,
           userId,
           isRead: status === 'read',
+          ...(sanitizedTypes.length > 0 ? { type: { in: sanitizedTypes } } : {}),
         };
 
   const where = selectAll

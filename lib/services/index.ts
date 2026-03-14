@@ -6,3 +6,4 @@ export * from './duty-service';
 export * from './notification-service';
 export * from './status-service';
 export * from './user-service';
+export * from './stats-service';

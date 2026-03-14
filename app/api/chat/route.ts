@@ -9,10 +9,10 @@ export async function GET(request: Request) {
   return withApiGuard(async () => {
     const session = requireSessionOrThrow();
     const { searchParams } = new URL(request.url);
-    const limit = Number(searchParams.get('limit') || '40');
+    const limit = Number(searchParams.get('limit') || '20');
     const cursor = Number(searchParams.get('cursor') || '');
     const rows = await listChatMessages(session, {
-      limit: Number.isFinite(limit) ? limit : 40,
+      limit: Number.isFinite(limit) ? limit : 20,
       cursor: Number.isFinite(cursor) ? cursor : undefined,
     });
     return NextResponse.json(rows);

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -24,6 +25,9 @@ import {
   Copy,
   MoreHorizontal,
   Check,
+  Maximize2,
+  X,
+  Camera,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -43,10 +47,20 @@ type ChatMessage = {
   content: string;
   createdAt: string;
 };
+type RenderedChatMessage = ChatMessage & {
+  isStatusMessage: boolean;
+  localizedContent: string;
+  avatar: string;
+};
 
 type NotificationFilter = 'all' | 'unread' | 'read';
 type PeriodType = 'month' | 'quarter' | 'year';
 type LineGranularity = 'month' | 'day';
+const CHAT_PAGE_LIMIT = 20;
+const BILL_PAGE_LIMIT = 8;
+const BILL_AUTO_FILL_UNPAID = 10;
+const BILL_AUTO_FILL_TOTAL_GROUPS = 4;
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
 function fakeAvatar(id: number): string {
   return `https://picsum.photos/seed/user-${id}/100/100`;
@@ -336,34 +350,29 @@ function localizeServerText(lang: LanguageCode, text: string): string {
   return text;
 }
 
-function dateLabel(date: Date, granularity: LineGranularity): string {
-  if (granularity === 'month') {
-    return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}`;
-  }
-  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
-}
-
-function inPeriod(date: Date, periodType: PeriodType, value: string, quarter: number): boolean {
-  const year = Number(value);
-  if (!Number.isFinite(year)) return false;
-  if (periodType === 'year') {
-    return date.getFullYear() === year;
-  }
-  if (periodType === 'month') {
-    const month = quarter;
-    return date.getFullYear() === year && date.getMonth() + 1 === month;
-  }
-  const startMonth = (quarter - 1) * 3 + 1;
-  return date.getFullYear() === year && date.getMonth() + 1 >= startMonth && date.getMonth() + 1 <= startMonth + 2;
-}
-
 function randomColor(index: number): string {
-  const palette = ['#2563eb', '#06b6d4', '#f43f5e', '#22c55e', '#f59e0b', '#8b5cf6', '#64748b', '#14b8a6'];
+  const palette = ['#2563eb', '#06b6d4', '#f43f5e', '#22c55e', '#f59e0b', '#8b5cf6', '#14b8a6', '#f97316', '#10b981', '#e11d48'];
   return palette[index % palette.length];
 }
 
-function PieChartCard({ title, data, currency = false }: { title: string; data: Array<{ label: string; value: number }>; currency?: boolean }) {
+function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+  const map = new Map<number, ChatMessage>();
+  for (const item of base) {
+    map.set(item.id, item);
+  }
+  for (const item of incoming) {
+    map.set(item.id, item);
+  }
+  return [...map.values()].sort((a, b) => a.id - b.id);
+}
+
+type ChartPoint = { label: string; value: number };
+type LineSeries = { name: string; points: ChartPoint[] };
+
+function PieChartCard({ title, data, currency = false }: { title: string; data: ChartPoint[]; currency?: boolean }) {
   const [hovered, setHovered] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
+  const [focusedLabel, setFocusedLabel] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const total = data.reduce((sum, item) => sum + item.value, 0);
   let acc = 0;
@@ -371,6 +380,7 @@ function PieChartCard({ title, data, currency = false }: { title: string; data: 
     const start = (acc / (total || 1)) * Math.PI * 2 - Math.PI / 2;
     acc += item.value;
     const end = (acc / (total || 1)) * Math.PI * 2 - Math.PI / 2;
+    const mid = (start + end) / 2;
     const largeArcFlag = end - start > Math.PI ? 1 : 0;
     const r = 120;
     const cx = 150;
@@ -380,53 +390,83 @@ function PieChartCard({ title, data, currency = false }: { title: string; data: 
     const x2 = cx + r * Math.cos(end);
     const y2 = cy + r * Math.sin(end);
     const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
-    return { path, color: randomColor(index), ...item };
+    return { path, color: randomColor(index), mid, ...item };
   });
+  const activeLabel = focusedLabel || hovered?.label || null;
 
-  return (
-    <div className="glass-card p-6 rounded-2xl relative" ref={containerRef}>
-      <h4 className="font-black mb-4">{title}</h4>
+  const renderChart = (isFullscreen: boolean) => (
+    <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-8' : 'p-6'}`} ref={containerRef}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-slate-500/10 pointer-events-none rounded-2xl" />
+      <div className="relative z-10 flex items-center justify-between mb-4">
+        <h4 className="font-black">{title}</h4>
+        <button type="button" onClick={() => setFullscreen((prev) => !prev)} className="glass-card p-2 rounded-lg">
+          {isFullscreen ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        </button>
+      </div>
       {total <= 0 ? null : (
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-center">
-          <svg className="w-full max-w-[340px] h-auto" viewBox="0 0 300 300">
-            {slices.map((slice) => (
-              <path
-                key={slice.label}
-                d={slice.path}
-                fill={slice.color}
-                onMouseMove={(event) => {
-                  const rect = containerRef.current?.getBoundingClientRect();
-                  if (!rect) return;
-                  setHovered({
-                    label: slice.label,
-                    value: slice.value,
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top,
-                  });
-                }}
-                onMouseLeave={() => setHovered(null)}
-              >
-                <title>
-                  {slice.label}: {currency ? `¥${slice.value.toFixed(2)}` : slice.value}
-                </title>
-              </path>
-            ))}
-          </svg>
+        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-center">
+          <div className="cursor-zoom-in" onClick={() => setFullscreen(true)}>
+            <svg className="w-full max-w-[380px] h-auto drop-shadow-[0_6px_20px_rgba(15,23,42,0.25)]" viewBox="0 0 300 300">
+              {slices.map((slice) => {
+                const isActive = !activeLabel || activeLabel === slice.label;
+                const shift = activeLabel === slice.label ? 7 : 0;
+                return (
+                  <path
+                    key={slice.label}
+                    d={slice.path}
+                    fill={slice.color}
+                    stroke="rgba(255,255,255,0.7)"
+                    strokeWidth={activeLabel === slice.label ? 2.5 : 1.2}
+                    style={{
+                      opacity: isActive ? 1 : 0.35,
+                      transform: `translate(${Math.cos(slice.mid) * shift}px, ${Math.sin(slice.mid) * shift}px)`,
+                      transformOrigin: '150px 150px',
+                      transition: 'opacity 160ms ease, transform 160ms ease, stroke-width 160ms ease',
+                    }}
+                    onMouseEnter={() => setFocusedLabel(slice.label)}
+                    onMouseMove={(event) => {
+                      const rect = containerRef.current?.getBoundingClientRect();
+                      if (!rect) return;
+                      setHovered({
+                        label: slice.label,
+                        value: slice.value,
+                        x: event.clientX - rect.left,
+                        y: event.clientY - rect.top,
+                      });
+                    }}
+                    onMouseLeave={() => {
+                      setHovered(null);
+                      setFocusedLabel(null);
+                    }}
+                  />
+                );
+              })}
+            </svg>
+          </div>
           <div className="space-y-2 text-sm">
-            {slices.map((slice) => (
-              <div key={slice.label} className="flex items-center gap-2">
-                <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: slice.color }} />
-                <span>
-                  {slice.label}: {currency ? `¥${slice.value.toFixed(2)}` : slice.value} ({((slice.value / total) * 100).toFixed(1)}%)
-                </span>
-              </div>
-            ))}
+            {slices.map((slice) => {
+              const isActive = !activeLabel || activeLabel === slice.label;
+              return (
+                <div
+                  key={slice.label}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors"
+                  style={{ opacity: isActive ? 1 : 0.4 }}
+                  onMouseEnter={() => setFocusedLabel(slice.label)}
+                  onMouseLeave={() => setFocusedLabel(null)}
+                >
+                  <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: slice.color }} />
+                  <span>
+                    {slice.label}: {currency ? `¥${slice.value.toFixed(2)}` : slice.value} ({total > 0 ? ((slice.value / total) * 100).toFixed(1) : '0.0'}%)
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
       {hovered ? (
         <div
-          className="pointer-events-none absolute z-20 rounded-xl bg-white/95 text-slate-900 shadow-xl border border-slate-200 px-3 py-2 text-xs font-bold"
+          className="pointer-events-none absolute z-20 rounded-xl bg-white/96 text-slate-900 shadow-xl border border-slate-200 px-3 py-2 text-xs font-bold"
           style={{ left: hovered.x + 12, top: hovered.y + 12 }}
         >
           <div>{hovered.label}</div>
@@ -436,73 +476,160 @@ function PieChartCard({ title, data, currency = false }: { title: string; data: 
       ) : null}
     </div>
   );
-}
-
-function LineChartCard({ title, data, currency = false }: { title: string; data: Array<{ label: string; value: number }>; currency?: boolean }) {
-  const [hovered, setHovered] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const width = 940;
-  const height = 320;
-  const maxValue = Math.max(1, ...data.map((item) => item.value));
-  const points = data.map((item, index) => {
-    const x = data.length <= 1 ? 56 : 56 + (index * (width - 96)) / (data.length - 1);
-    const y = height - 48 - (item.value / maxValue) * (height - 88);
-    return { x, y, ...item };
-  });
-  const d = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 
   return (
-    <div className="glass-card p-6 rounded-2xl relative" ref={containerRef}>
-      <h4 className="font-black mb-4">{title}</h4>
-      {data.length === 0 ? null : (
-        <div className="overflow-x-auto">
-          <svg className="w-full min-w-[640px]" height={height} viewBox={`0 0 ${width} ${height}`} onMouseLeave={() => setHovered(null)}>
-            <line x1={56} y1={height - 48} x2={width - 40} y2={height - 48} stroke="#94a3b8" strokeWidth="1" />
-            <line x1={56} y1={24} x2={56} y2={height - 48} stroke="#94a3b8" strokeWidth="1" />
-            <path d={d} fill="none" stroke="#2563eb" strokeWidth="3" />
-            {points.map((point) => (
-              <g key={point.label}>
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r="6"
-                  fill="#2563eb"
-                />
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r="12"
-                  fill="transparent"
-                  onMouseMove={(event) => {
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    setHovered({
-                      label: point.label,
-                      value: point.value,
-                      x: event.clientX - rect.left,
-                      y: event.clientY - rect.top,
-                    });
-                  }}
-                >
-                  <title>
-                    {point.label}: {currency ? `¥${point.value.toFixed(2)}` : point.value}
-                  </title>
-                </circle>
-              </g>
-            ))}
-          </svg>
+    <>
+      {renderChart(false)}
+      {fullscreen ? (
+        <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm p-4 md:p-8">
+          <div className="h-full max-w-7xl mx-auto">{renderChart(true)}</div>
         </div>
-      )}
-      {hovered ? (
-        <div
-          className="pointer-events-none absolute z-20 rounded-xl bg-white/95 text-slate-900 shadow-xl border border-slate-200 px-3 py-2 text-xs font-bold"
-          style={{ left: hovered.x + 12, top: hovered.y + 12 }}
-        >
-          <div>X: {hovered.label}</div>
-          <div>Y: {currency ? `¥${hovered.value.toFixed(2)}` : hovered.value}</div>
+      ) : null}
+    </>
+  );
+}
+
+function LineChartCard({
+  title,
+  data,
+  series,
+  currency = false,
+}: {
+  title: string;
+  data?: ChartPoint[];
+  series?: LineSeries[];
+  currency?: boolean;
+}) {
+  const [fullscreen, setFullscreen] = useState(false);
+  const normalizedSeries = useMemo(() => {
+    if (series && series.length > 0) return series;
+    if (data && data.length > 0) return [{ name: title, points: data }];
+    return [];
+  }, [data, series, title]);
+  const allLabels = useMemo(() => {
+    const labels = new Set<string>();
+    normalizedSeries.forEach((line) => line.points.forEach((point) => labels.add(point.label)));
+    return [...labels].sort((a, b) => a.localeCompare(b));
+  }, [normalizedSeries]);
+  const seriesWithValues = useMemo(() => {
+    return normalizedSeries.map((line, index) => {
+      const color = randomColor(index);
+      const map = new Map(line.points.map((point) => [point.label, point.value]));
+      const points = allLabels.map((label) => ({ label, value: map.get(label) || 0 }));
+      return { ...line, color, points };
+    });
+  }, [allLabels, normalizedSeries]);
+  const option = useMemo(() => {
+    const lineWidth = fullscreen ? 5.2 : 3.8;
+    const focusLineWidth = fullscreen ? 7.2 : 5.6;
+    return {
+      animation: true,
+      color: seriesWithValues.map((item) => item.color),
+      grid: {
+        left: 46,
+        right: 20,
+        top: 26,
+        bottom: 56,
+        containLabel: true,
+      },
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        backgroundColor: 'rgba(255,255,255,0.96)',
+        borderColor: '#e2e8f0',
+        borderWidth: 1,
+        textStyle: {
+          color: '#0f172a',
+          fontWeight: 700,
+        },
+        formatter: (params: any) => {
+          if (!Array.isArray(params) || params.length === 0) return '';
+          const lines = [`${params[0].axisValue}`];
+          for (const row of params) {
+            const value = Number(row.value) || 0;
+            lines.push(`${row.marker} ${row.seriesName}: ${currency ? `¥${value.toFixed(2)}` : value}`);
+          }
+          return lines.join('<br/>');
+        },
+      },
+      legend: {
+        bottom: 6,
+        textStyle: {
+          color: '#64748b',
+          fontWeight: 700,
+          fontSize: 12,
+        },
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: allLabels,
+        axisLine: { lineStyle: { color: 'rgba(148,163,184,0.8)' } },
+        axisLabel: { color: '#64748b', fontWeight: 700 },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        splitLine: { lineStyle: { color: 'rgba(148,163,184,0.28)', type: 'dashed' } },
+        axisLine: { show: false },
+        axisLabel: {
+          color: '#64748b',
+          fontWeight: 700,
+          formatter: (value: number) => (currency ? `¥${Number(value).toFixed(0)}` : `${value}`),
+        },
+      },
+      series: seriesWithValues.map((line) => ({
+        name: line.name,
+        type: 'line',
+        smooth: true,
+        showSymbol: true,
+        symbol: 'circle',
+        symbolSize: fullscreen ? 9 : 7,
+        lineStyle: {
+          width: lineWidth,
+        },
+        emphasis: {
+          focus: 'series',
+          lineStyle: {
+            width: focusLineWidth,
+          },
+        },
+        data: line.points.map((point) => point.value),
+      })),
+    };
+  }, [allLabels, currency, fullscreen, seriesWithValues]);
+
+  const renderChart = (isFullscreen: boolean) => (
+    <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-6 md:p-8 flex flex-col' : 'p-6'}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-cyan-500/10 pointer-events-none rounded-2xl" />
+      <div className="relative z-10 flex items-center justify-between mb-4">
+        <h4 className="font-black">{title}</h4>
+        <button type="button" onClick={() => setFullscreen((prev) => !prev)} className="glass-card p-2 rounded-lg">
+          {isFullscreen ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        </button>
+      </div>
+      {seriesWithValues.length > 0 && allLabels.length > 0 ? (
+        <div className={isFullscreen ? 'flex-1 min-h-0' : ''} onClick={() => !isFullscreen && setFullscreen(true)}>
+          <ReactECharts
+            option={option}
+            notMerge
+            lazyUpdate
+            style={isFullscreen ? { width: '100%', height: '100%' } : { width: '100%', height: 390 }}
+          />
         </div>
       ) : null}
     </div>
+  );
+
+  return (
+    <>
+      {renderChart(false)}
+      {fullscreen ? (
+        <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm p-4 md:p-8">
+          <div className="h-full max-w-7xl mx-auto">{renderChart(true)}</div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -521,15 +648,19 @@ export default function LegacyDormApp() {
   const [participants, setParticipants] = useState<number[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
+  const [chatWindowMode, setChatWindowMode] = useState(false);
+  const [chatOlderCursor, setChatOlderCursor] = useState<number | null>(null);
+  const [chatNewerCursor, setChatNewerCursor] = useState<number | null>(null);
+  const [chatHasOlder, setChatHasOlder] = useState(true);
+  const [chatHasNewer, setChatHasNewer] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
   const [notificationSelectAll, setNotificationSelectAll] = useState(false);
   const [notificationIncludeIds, setNotificationIncludeIds] = useState<Set<number>>(new Set());
   const [notificationExcludeIds, setNotificationExcludeIds] = useState<Set<number>>(new Set());
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
-  const [notificationMenuPos, setNotificationMenuPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
-  const [billPeriodType, setBillPeriodType] = useState<PeriodType>('quarter');
+  const [billPeriodType, setBillPeriodType] = useState<PeriodType>('month');
   const [billYear, setBillYear] = useState(`${new Date().getFullYear()}`);
-  const [billPeriodMarker, setBillPeriodMarker] = useState<number>(currentQuarter());
+  const [billPeriodMarker, setBillPeriodMarker] = useState<number>(new Date().getMonth() + 1);
   const [billLineGranularity, setBillLineGranularity] = useState<LineGranularity>('day');
   const [dutyPeriodType, setDutyPeriodType] = useState<PeriodType>('month');
   const [dutyYear, setDutyYear] = useState(`${new Date().getFullYear()}`);
@@ -549,13 +680,22 @@ export default function LegacyDormApp() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatMessageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const notificationListRef = useRef<HTMLDivElement>(null);
-  const notificationMenuTriggerRef = useRef<HTMLButtonElement>(null);
-  const notificationMenuRef = useRef<HTMLDivElement>(null);
+  const billUnpaidListRef = useRef<HTMLDivElement>(null);
+  const billPaidListRef = useRef<HTMLDivElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const chatAutoScrolledRef = useRef(false);
+  const chatLoadingOlderRef = useRef(false);
+  const chatLoadingNewerRef = useRef(false);
+  const chatPrependStateRef = useRef<{ pending: boolean; prevHeight: number; prevTop: number }>({
+    pending: false,
+    prevHeight: 0,
+    prevTop: 0,
+  });
   const profileSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dormSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const avatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActiveTabRef = useRef<ActiveTab>('dashboard');
+  const lastAutoReadTabRef = useRef<ActiveTab>('dashboard');
   const lastSyncedProfileRef = useRef<{ name: string; language: LanguageCode } | null>(null);
   const lastSyncedDormNameRef = useRef<string>('');
 
@@ -569,28 +709,26 @@ export default function LegacyDormApp() {
     queryKey: ['duty', 'all'],
     queryFn: ({ pageParam }) =>
       apiRequest<CursorPage<DutyItem>>(
-        `/api/duty?scope=all&limit=30${pageParam ? `&cursor=${pageParam}` : ''}`,
+        `/api/duty?scope=all&limit=8${pageParam ? `&cursor=${pageParam}` : ''}`,
       ),
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    refetchInterval: 60_000,
     enabled: authReady,
   });
 
   const billsQuery = useInfiniteQuery({
     queryKey: ['bills'],
     queryFn: ({ pageParam }) =>
-      apiRequest<CursorPage<BillSummary>>(`/api/bills?limit=30${pageParam ? `&cursor=${pageParam}` : ''}`),
+      apiRequest<CursorPage<BillSummary>>(`/api/bills?limit=${BILL_PAGE_LIMIT}${pageParam ? `&cursor=${pageParam}` : ''}`),
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    refetchInterval: 60_000,
     enabled: authReady,
   });
 
   const chatQuery = useInfiniteQuery({
     queryKey: ['chat'],
     queryFn: ({ pageParam }) =>
-      apiRequest<CursorPage<ChatMessage>>(`/api/chat?limit=40${pageParam ? `&cursor=${pageParam}` : ''}`),
+      apiRequest<CursorPage<ChatMessage>>(`/api/chat?limit=${CHAT_PAGE_LIMIT}${pageParam ? `&cursor=${pageParam}` : ''}`),
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: authReady,
@@ -599,7 +737,6 @@ export default function LegacyDormApp() {
   const statusQuery = useQuery({
     queryKey: ['status'],
     queryFn: () => apiRequest<Array<{ userId: number; state: DormState }>>('/api/status'),
-    refetchInterval: 30_000,
     enabled: authReady,
   });
 
@@ -607,25 +744,22 @@ export default function LegacyDormApp() {
     queryKey: ['notifications', notificationFilter],
     queryFn: ({ pageParam }) =>
       apiRequest<CursorPage<NotificationPayload>>(
-        `/api/notifications?status=${notificationFilter}&limit=30${pageParam ? `&cursor=${pageParam}` : ''}`,
+        `/api/notifications?status=${notificationFilter}&limit=10${pageParam ? `&cursor=${pageParam}` : ''}`,
       ),
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    refetchInterval: 20_000,
     enabled: authReady,
   });
 
   const notificationsUnreadQuery = useQuery({
     queryKey: ['notifications-unread'],
-    queryFn: () => apiRequest<CursorPage<NotificationPayload>>('/api/notifications?status=unread&limit=200'),
-    refetchInterval: 20_000,
+    queryFn: () => apiRequest<CursorPage<NotificationPayload>>('/api/notifications?status=unread&limit=60'),
     enabled: authReady,
   });
 
   const chatAnchorNoticeQuery = useQuery({
     queryKey: ['notifications-chat-anchor'],
     queryFn: () => apiRequest<{ oldestUnreadChatNotificationTime: string | null }>('/api/notifications/chat-anchor'),
-    refetchInterval: 20_000,
     enabled: authReady,
   });
 
@@ -638,12 +772,42 @@ export default function LegacyDormApp() {
     enabled: authReady && Boolean(chatAnchorNoticeQuery.data?.oldestUnreadChatNotificationTime),
   });
 
+  const billStatsQuery = useQuery({
+    queryKey: ['stats-bills', billPeriodType, billYear, billPeriodMarker, billLineGranularity],
+    queryFn: () =>
+      apiRequest<{
+        pieData: ChartPoint[];
+        lineData: ChartPoint[];
+        categoryLineSeries: LineSeries[];
+      }>(
+        `/api/stats/bills?periodType=${billPeriodType}&year=${encodeURIComponent(billYear)}&marker=${billPeriodMarker}&lineGranularity=${billLineGranularity}`,
+      ),
+    enabled: authReady,
+  });
+
+  const dutyStatsQuery = useQuery({
+    queryKey: ['stats-duty', dutyPeriodType, dutyYear, dutyPeriodMarker, dutyLineGranularity],
+    queryFn: () =>
+      apiRequest<{
+        pieData: ChartPoint[];
+        memberPieData: ChartPoint[];
+        lineData: ChartPoint[];
+        memberLineSeries: LineSeries[];
+      }>(
+        `/api/stats/duty?periodType=${dutyPeriodType}&year=${encodeURIComponent(dutyYear)}&marker=${dutyPeriodMarker}&lineGranularity=${dutyLineGranularity}`,
+      ),
+    enabled: authReady,
+  });
+
   useEffect(() => {
-    if (chatQuery.data?.pages) {
-      const merged = chatQuery.data.pages.flatMap((page) => page.items);
-      setLiveMessages(merged);
-    }
-  }, [chatQuery.data]);
+    if (chatWindowMode) return;
+    if (!chatQuery.data?.pages) return;
+    const merged = chatQuery.data.pages
+      .slice()
+      .reverse()
+      .flatMap((page) => page.items);
+    setLiveMessages((prev) => mergeChatMessages(prev, merged));
+  }, [chatQuery.dataUpdatedAt, chatWindowMode]);
 
   useEffect(() => {
     const dormId = meQuery.data?.dormId;
@@ -652,14 +816,16 @@ export default function LegacyDormApp() {
     let mounted = true;
 
     const init = async () => {
-      const initResp = await fetch('/api/socket');
+      const initResp = await fetch('/api/socket-init');
       if (!initResp.ok || !mounted) return;
       if (!mounted) return;
-      const socket = io({ path: '/api/ws' });
+      const socket = io({ path: '/api/socket' });
       socket.emit('join', dormId);
 
       socket.on('chat:new', (message: ChatMessage) => {
-        setLiveMessages((prev) => [...prev, message]);
+        setLiveMessages((prev) => mergeChatMessages(prev, [message]));
+        setChatNewerCursor((prev) => (prev && prev > message.id ? prev : message.id));
+        setChatHasNewer(false);
       });
       socket.on('duty:changed', () => {
         queryClient.invalidateQueries({ queryKey: ['duty', 'all'] });
@@ -699,6 +865,14 @@ export default function LegacyDormApp() {
   useLayoutEffect(() => {
     if (activeTab !== 'chat' || !chatScrollRef.current || liveMessages.length === 0) return;
     const container = chatScrollRef.current;
+    if (chatPrependStateRef.current.pending) {
+      const { prevHeight, prevTop } = chatPrependStateRef.current;
+      const nextHeight = container.scrollHeight;
+      const nextTop = Math.max(0, nextHeight - prevHeight + prevTop);
+      container.scrollTop = nextTop;
+      chatPrependStateRef.current.pending = false;
+      return;
+    }
     if (!chatAutoScrolledRef.current) {
       container.scrollTop = container.scrollHeight;
       chatAutoScrolledRef.current = true;
@@ -708,7 +882,7 @@ export default function LegacyDormApp() {
     if (nearBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [activeTab, liveMessages]);
+  }, [activeTab, liveMessages.length]);
 
   useEffect(() => {
     if (!assignUserId && meQuery.data?.members.length) {
@@ -772,6 +946,14 @@ export default function LegacyDormApp() {
       );
     }
   };
+  const changeAvatarTitle =
+    me?.language === 'en'
+      ? 'Change avatar'
+      : me?.language === 'fr'
+      ? 'Changer l’avatar'
+      : me?.language === 'zh-TW'
+      ? '更換頭像'
+      : '更换头像';
   const eText = useMemo(() => ({
     chooseMember: t.chooseMember,
     invalidDate: t.invalidDate,
@@ -884,6 +1066,13 @@ export default function LegacyDormApp() {
       status: member.isLeader ? 'online' : 'busy',
     }));
   }, [me, statusQuery.data]);
+  const memberAvatarMap = useMemo(() => {
+    const map = new Map<number, string>();
+    (me?.members || []).forEach((member) => {
+      map.set(member.id, resolveAvatar(member.avatarPath, member.id));
+    });
+    return map;
+  }, [me?.members]);
 
   const themeClass = useMemo(() => {
     let classes = selectedState === '睡觉' ? 'dark-mode' : '';
@@ -893,10 +1082,30 @@ export default function LegacyDormApp() {
   }, [selectedState]);
   const billsRows = useMemo(() => billsQuery.data?.pages.flatMap((page) => page.items) || [], [billsQuery.data?.pages]);
   const dutyRows = useMemo(() => dutyAllQuery.data?.pages.flatMap((page) => page.items) || [], [dutyAllQuery.data?.pages]);
+  const billListRows = useMemo(
+    () => [...billsRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [billsRows],
+  );
+  const dutyListRows = useMemo(
+    () => [...dutyRows].sort((a, b) => (a.date === b.date ? b.dutyId - a.dutyId : b.date.localeCompare(a.date))),
+    [dutyRows],
+  );
   const notificationRows = useMemo(
     () => notificationsQuery.data?.pages.flatMap((page) => page.items) || [],
     [notificationsQuery.data?.pages],
   );
+  const renderedLiveMessages = useMemo<RenderedChatMessage[]>(() => {
+    const lang = me?.language || 'zh-CN';
+    return liveMessages.map((msg) => {
+      const isStatusMessage = Boolean(parseStatusSystemMessage(msg.content));
+      return {
+        ...msg,
+        isStatusMessage,
+        localizedContent: localizeServerText(lang, msg.content),
+        avatar: memberAvatarMap.get(msg.userId) || resolveAvatar(null, msg.userId),
+      };
+    });
+  }, [liveMessages, me?.language, memberAvatarMap]);
 
   const monthTotal = useMemo(() => {
     return billsRows.filter((item) => isThisMonth(item.createdAt)).reduce((sum, item) => sum + item.total, 0);
@@ -1080,6 +1289,7 @@ export default function LegacyDormApp() {
           status: notificationFilter,
           selectAll: payload.selectAll,
           ids: payload.ids,
+          types: [],
         }),
       }),
     onSuccess: () => {
@@ -1097,11 +1307,32 @@ export default function LegacyDormApp() {
           status: notificationFilter,
           selectAll: payload.selectAll,
           ids: payload.ids,
+          types: [],
         }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+    },
+  });
+
+  const autoReadByTypeMutation = useMutation({
+    mutationFn: (type: 'chat' | 'bill' | 'duty') =>
+      apiRequest('/api/notifications/batch', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'read',
+          status: 'unread',
+          selectAll: true,
+          ids: [],
+          types: [type],
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications-chat-anchor'] });
+      queryClient.invalidateQueries({ queryKey: ['chat-anchor-id'] });
     },
   });
 
@@ -1254,6 +1485,22 @@ export default function LegacyDormApp() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (lastAutoReadTabRef.current === activeTab) return;
+    lastAutoReadTabRef.current = activeTab;
+    if (activeTab === 'chat') {
+      autoReadByTypeMutation.mutate('chat');
+      return;
+    }
+    if (activeTab === 'wallet') {
+      autoReadByTypeMutation.mutate('bill');
+      return;
+    }
+    if (activeTab === 'duty') {
+      autoReadByTypeMutation.mutate('duty');
+    }
+  }, [activeTab, autoReadByTypeMutation]);
+
   useEffect(
     () => () => {
       if (profileSaveTimerRef.current) {
@@ -1290,31 +1537,6 @@ export default function LegacyDormApp() {
     setNotificationExcludeIds(new Set());
     setNotificationMenuOpen(false);
   }, [notificationFilter]);
-
-  useEffect(() => {
-    if (!notificationMenuOpen) return;
-    const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (notificationMenuRef.current?.contains(target) || notificationMenuTriggerRef.current?.contains(target)) return;
-      setNotificationMenuOpen(false);
-    };
-    window.addEventListener('mousedown', close);
-    return () => window.removeEventListener('mousedown', close);
-  }, [notificationMenuOpen]);
-
-  const toggleNotificationMenu = useCallback(() => {
-    const trigger = notificationMenuTriggerRef.current;
-    if (!trigger || typeof window === 'undefined') return;
-    const rect = trigger.getBoundingClientRect();
-    const menuWidth = 220;
-    const menuHeight = 180;
-    const nearLeft = rect.left < 80;
-    const nearBottom = rect.bottom > window.innerHeight - menuHeight - 12;
-    const left = nearLeft ? rect.left : Math.max(8, rect.right - menuWidth);
-    const top = nearBottom ? Math.max(8, rect.top - menuHeight - 8) : rect.bottom + 8;
-    setNotificationMenuPos({ left, top });
-    setNotificationMenuOpen((prev) => !prev);
-  }, []);
 
   const toggleNoticeSelect = useCallback((id: number) => {
     if (notificationSelectAll) {
@@ -1380,21 +1602,69 @@ export default function LegacyDormApp() {
 
   const onDoneDutyScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
+    if (!showAllDoneDuty) {
+      setShowAllDoneDuty(true);
+    }
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 80 && dutyAllQuery.hasNextPage && !dutyAllQuery.isFetchingNextPage) {
       dutyAllQuery.fetchNextPage();
     }
-  }, [dutyAllQuery]);
+  }, [dutyAllQuery, showAllDoneDuty]);
 
   const onChatListScroll = useCallback(async (event: React.UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
-    if (el.scrollTop > 80 || !chatQuery.hasNextPage || chatQuery.isFetchingNextPage) return;
-    const prevHeight = el.scrollHeight;
-    await chatQuery.fetchNextPage();
-    requestAnimationFrame(() => {
-      const delta = el.scrollHeight - prevHeight;
-      el.scrollTop += delta;
-    });
-  }, [chatQuery]);
+    const nearTop = el.scrollTop <= 80;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
+
+    if (chatWindowMode) {
+      if (nearTop && chatHasOlder && chatOlderCursor && !chatLoadingOlderRef.current) {
+        chatLoadingOlderRef.current = true;
+        chatPrependStateRef.current = {
+          pending: true,
+          prevHeight: el.scrollHeight,
+          prevTop: el.scrollTop,
+        };
+        try {
+          const resp = await apiRequest<{ items: ChatMessage[]; nextCursor: number | null; hasMore: boolean }>(
+            `/api/chat/window?mode=older&cursor=${chatOlderCursor}&limit=20`,
+          );
+          if (resp.items.length > 0) {
+            setLiveMessages((prev) => mergeChatMessages(resp.items, prev));
+            setChatOlderCursor(resp.nextCursor ?? chatOlderCursor);
+          }
+          setChatHasOlder(Boolean(resp.hasMore && resp.nextCursor));
+        } finally {
+          chatLoadingOlderRef.current = false;
+        }
+        return;
+      }
+      if (nearBottom && chatHasNewer && chatNewerCursor && !chatLoadingNewerRef.current) {
+        chatLoadingNewerRef.current = true;
+        try {
+          const resp = await apiRequest<{ items: ChatMessage[]; nextCursor: number | null; hasMore: boolean }>(
+            `/api/chat/window?mode=newer&cursor=${chatNewerCursor}&limit=20`,
+          );
+          if (resp.items.length > 0) {
+            setLiveMessages((prev) => mergeChatMessages(prev, resp.items));
+            setChatNewerCursor(resp.nextCursor ?? chatNewerCursor);
+          }
+          setChatHasNewer(Boolean(resp.hasMore && resp.nextCursor));
+        } finally {
+          chatLoadingNewerRef.current = false;
+        }
+      }
+      return;
+    }
+
+    if (nearTop && chatQuery.hasNextPage && !chatQuery.isFetchingNextPage) {
+      chatPrependStateRef.current = {
+        pending: true,
+        prevHeight: el.scrollHeight,
+        prevTop: el.scrollTop,
+      };
+      await chatQuery.fetchNextPage();
+    }
+  }, [chatHasNewer, chatHasOlder, chatNewerCursor, chatOlderCursor, chatQuery, chatWindowMode]);
+
 
   const dormName = me?.dormName || t.dormTitle;
   const meId = me?.id;
@@ -1429,17 +1699,43 @@ export default function LegacyDormApp() {
   }, [notificationsUnreadQuery.data?.items]);
   const lastPositionChatId = chatAnchorQuery.data?.anchorId || null;
   const jumpToLastPosition = useCallback(async () => {
+    if (unreadChatCount <= 20) return;
     if (!lastPositionChatId) return;
-    let guard = 0;
-    while (!chatMessageRefs.current[lastPositionChatId] && chatQuery.hasNextPage && guard < 20) {
-      await chatQuery.fetchNextPage();
-      guard += 1;
+    const windowResp = await apiRequest<{
+      items: ChatMessage[];
+      olderCursor: number | null;
+      newerCursor: number | null;
+      hasOlder: boolean;
+      hasNewer: boolean;
+    }>(`/api/chat/window?mode=around&anchorId=${lastPositionChatId}&before=10&after=10`);
+    if (!windowResp.items.length) return;
+    setChatWindowMode(true);
+    setLiveMessages(windowResp.items);
+    setChatOlderCursor(windowResp.olderCursor);
+    setChatNewerCursor(windowResp.newerCursor);
+    setChatHasOlder(windowResp.hasOlder);
+    setChatHasNewer(windowResp.hasNewer);
+    requestAnimationFrame(() => {
+      const node = chatMessageRefs.current[lastPositionChatId];
+      if (node) {
+        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }, [lastPositionChatId, unreadChatCount]);
+
+  const resetChatToLatest = useCallback(() => {
+    setChatWindowMode(false);
+    setChatOlderCursor(null);
+    setChatNewerCursor(null);
+    setChatHasOlder(true);
+    setChatHasNewer(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'chat') {
+      resetChatToLatest();
     }
-    const node = chatMessageRefs.current[lastPositionChatId];
-    if (node) {
-      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [chatQuery, lastPositionChatId]);
+  }, [activeTab, resetChatToLatest]);
   const pText = useMemo(
     () => ({
       month: me?.language === 'en' ? 'Month' : me?.language === 'fr' ? 'Mois' : me?.language === 'zh-TW' ? '月份' : '月份',
@@ -1449,11 +1745,13 @@ export default function LegacyDormApp() {
       byDay: me?.language === 'en' ? 'By day' : me?.language === 'fr' ? 'Par jour' : me?.language === 'zh-TW' ? '按日' : '按日',
       billPie: me?.language === 'en' ? 'Category Share' : me?.language === 'fr' ? 'Part des categories' : me?.language === 'zh-TW' ? '分類占比' : '分类占比',
       billLine: me?.language === 'en' ? 'Amount Trend' : me?.language === 'fr' ? 'Tendance des montants' : me?.language === 'zh-TW' ? '金額趨勢' : '金额趋势',
+      billLineByCategory: me?.language === 'en' ? 'Category Amount Trend' : me?.language === 'fr' ? 'Tendance par categorie' : me?.language === 'zh-TW' ? '分類金額趨勢' : '分类金额趋势',
       unpaidBills: me?.language === 'en' ? 'Pending Payment Bills' : me?.language === 'fr' ? 'Factures a payer' : me?.language === 'zh-TW' ? '待支付帳單' : '待支付账单',
       paidBills: me?.language === 'en' ? 'Paid Bills' : me?.language === 'fr' ? 'Factures payees' : me?.language === 'zh-TW' ? '已支付帳單' : '已支付账单',
       dutyPie: me?.language === 'en' ? 'Task Status Share' : me?.language === 'fr' ? 'Part des statuts de tache' : me?.language === 'zh-TW' ? '任務狀態占比' : '任务状态占比',
       dutyByMemberPie: me?.language === 'en' ? 'Completed By Member' : me?.language === 'fr' ? 'Taches terminees par membre' : me?.language === 'zh-TW' ? '完成者占比' : '完成人占比',
       dutyLine: me?.language === 'en' ? 'Task Trend' : me?.language === 'fr' ? 'Tendance des taches' : me?.language === 'zh-TW' ? '任務趨勢' : '任务趋势',
+      dutyLineByMember: me?.language === 'en' ? 'Member Completion Trend' : me?.language === 'fr' ? 'Tendance de completion par membre' : me?.language === 'zh-TW' ? '成員完成趨勢' : '成员完成趋势',
       doneList: me?.language === 'en' ? 'Completed List' : me?.language === 'fr' ? 'Liste terminee' : me?.language === 'zh-TW' ? '完成列表' : '完成列表',
       showMore: me?.language === 'en' ? 'Show all' : me?.language === 'fr' ? 'Tout afficher' : me?.language === 'zh-TW' ? '顯示全部' : '显示全部',
       showLess: me?.language === 'en' ? 'Collapse' : me?.language === 'fr' ? 'Replier' : me?.language === 'zh-TW' ? '收起' : '收起',
@@ -1463,61 +1761,51 @@ export default function LegacyDormApp() {
     [me?.language],
   );
 
-  const billFiltered = useMemo(() => {
-    return billsRows.filter((item) => inPeriod(new Date(item.createdAt), billPeriodType, billYear, billPeriodMarker));
-  }, [billPeriodMarker, billPeriodType, billYear, billsRows]);
+  const billPieData = useMemo(
+    () => (billStatsQuery.data?.pieData || []).map((item) => ({ label: categoryLabel(me?.language || 'zh-CN', item.label), value: item.value })),
+    [billStatsQuery.data?.pieData, me?.language],
+  );
+  const billLineData = useMemo(() => billStatsQuery.data?.lineData || [], [billStatsQuery.data?.lineData]);
+  const billCategoryLineSeries = useMemo(
+    () =>
+      (billStatsQuery.data?.categoryLineSeries || []).map((line) => ({
+        name: categoryLabel(me?.language || 'zh-CN', line.name),
+        points: line.points,
+      })),
+    [billStatsQuery.data?.categoryLineSeries, me?.language],
+  );
 
-  const billPieData = useMemo(() => {
-    const map = new Map<string, number>();
-    billFiltered.forEach((item) => {
-      const key = item.customCategory || categoryLabel(me?.language || 'zh-CN', item.category);
-      map.set(key, (map.get(key) || 0) + item.total);
-    });
-    return [...map.entries()].map(([label, value]) => ({ label, value }));
-  }, [billFiltered, me?.language]);
-
-  const billLineData = useMemo(() => {
-    const map = new Map<string, number>();
-    billFiltered.forEach((item) => {
-      const key = dateLabel(new Date(item.createdAt), billLineGranularity);
-      map.set(key, (map.get(key) || 0) + item.total);
-    });
-    return [...map.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([label, value]) => ({ label, value }));
-  }, [billFiltered, billLineGranularity]);
-
-  const dutyFiltered = useMemo(() => {
-    return dutyRows.filter((item) => inPeriod(new Date(`${item.date}T00:00:00`), dutyPeriodType, dutyYear, dutyPeriodMarker));
-  }, [dutyPeriodMarker, dutyPeriodType, dutyRows, dutyYear]);
-
-  const pendingDutyList = useMemo(() => dutyFiltered.filter((item) => !item.completed), [dutyFiltered]);
-  const doneDutyList = useMemo(() => dutyFiltered.filter((item) => item.completed), [dutyFiltered]);
+  const pendingDutyList = useMemo(() => dutyListRows.filter((item) => !item.completed), [dutyListRows]);
+  const doneDutyList = useMemo(() => dutyListRows.filter((item) => item.completed), [dutyListRows]);
   const visiblePendingDutyList = pendingDutyList;
   const effectiveDoneLimit = showAllDoneDuty ? doneDutyList.length : 5;
   const doneDutyPreview = useMemo(() => doneDutyList.slice(0, effectiveDoneLimit), [doneDutyList, effectiveDoneLimit]);
 
   const groupedUnpaidBills = useMemo(() => {
     const map = new Map<string, BillSummary[]>();
-    billFiltered
+    billListRows
       .filter((bill) => !bill.myPaid)
       .forEach((bill) => {
         const key = monthHeader(bill.createdAt);
         map.set(key, [...(map.get(key) || []), bill]);
       });
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [billFiltered]);
+  }, [billListRows]);
+  const unpaidBillCount = useMemo(
+    () => groupedUnpaidBills.reduce((sum, [, items]) => sum + items.length, 0),
+    [groupedUnpaidBills],
+  );
 
   const groupedPaidBills = useMemo(() => {
     const map = new Map<string, BillSummary[]>();
-    billFiltered
+    billListRows
       .filter((bill) => bill.myPaid)
       .forEach((bill) => {
-      const key = monthHeader(bill.createdAt);
-      map.set(key, [...(map.get(key) || []), bill]);
-    });
+        const key = monthHeader(bill.createdAt);
+        map.set(key, [...(map.get(key) || []), bill]);
+      });
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [billFiltered]);
+  }, [billListRows]);
 
   const groupedPendingDuties = useMemo(() => {
     const map = new Map<string, DutyItem[]>();
@@ -1538,36 +1826,50 @@ export default function LegacyDormApp() {
   }, [doneDutyPreview]);
 
   const dutyPieData = useMemo(() => {
-    const done = dutyFiltered.filter((item) => item.completed).length;
-    const pending = dutyFiltered.length - done;
-    return [
-      { label: me?.language === 'en' ? 'Completed' : me?.language === 'fr' ? 'Termine' : me?.language === 'zh-TW' ? '已完成' : '已完成', value: done },
-      { label: me?.language === 'en' ? 'Pending' : me?.language === 'fr' ? 'En attente' : me?.language === 'zh-TW' ? '未完成' : '未完成', value: pending },
-    ];
-  }, [dutyFiltered, me?.language]);
+    const doneLabel = me?.language === 'en' ? 'Completed' : me?.language === 'fr' ? 'Termine' : me?.language === 'zh-TW' ? '已完成' : '已完成';
+    const pendingLabel = me?.language === 'en' ? 'Pending' : me?.language === 'fr' ? 'En attente' : me?.language === 'zh-TW' ? '未完成' : '未完成';
+    return (dutyStatsQuery.data?.pieData || []).map((item) => ({
+      label: item.label === 'completed' ? doneLabel : pendingLabel,
+      value: item.value,
+    }));
+  }, [dutyStatsQuery.data?.pieData, me?.language]);
 
-  const dutyLineData = useMemo(() => {
-    const map = new Map<string, number>();
-    dutyFiltered.forEach((item) => {
-      const key = dateLabel(new Date(`${item.date}T00:00:00`), dutyLineGranularity);
-      map.set(key, (map.get(key) || 0) + 1);
-    });
-    return [...map.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([label, value]) => ({ label, value }));
-  }, [dutyFiltered, dutyLineGranularity]);
+  const dutyLineData = useMemo(() => dutyStatsQuery.data?.lineData || [], [dutyStatsQuery.data?.lineData]);
+  const dutyByMemberPieData = useMemo(() => dutyStatsQuery.data?.memberPieData || [], [dutyStatsQuery.data?.memberPieData]);
+  const dutyMemberLineSeries = useMemo(() => dutyStatsQuery.data?.memberLineSeries || [], [dutyStatsQuery.data?.memberLineSeries]);
 
-  const dutyByMemberPieData = useMemo(() => {
-    const map = new Map<string, number>();
-    dutyFiltered
-      .filter((item) => item.completed)
-      .forEach((item) => {
-        map.set(item.userName, (map.get(item.userName) || 0) + 1);
-      });
-    return [...map.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, value]) => ({ label, value }));
-  }, [dutyFiltered]);
+  useEffect(() => {
+    if (activeTab !== 'wallet') return;
+    if (!billsQuery.hasNextPage || billsQuery.isFetchingNextPage) return;
+    if (unpaidBillCount >= BILL_AUTO_FILL_UNPAID && groupedPaidBills.length >= BILL_AUTO_FILL_TOTAL_GROUPS) return;
+    billsQuery.fetchNextPage();
+  }, [activeTab, billsQuery, groupedPaidBills.length, unpaidBillCount]);
+
+  useEffect(() => {
+    if (activeTab !== 'wallet') return;
+    if (!billsQuery.hasNextPage || billsQuery.isFetchingNextPage) return;
+    const unpaidList = billUnpaidListRef.current;
+    const paidList = billPaidListRef.current;
+    const unpaidNotScrollable = unpaidList ? unpaidList.scrollHeight <= unpaidList.clientHeight + 8 : false;
+    const paidNotScrollable = paidList ? paidList.scrollHeight <= paidList.clientHeight + 8 : false;
+    if ((unpaidNotScrollable || paidNotScrollable) && billsRows.length > 0) {
+      billsQuery.fetchNextPage();
+    }
+  }, [activeTab, billsQuery, billsRows.length, groupedPaidBills.length, unpaidBillCount]);
+
+  useEffect(() => {
+    if (activeTab !== 'duty') return;
+    if (groupedPendingDuties.length + groupedDoneDuties.length > 0) return;
+    if (!dutyAllQuery.hasNextPage || dutyAllQuery.isFetchingNextPage) return;
+    dutyAllQuery.fetchNextPage();
+  }, [activeTab, dutyAllQuery, groupedDoneDuties.length, groupedPendingDuties.length]);
+
+  useEffect(() => {
+    if (activeTab !== 'notifications') return;
+    if (notificationRows.length > 0) return;
+    if (!notificationsQuery.hasNextPage || notificationsQuery.isFetchingNextPage) return;
+    notificationsQuery.fetchNextPage();
+  }, [activeTab, notificationRows.length, notificationsQuery]);
 
   return (
     <div className={`min-h-screen ${themeClass}`}>
@@ -1824,6 +2126,7 @@ export default function LegacyDormApp() {
                 <PieChartCard title={pText.dutyPie} data={dutyPieData} />
                 <PieChartCard title={pText.dutyByMemberPie} data={dutyByMemberPieData} />
                 <LineChartCard title={pText.dutyLine} data={dutyLineData} />
+                <LineChartCard title={pText.dutyLineByMember} series={dutyMemberLineSeries} />
               </div>
             </motion.div>
           )}
@@ -1832,7 +2135,7 @@ export default function LegacyDormApp() {
             <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl">
               <div className="p-6 border-b border-slate-200/20 flex items-center justify-between bg-white/10">
                 <h2 className="font-black text-lg">{dormName} {t.chatRoom}</h2>
-                {lastPositionChatId ? (
+                {lastPositionChatId && unreadChatCount > 20 ? (
                   <button
                     type="button"
                     onClick={jumpToLastPosition}
@@ -1843,31 +2146,31 @@ export default function LegacyDormApp() {
                 ) : null}
               </div>
               <div ref={chatScrollRef} onScroll={onChatListScroll} className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-50/30">
-                {liveMessages.map((msg) => (
+                {renderedLiveMessages.map((msg) => (
                   <div
                     key={msg.id}
                     ref={(node) => {
                       chatMessageRefs.current[msg.id] = node;
                     }}
                   >
-                    {parseStatusSystemMessage(msg.content) ? (
+                    {msg.isStatusMessage ? (
                       <div className="flex justify-center">
                         <p className="px-4 py-1.5 rounded-full bg-slate-500/15 text-xs font-bold text-muted">
-                          {localizeServerText(me?.language || 'zh-CN', msg.content)}
+                          {msg.localizedContent}
                         </p>
                       </div>
                     ) : (
                       <div className={`flex gap-3 ${msg.userId === meId ? 'justify-end' : ''}`}>
                         {msg.userId !== meId && (
                           <img
-                            src={resolveAvatar(me?.members.find((m) => m.id === msg.userId)?.avatarPath, msg.userId)}
+                            src={msg.avatar}
                             className="w-10 h-10 rounded-full shadow-md"
                             alt=""
                           />
                         )}
                         <div className={`max-w-[70%] p-4 rounded-3xl shadow-sm ${msg.userId === meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}>
                           <p className="text-xs text-muted mb-1">{msg.userName}</p>
-                          <p className="text-sm font-medium leading-relaxed">{localizeServerText(me?.language || 'zh-CN', msg.content)}</p>
+                          <p className="text-sm font-medium leading-relaxed">{msg.localizedContent}</p>
                         </div>
                       </div>
                     )}
@@ -1910,7 +2213,7 @@ export default function LegacyDormApp() {
 
                 <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
                   <h3 className="text-xl font-black mb-6">{pText.unpaidBills}</h3>
-                  <div className="space-y-4 max-h-[30vh] overflow-y-auto pr-1" onScroll={onBillUnpaidListScroll}>
+                  <div ref={billUnpaidListRef} className="space-y-4 max-h-[30vh] overflow-y-auto pr-1" onScroll={onBillUnpaidListScroll}>
                     {groupedUnpaidBills.map(([monthKey, items]) => (
                       <div key={monthKey} className="space-y-3">
                         <p className="text-xs font-black text-muted">{monthKey}</p>
@@ -1937,7 +2240,7 @@ export default function LegacyDormApp() {
 
                 <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
                   <h3 className="text-xl font-black mb-6">{pText.paidBills}</h3>
-                  <div className="space-y-4 max-h-[30vh] overflow-y-auto pr-1" onScroll={onBillPaidListScroll}>
+                  <div ref={billPaidListRef} className="space-y-4 max-h-[30vh] overflow-y-auto pr-1" onScroll={onBillPaidListScroll}>
                     {groupedPaidBills.map(([monthKey, items]) => (
                       <div key={monthKey} className="space-y-3">
                         <p className="text-xs font-black text-muted">{monthKey}</p>
@@ -2021,6 +2324,7 @@ export default function LegacyDormApp() {
               <div className="lg:col-span-3 grid grid-cols-1 gap-6">
                 <PieChartCard title={pText.billPie} data={billPieData} currency />
                 <LineChartCard title={pText.billLine} data={billLineData} currency />
+                <LineChartCard title={pText.billLineByCategory} series={billCategoryLineSeries} currency />
               </div>
             </motion.div>
           )}
@@ -2029,17 +2333,62 @@ export default function LegacyDormApp() {
             <motion.div key="notice" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card sleep-depth-mid p-8 rounded-2xl">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <h3 className="text-2xl font-black">{t.notifications}</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 relative">
                   <span className="text-xs font-bold text-muted">{t.selectedCount}: {selectedNoticeCount}</span>
                   <button
-                    ref={notificationMenuTriggerRef}
                     type="button"
-                    onClick={toggleNotificationMenu}
+                    onClick={() => setNotificationMenuOpen((prev) => !prev)}
                     className="w-10 h-10 rounded-xl glass-card flex items-center justify-center"
                     title={t.moreActions}
                   >
                     <MoreHorizontal className="w-5 h-5" />
                   </button>
+                  {notificationMenuOpen ? (
+                    <div className="absolute right-0 top-12 z-50 w-56 rounded-xl glass-card p-2 shadow-2xl space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoticeSelectAll();
+                          setNotificationMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold"
+                      >
+                        {t.selectAll}
+                      </button>
+                      {notificationFilter === 'unread' ? (
+                        <button
+                          type="button"
+                          disabled={selectedNoticeCount === 0 || readSelectedNoticeMutation.isPending}
+                          onClick={() => {
+                            readSelectedNoticeMutation.mutate(selectionPayload, {
+                              onSuccess: () => {
+                                clearNoticeSelection();
+                              },
+                            });
+                            setNotificationMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold disabled:opacity-50"
+                        >
+                          {t.markSelectedRead}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={selectedNoticeCount === 0 || deleteSelectedNoticeMutation.isPending}
+                        onClick={() => {
+                          deleteSelectedNoticeMutation.mutate(selectionPayload, {
+                            onSuccess: () => {
+                              clearNoticeSelection();
+                            },
+                          });
+                          setNotificationMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold text-rose-500 disabled:opacity-50"
+                      >
+                        {t.deleteSelected}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="flex gap-2 mb-6">
@@ -2080,83 +2429,15 @@ export default function LegacyDormApp() {
                       >
                         <Check className="w-3.5 h-3.5" />
                       </button>
-                      <p className="font-black">{localizeServerText(me?.language || 'zh-CN', notice.title)} {notice.unreadCount > 1 ? `(${notice.unreadCount})` : ''}</p>
-                      <p className="text-sm text-muted mt-1">{localizeServerText(me?.language || 'zh-CN', notice.content)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteNoticeMutation.mutate(notice.id);
-                        }}
-                        className="glass-card px-3 py-2 rounded-lg text-sm font-bold text-rose-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div>
+                        <p className="font-black">{localizeServerText(me?.language || 'zh-CN', notice.title)} {notice.unreadCount > 1 ? `(${notice.unreadCount})` : ''}</p>
+                        <p className="text-sm text-muted mt-1">{localizeServerText(me?.language || 'zh-CN', notice.content)}</p>
+                      </div>
                     </div>
                   </article>
                 ))}
               </div>
-              {notificationMenuOpen ? (
-                <div
-                  ref={notificationMenuRef}
-                  className="fixed z-[80] w-56 rounded-xl glass-card p-2 shadow-2xl space-y-1"
-                  style={{ left: notificationMenuPos.left, top: notificationMenuPos.top }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNoticeSelectAll();
-                      setNotificationMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold"
-                  >
-                    {t.selectAll}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearNoticeSelection();
-                      setNotificationMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold"
-                  >
-                    {t.clearSelection}
-                  </button>
-                  {notificationFilter === 'unread' ? (
-                    <button
-                      type="button"
-                      disabled={selectedNoticeCount === 0 || readSelectedNoticeMutation.isPending}
-                      onClick={() => {
-                        readSelectedNoticeMutation.mutate(selectionPayload, {
-                          onSuccess: () => {
-                            clearNoticeSelection();
-                          },
-                        });
-                        setNotificationMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold disabled:opacity-50"
-                    >
-                      {t.markSelectedRead}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={selectedNoticeCount === 0 || deleteSelectedNoticeMutation.isPending}
-                    onClick={() => {
-                      deleteSelectedNoticeMutation.mutate(selectionPayload, {
-                        onSuccess: () => {
-                          clearNoticeSelection();
-                        },
-                      });
-                      setNotificationMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold text-rose-500 disabled:opacity-50"
-                  >
-                    {t.deleteSelected}
-                  </button>
-                </div>
-              ) : null}
+              
             </motion.div>
           )}
 
@@ -2165,9 +2446,26 @@ export default function LegacyDormApp() {
               <section className="lg:col-span-2 glass-card sleep-depth-mid rounded-3xl p-8">
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 items-start">
                   <div className="flex flex-col items-center text-center">
-                    <div className="w-44 h-44 rounded-full overflow-hidden ring-4 ring-white/40 shadow-2xl">
-                      <img src={resolveAvatar(me?.avatarPath, meId || 0)} alt={t.userInfo} className="w-full h-full object-cover" />
+                    <div className="relative w-44 h-44">
+                      <div className="w-44 h-44 rounded-full overflow-hidden ring-4 ring-white/40 shadow-2xl">
+                        <img src={resolveAvatar(me?.avatarPath, meId || 0)} alt={t.userInfo} className="w-full h-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        title={changeAvatarTitle}
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="absolute right-1 bottom-1 w-11 h-11 rounded-full accent-bg shadow-xl flex items-center justify-center border-2 border-white/70"
+                      >
+                        <Camera className="w-5 h-5 text-white" />
+                      </button>
                     </div>
+                    <input
+                      ref={avatarInputRef}
+                      className="hidden"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+                    />
                     <p className="mt-4 text-xl font-black">{name || '-'}</p>
                     <p className="text-sm text-muted">{me?.email || '-'}</p>
                   </div>
@@ -2181,9 +2479,6 @@ export default function LegacyDormApp() {
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center">
-                      <input className="w-full p-3 rounded-xl glass-card custom-field" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
                     </div>
                   </div>
                 </div>

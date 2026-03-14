@@ -1,7 +1,10 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-const LOG_FILE_PATH = path.join(process.cwd(), 'logs', 'backend.log');
+const LOG_FILE_PATH =
+  process.env.BACKEND_LOG_PATH ||
+  path.join(os.tmpdir(), 'harmonious-dorm', 'backend.log');
 
 function writeLog(line: string) {
   try {

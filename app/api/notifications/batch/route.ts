@@ -10,6 +10,7 @@ interface BatchBody {
   status: 'all' | 'unread' | 'read';
   selectAll: boolean;
   ids?: number[];
+  types?: string[];
 }
 
 export async function POST(request: Request) {
@@ -26,6 +27,11 @@ export async function POST(request: Request) {
     if (typeof body.selectAll !== 'boolean') {
       throw new ApiError(400, 'selectAll 参数错误');
     }
+    if (body.types !== undefined) {
+      if (!Array.isArray(body.types) || body.types.some((item) => typeof item !== 'string' || !item.trim())) {
+        throw new ApiError(400, 'types 参数错误');
+      }
+    }
 
     const result = await bulkOperateNotifications({
       dormId: session.dormId,
@@ -34,6 +40,7 @@ export async function POST(request: Request) {
       status: body.status,
       selectAll: body.selectAll,
       ids: body.ids || [],
+      types: body.types || [],
     });
 
     return NextResponse.json({ success: true, count: result.count });
