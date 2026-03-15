@@ -5,7 +5,7 @@ import { getDormRoom, setSocketServer } from '@/lib/socket-server';
 
 type NextApiResponseWithIO = NextApiResponse & { socket: any };
 
-export default function handler(_req: NextApiRequest, res: NextApiResponseWithIO) {
+export function ensureSocketServer(res: NextApiResponseWithIO): IOServer {
   if (!res.socket.server.io) {
     const io = new IOServer(res.socket.server as any, {
       path: '/api/socket',
@@ -23,6 +23,11 @@ export default function handler(_req: NextApiRequest, res: NextApiResponseWithIO
     setSocketServer(io);
     res.socket.server.io = io;
   }
+  return res.socket.server.io as IOServer;
+}
+
+export default function handler(_req: NextApiRequest, res: NextApiResponseWithIO) {
+  ensureSocketServer(res);
 
   res.end();
 }

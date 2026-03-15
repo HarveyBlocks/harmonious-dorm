@@ -25,6 +25,7 @@ import {
   Copy,
   MoreHorizontal,
   Check,
+  Plus,
   Maximize2,
   X,
   Camera,
@@ -32,9 +33,12 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { apiRequest } from '@/lib/client-api';
 import { I18N, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
+import { LIMITS } from '@/lib/limits';
 import { BILL_CATEGORY_COLOR, STATE_DOT, STATUS_COLOR } from '@/lib/theme/status-colors';
 import type { BillSummary, CursorPage, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
 
@@ -49,6 +53,7 @@ type ChatMessage = {
 };
 type RenderedChatMessage = ChatMessage & {
   isStatusMessage: boolean;
+  isBotMessage: boolean;
   localizedContent: string;
   avatar: string;
 };
@@ -114,6 +119,32 @@ function mapTabToPath(tab: ActiveTab): string {
   if (tab === 'duty') return '/duty';
   if (tab === 'wallet') return '/bills';
   return '/';
+}
+
+function dispatchToast(type: 'error' | 'success' | 'info', message: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('app:toast', { detail: { type, message } }));
+}
+
+function tabForNotificationType(type?: string): ActiveTab | null {
+  if (type === 'chat') return 'chat';
+  if (type === 'bill') return 'wallet';
+  if (type === 'duty') return 'duty';
+  if (type === 'settings' || type === 'dorm' || type === 'leader') return 'settings';
+  return null;
+}
+
+function autoResizeTextarea(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto';
+  el.style.height = `${Math.max(112, el.scrollHeight)}px`;
+}
+
+function resetTextareaHeight(el: HTMLTextAreaElement): void {
+  el.style.height = '';
+}
+
+function isChatNearBottom(container: HTMLDivElement): boolean {
+  return container.scrollHeight - (container.scrollTop + container.clientHeight) <= 80;
 }
 
 function isThisMonth(isoDate: string): boolean {
@@ -653,6 +684,7 @@ export default function LegacyDormApp() {
   const [chatNewerCursor, setChatNewerCursor] = useState<number | null>(null);
   const [chatHasOlder, setChatHasOlder] = useState(true);
   const [chatHasNewer, setChatHasNewer] = useState(false);
+  const [newChatHintCount, setNewChatHintCount] = useState(0);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
   const [notificationSelectAll, setNotificationSelectAll] = useState(false);
   const [notificationIncludeIds, setNotificationIncludeIds] = useState<Set<number>>(new Set());
@@ -672,18 +704,31 @@ export default function LegacyDormApp() {
   const [name, setName] = useState('');
   const [language, setLanguage] = useState<LanguageCode>('zh-CN');
   const [dormNameInput, setDormNameInput] = useState('');
+  const [botNameInput, setBotNameInput] = useState('');
+  const [botSettingsInput, setBotSettingsInput] = useState<Array<{ key: string; value: string }>>([]);
+  const [botOtherContent, setBotOtherContent] = useState('');
+  const [botOtherEditing, setBotOtherEditing] = useState(false);
+  const [memberDescriptionsInput, setMemberDescriptionsInput] = useState<Record<number, string>>({});
   const [targetLeaderId, setTargetLeaderId] = useState<number | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [botAvatarFile, setBotAvatarFile] = useState<File | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatMessageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const notificationListRef = useRef<HTMLDivElement>(null);
   const billUnpaidListRef = useRef<HTMLDivElement>(null);
   const billPaidListRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const botAvatarInputRef = useRef<HTMLInputElement>(null);
+  const botOtherTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const limitToastRef = useRef<Record<string, number>>({});
   const chatAutoScrolledRef = useRef(false);
+  const chatAtBottomRef = useRef(true);
+  const chatForceBottomOnNextLayoutRef = useRef(false);
+  const pendingNewChatIdsRef = useRef<Set<number>>(new Set());
   const chatLoadingOlderRef = useRef(false);
   const chatLoadingNewerRef = useRef(false);
   const chatPrependStateRef = useRef<{ pending: boolean; prevHeight: number; prevTop: number }>({
@@ -694,10 +739,35 @@ export default function LegacyDormApp() {
   const profileSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dormSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const avatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const botSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const botAvatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const botSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const memberDescriptionsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActiveTabRef = useRef<ActiveTab>('dashboard');
   const lastAutoReadTabRef = useRef<ActiveTab>('dashboard');
   const lastSyncedProfileRef = useRef<{ name: string; language: LanguageCode } | null>(null);
   const lastSyncedDormNameRef = useRef<string>('');
+  const lastSyncedBotNameRef = useRef<string>('');
+  const lastSyncedBotOtherContentRef = useRef<string>('');
+  const lastSyncedBotSettingsRef = useRef<Array<{ key: string; value: string }>>([]);
+  const lastSyncedMemberDescriptionsRef = useRef<Record<number, string>>({});
+
+  const tryApplyLimitedInput = useCallback(
+    (key: string, value: string, max: number, message: string, apply: (safeValue: string) => void) => {
+      if (value.length > max) {
+        const now = Date.now();
+        const last = limitToastRef.current[key] || 0;
+        if (now - last > 800) {
+          dispatchToast('error', message);
+          limitToastRef.current[key] = now;
+        }
+        return false;
+      }
+      apply(value);
+      return true;
+    },
+    [],
+  );
 
   const meQuery = useQuery({
     queryKey: ['me'],
@@ -816,14 +886,48 @@ export default function LegacyDormApp() {
     let mounted = true;
 
     const init = async () => {
-      const initResp = await fetch('/api/socket-init');
-      if (!initResp.ok || !mounted) return;
+      let initOk = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const initResp = await fetch('/api/socket-init', {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+          });
+          if (initResp.ok) {
+            initOk = true;
+            break;
+          }
+        } catch (error) {
+          console.error('[socket-init] failed', error);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+      }
       if (!mounted) return;
-      const socket = io({ path: '/api/socket' });
+
+      const socket = io({
+        path: '/api/socket',
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 500,
+        reconnectionDelayMax: 3000,
+      });
+      if (!initOk) {
+        console.warn('[socket-init] not ready after retries, continue with socket reconnection');
+      }
       socket.emit('join', dormId);
 
       socket.on('chat:new', (message: ChatMessage) => {
+        const isChatTab = lastActiveTabRef.current === 'chat';
+        const shouldCountAsNew = Boolean(isChatTab && meQuery.data?.id && message.userId !== meQuery.data.id);
+        if (isChatTab && chatAtBottomRef.current) {
+          chatForceBottomOnNextLayoutRef.current = true;
+        }
         setLiveMessages((prev) => mergeChatMessages(prev, [message]));
+        if (shouldCountAsNew && !chatAtBottomRef.current) {
+          pendingNewChatIdsRef.current.add(message.id);
+          setNewChatHintCount(pendingNewChatIdsRef.current.size);
+        }
         setChatNewerCursor((prev) => (prev && prev > message.id ? prev : message.id));
         setChatHasNewer(false);
       });
@@ -833,18 +937,30 @@ export default function LegacyDormApp() {
       socket.on('bill:changed', () => {
         queryClient.invalidateQueries({ queryKey: ['bills'] });
       });
-      socket.on('notification:new', (payload: { userId?: number; title: string; content: string }) => {
+      socket.on('notification:new', (payload: { userId?: number; type?: string; title: string; content: string }) => {
         if (!meQuery.data?.id || (payload.userId && payload.userId !== meQuery.data.id)) return;
+        const targetTab = tabForNotificationType(payload.type);
+        if (targetTab && lastActiveTabRef.current === targetTab) {
+          const typeToRead = payload.type as 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader';
+          autoReadByTypeMutation.mutate(typeToRead);
+          if (targetTab === 'settings') {
+            queryClient.invalidateQueries({ queryKey: ['me'] });
+          }
+          return;
+        }
         setNoticePopup({ title: payload.title, content: payload.content });
         setTimeout(() => {
           setNoticePopup((current) => (current && current.title === payload.title && current.content === payload.content ? null : current));
         }, 5000);
       });
-      socket.on('notification:changed', () => {
+      socket.on('notification:changed', (payload: { type?: string }) => {
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
         queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
         queryClient.invalidateQueries({ queryKey: ['notifications-chat-anchor'] });
         queryClient.invalidateQueries({ queryKey: ['chat-anchor-id'] });
+        if (payload?.type === 'settings' || payload?.type === 'dorm' || payload?.type === 'leader') {
+          queryClient.invalidateQueries({ queryKey: ['me'] });
+        }
       });
       socket.on('status:changed', () => {
         queryClient.invalidateQueries({ queryKey: ['status'] });
@@ -873,14 +989,50 @@ export default function LegacyDormApp() {
       chatPrependStateRef.current.pending = false;
       return;
     }
+    if (chatForceBottomOnNextLayoutRef.current) {
+      container.scrollTop = container.scrollHeight;
+      chatForceBottomOnNextLayoutRef.current = false;
+      chatAtBottomRef.current = true;
+      if (pendingNewChatIdsRef.current.size > 0) {
+        pendingNewChatIdsRef.current.clear();
+        setNewChatHintCount(0);
+      }
+      return;
+    }
     if (!chatAutoScrolledRef.current) {
       container.scrollTop = container.scrollHeight;
       chatAutoScrolledRef.current = true;
+      chatAtBottomRef.current = true;
       return;
     }
     const nearBottom = container.scrollHeight - (container.scrollTop + container.clientHeight) < 140;
     if (nearBottom) {
       container.scrollTop = container.scrollHeight;
+      chatAtBottomRef.current = true;
+      if (pendingNewChatIdsRef.current.size > 0) {
+        pendingNewChatIdsRef.current.clear();
+        setNewChatHintCount(0);
+      }
+      return;
+    }
+    chatAtBottomRef.current = false;
+    const pending = pendingNewChatIdsRef.current;
+    if (pending.size > 0) {
+      const viewportBottom = container.scrollTop + container.clientHeight;
+      const seenIds: number[] = [];
+      pending.forEach((id) => {
+        const node = chatMessageRefs.current[id];
+        if (!node) return;
+        if (node.offsetTop <= viewportBottom - 8) {
+          seenIds.push(id);
+        }
+      });
+      if (seenIds.length > 0) {
+        for (const id of seenIds) {
+          pending.delete(id);
+        }
+        setNewChatHintCount(pending.size);
+      }
     }
   }, [activeTab, liveMessages.length]);
 
@@ -896,11 +1048,23 @@ export default function LegacyDormApp() {
       setName(meQuery.data.name);
       setLanguage(meQuery.data.language);
       setDormNameInput(meQuery.data.dormName);
+      setBotNameInput(meQuery.data.botName || '');
+      setBotSettingsInput(meQuery.data.botSettings || []);
+      setBotOtherContent(meQuery.data.botOtherContent || '');
+      setMemberDescriptionsInput(
+        Object.fromEntries((meQuery.data.members || []).map((member) => [member.id, member.description || ''])),
+      );
       lastSyncedProfileRef.current = {
         name: meQuery.data.name.trim(),
         language: meQuery.data.language,
       };
       lastSyncedDormNameRef.current = meQuery.data.dormName.trim();
+      lastSyncedBotNameRef.current = (meQuery.data.botName || '').trim();
+      lastSyncedBotOtherContentRef.current = meQuery.data.botOtherContent || '';
+      lastSyncedBotSettingsRef.current = meQuery.data.botSettings || [];
+      lastSyncedMemberDescriptionsRef.current = Object.fromEntries(
+        (meQuery.data.members || []).map((member) => [member.id, member.description || '']),
+      );
       if (!targetLeaderId) {
         const candidate = meQuery.data.members.find((item) => !item.isLeader);
         setTargetLeaderId(candidate?.id || null);
@@ -954,6 +1118,36 @@ export default function LegacyDormApp() {
       : me?.language === 'zh-TW'
       ? '更換頭像'
       : '更换头像';
+  const botLabel =
+    me?.language === 'en' ? 'Dorm Bot' : me?.language === 'fr' ? 'Robot du dortoir' : me?.language === 'zh-TW' ? '宿舍機器人' : '宿舍机器人';
+  const botNamePlaceholder =
+    me?.language === 'en' ? 'Bot name' : me?.language === 'fr' ? 'Nom du robot' : me?.language === 'zh-TW' ? '機器人名稱' : '机器人名称';
+  const changeBotAvatarTitle =
+    me?.language === 'en' ? 'Change bot avatar' : me?.language === 'fr' ? 'Changer l’avatar du robot' : me?.language === 'zh-TW' ? '更換機器人頭像' : '更换机器人头像';
+  const botSettingsLabel =
+    me?.language === 'en' ? 'Bot Settings' : me?.language === 'fr' ? 'Paramètres du robot' : me?.language === 'zh-TW' ? '機器人設定' : '机器人设定';
+  const memberDescLabel =
+    me?.language === 'en' ? 'Member Description' : me?.language === 'fr' ? 'Description des membres' : me?.language === 'zh-TW' ? '成員描述' : '成员描述';
+  const memberDescPlaceholder =
+    me?.language === 'en' ? 'Write a short self-introduction...' : me?.language === 'fr' ? 'Écrivez une courte présentation...' : me?.language === 'zh-TW' ? '寫一段自我介紹...' : '写一段自我介绍...';
+  const botOtherContentLabel =
+    me?.language === 'en' ? 'Bot Other Content' : me?.language === 'fr' ? 'Autres contenus du robot' : me?.language === 'zh-TW' ? '機器人的其他內容' : '机器人的其他内容';
+  const botOtherContentPlaceholder =
+    me?.language === 'en'
+      ? 'Input additional bot content...'
+      : me?.language === 'fr'
+      ? 'Saisissez du contenu supplémentaire du robot...'
+      : me?.language === 'zh-TW'
+      ? '輸入機器人的額外內容...'
+      : '输入机器人的额外内容...';
+  const botSettingKeyLabel =
+    me?.language === 'en' ? 'Field name' : me?.language === 'fr' ? 'Nom du champ' : me?.language === 'zh-TW' ? '欄位名' : '字段名';
+  const botSettingValueLabel =
+    me?.language === 'en' ? 'Field value' : me?.language === 'fr' ? 'Valeur du champ' : me?.language === 'zh-TW' ? '欄位值' : '字段值';
+  const addFieldLabel =
+    me?.language === 'en' ? 'Add field' : me?.language === 'fr' ? 'Ajouter un champ' : me?.language === 'zh-TW' ? '新增欄位' : '新增字段';
+  const removeFieldLabel =
+    me?.language === 'en' ? 'Remove' : me?.language === 'fr' ? 'Supprimer' : me?.language === 'zh-TW' ? '刪除' : '删除';
   const eText = useMemo(() => ({
     chooseMember: t.chooseMember,
     invalidDate: t.invalidDate,
@@ -1021,6 +1215,94 @@ export default function LegacyDormApp() {
         : me?.language === 'zh-TW'
         ? '訊息不能為空'
         : '消息不能为空',
+    messageTooLong:
+      me?.language === 'en'
+        ? `Message cannot exceed ${LIMITS.CHAT_USER_CONTENT} characters`
+        : me?.language === 'fr'
+        ? `Le message ne peut pas dépasser ${LIMITS.CHAT_USER_CONTENT} caractères`
+        : me?.language === 'zh-TW'
+        ? `訊息不能超過 ${LIMITS.CHAT_USER_CONTENT} 字`
+        : `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字`,
+    nameTooLong:
+      me?.language === 'en'
+        ? `Nickname cannot exceed ${LIMITS.USER_NAME} characters`
+        : me?.language === 'fr'
+        ? `Le pseudo ne peut pas dépasser ${LIMITS.USER_NAME} caractères`
+        : me?.language === 'zh-TW'
+        ? `暱稱不能超過 ${LIMITS.USER_NAME} 字`
+        : `昵称不能超过 ${LIMITS.USER_NAME} 字`,
+    dormNameTooLong:
+      me?.language === 'en'
+        ? `Dorm name cannot exceed ${LIMITS.DORM_NAME} characters`
+        : me?.language === 'fr'
+        ? `Le nom du dortoir ne peut pas dépasser ${LIMITS.DORM_NAME} caractères`
+        : me?.language === 'zh-TW'
+        ? `宿舍名稱不能超過 ${LIMITS.DORM_NAME} 字`
+        : `宿舍名称不能超过 ${LIMITS.DORM_NAME} 字`,
+    billDescTooLong:
+      me?.language === 'en'
+        ? `Bill description cannot exceed ${LIMITS.BILL_DESCRIPTION} characters`
+        : me?.language === 'fr'
+        ? `La description de la facture ne peut pas dépasser ${LIMITS.BILL_DESCRIPTION} caractères`
+        : me?.language === 'zh-TW'
+        ? `帳單說明不能超過 ${LIMITS.BILL_DESCRIPTION} 字`
+        : `账单说明不能超过 ${LIMITS.BILL_DESCRIPTION} 字`,
+    customCategoryTooLong:
+      me?.language === 'en'
+        ? `Custom category cannot exceed ${LIMITS.BILL_CUSTOM_CATEGORY} characters`
+        : me?.language === 'fr'
+        ? `La catégorie personnalisée ne peut pas dépasser ${LIMITS.BILL_CUSTOM_CATEGORY} caractères`
+        : me?.language === 'zh-TW'
+        ? `自訂類型不能超過 ${LIMITS.BILL_CUSTOM_CATEGORY} 字`
+        : `自定义账单类型不能超过 ${LIMITS.BILL_CUSTOM_CATEGORY} 字`,
+    memberDescriptionTooLong:
+      me?.language === 'en'
+        ? `Member description cannot exceed ${LIMITS.MEMBER_DESCRIPTION} characters`
+        : me?.language === 'fr'
+        ? `La description du membre ne peut pas dépasser ${LIMITS.MEMBER_DESCRIPTION} caractères`
+        : me?.language === 'zh-TW'
+        ? `成員描述不能超過 ${LIMITS.MEMBER_DESCRIPTION} 字`
+        : `成员描述不能超过 ${LIMITS.MEMBER_DESCRIPTION} 字`,
+    botNameTooLong:
+      me?.language === 'en'
+        ? `Bot name cannot exceed ${LIMITS.BOT_NAME} characters`
+        : me?.language === 'fr'
+        ? `Le nom du robot ne peut pas dépasser ${LIMITS.BOT_NAME} caractères`
+        : me?.language === 'zh-TW'
+        ? `機器人名稱不能超過 ${LIMITS.BOT_NAME} 字`
+        : `机器人名称不能超过 ${LIMITS.BOT_NAME} 字`,
+    botSettingKeyTooLong:
+      me?.language === 'en'
+        ? `Bot setting key cannot exceed ${LIMITS.BOT_SETTING_KEY} characters`
+        : me?.language === 'fr'
+        ? `La clé du paramètre du robot ne peut pas dépasser ${LIMITS.BOT_SETTING_KEY} caractères`
+        : me?.language === 'zh-TW'
+        ? `機器人設定鍵不能超過 ${LIMITS.BOT_SETTING_KEY} 字`
+        : `机器人设定键不能超过 ${LIMITS.BOT_SETTING_KEY} 字`,
+    botSettingValueTooLong:
+      me?.language === 'en'
+        ? `Bot setting value cannot exceed ${LIMITS.BOT_SETTING_VALUE} characters`
+        : me?.language === 'fr'
+        ? `La valeur du paramètre du robot ne peut pas dépasser ${LIMITS.BOT_SETTING_VALUE} caractères`
+        : me?.language === 'zh-TW'
+        ? `機器人設定值不能超過 ${LIMITS.BOT_SETTING_VALUE} 字`
+        : `机器人设定值不能超过 ${LIMITS.BOT_SETTING_VALUE} 字`,
+    botOtherTooLong:
+      me?.language === 'en'
+        ? `Bot extra content cannot exceed ${LIMITS.BOT_OTHER_CONTENT} characters`
+        : me?.language === 'fr'
+        ? `Le contenu supplémentaire du robot ne peut pas dépasser ${LIMITS.BOT_OTHER_CONTENT} caractères`
+        : me?.language === 'zh-TW'
+        ? `機器人的其他內容不能超過 ${LIMITS.BOT_OTHER_CONTENT} 字`
+        : `机器人的其他内容不能超过 ${LIMITS.BOT_OTHER_CONTENT} 字`,
+    botSettingsTooMany:
+      me?.language === 'en'
+        ? `Bot settings cannot exceed ${LIMITS.BOT_SETTINGS_ITEMS} items`
+        : me?.language === 'fr'
+        ? `Les paramètres du robot ne peuvent pas dépasser ${LIMITS.BOT_SETTINGS_ITEMS} éléments`
+        : me?.language === 'zh-TW'
+        ? `機器人設定不能超過 ${LIMITS.BOT_SETTINGS_ITEMS} 條`
+        : `机器人设定不能超过 ${LIMITS.BOT_SETTINGS_ITEMS} 条`,
     dormNameRequired:
       me?.language === 'en'
         ? 'Dorm name cannot be empty'
@@ -1098,14 +1380,16 @@ export default function LegacyDormApp() {
     const lang = me?.language || 'zh-CN';
     return liveMessages.map((msg) => {
       const isStatusMessage = Boolean(parseStatusSystemMessage(msg.content));
+      const isBotMessage = Boolean(me?.botId && msg.userId === me.botId);
       return {
         ...msg,
         isStatusMessage,
+        isBotMessage,
         localizedContent: localizeServerText(lang, msg.content),
-        avatar: memberAvatarMap.get(msg.userId) || resolveAvatar(null, msg.userId),
+        avatar: isBotMessage ? resolveAvatar(me?.botAvatarPath, msg.userId) : memberAvatarMap.get(msg.userId) || resolveAvatar(null, msg.userId),
       };
     });
-  }, [liveMessages, me?.language, memberAvatarMap]);
+  }, [liveMessages, me?.botAvatarPath, me?.botId, me?.language, memberAvatarMap]);
 
   const monthTotal = useMemo(() => {
     return billsRows.filter((item) => isThisMonth(item.createdAt)).reduce((sum, item) => sum + item.total, 0);
@@ -1201,16 +1485,80 @@ export default function LegacyDormApp() {
 
   const sendChatMutation = useMutation({
     mutationFn: () => {
-      if (!chatInput.trim()) throw new Error(eText.messageRequired);
+      const trimmed = chatInput.trim();
+      if (!trimmed) throw new Error(eText.messageRequired);
+      if (trimmed.length > LIMITS.CHAT_USER_CONTENT) {
+        dispatchToast('error', eText.messageTooLong);
+        throw new Error(eText.messageTooLong);
+      }
       return apiRequest('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ content: chatInput }),
+        body: JSON.stringify({ content: trimmed }),
       });
     },
     onSuccess: () => {
       setChatInput('');
     },
   });
+
+  const onChatInputKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.nativeEvent.isComposing) return;
+      if (event.key !== 'Enter') return;
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const target = event.currentTarget;
+        const start = target.selectionStart ?? chatInput.length;
+        const end = target.selectionEnd ?? chatInput.length;
+        const next = `${chatInput.slice(0, start)}\n${chatInput.slice(end)}`;
+        tryApplyLimitedInput('chat_input', next, LIMITS.CHAT_USER_CONTENT, eText.messageTooLong, (safeValue) => {
+          setChatInput(safeValue);
+          requestAnimationFrame(() => {
+            target.selectionStart = start + 1;
+            target.selectionEnd = start + 1;
+          });
+        });
+        return;
+      }
+      event.preventDefault();
+      sendChatMutation.mutate();
+    },
+    [chatInput, eText.messageTooLong, sendChatMutation, tryApplyLimitedInput],
+  );
+
+  const syncSeenNewChatHint = useCallback(() => {
+    const container = chatScrollRef.current;
+    if (!container) return;
+    const pending = pendingNewChatIdsRef.current;
+    if (pending.size === 0) return;
+    const viewportBottom = container.scrollTop + container.clientHeight;
+    const seenIds: number[] = [];
+    pending.forEach((id) => {
+      const node = chatMessageRefs.current[id];
+      if (!node) return;
+      const top = node.offsetTop;
+      if (top <= viewportBottom - 8) {
+        seenIds.push(id);
+      }
+    });
+    if (seenIds.length === 0) return;
+    for (const id of seenIds) {
+      pending.delete(id);
+    }
+    setNewChatHintCount(pending.size);
+  }, []);
+
+  const jumpToFirstNewChat = useCallback(() => {
+    const pendingIds = [...pendingNewChatIdsRef.current].sort((a, b) => a - b);
+    if (pendingIds.length === 0) return;
+    const firstId = pendingIds[0];
+    const node = chatMessageRefs.current[firstId];
+    if (!node) return;
+    node.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setTimeout(() => {
+      syncSeenNewChatHint();
+    }, 180);
+  }, [syncSeenNewChatHint]);
 
   const updateProfileMutation = useMutation({
     mutationFn: (payload: { name: string; language: LanguageCode }) =>
@@ -1237,6 +1585,50 @@ export default function LegacyDormApp() {
     },
     onSuccess: (_, dormName) => {
       lastSyncedDormNameRef.current = dormName.trim();
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+
+  const updateBotMutation = useMutation({
+    mutationFn: (botName: string) =>
+      apiRequest<{ name: string; avatarPath: string | null }>('/api/dorm/bot', {
+        method: 'PUT',
+        body: JSON.stringify({ name: botName }),
+      }),
+    onSuccess: (_, botName) => {
+      lastSyncedBotNameRef.current = botName.trim();
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+
+  const updateBotSettingsMutation = useMutation({
+    mutationFn: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string }) =>
+      apiRequest<{ settings: Array<{ key: string; value: string }>; otherContent: string }>('/api/dorm/bot/settings', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_, payload) => {
+      const normalized = payload.settings
+        .map((item) => ({ key: item.key.trim(), value: item.value }))
+        .filter((item) => item.key.length > 0);
+      lastSyncedBotSettingsRef.current = normalized;
+      lastSyncedBotOtherContentRef.current = payload.otherContent.trim();
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+
+  const updateDescriptionsMutation = useMutation({
+    mutationFn: (items: Array<{ userId: number; description: string }>) =>
+      apiRequest<{ success: true }>('/api/users/descriptions', {
+        method: 'PUT',
+        body: JSON.stringify({ items }),
+      }),
+    onSuccess: (_, items) => {
+      const next = { ...lastSyncedMemberDescriptionsRef.current };
+      for (const item of items) {
+        next[item.userId] = item.description;
+      }
+      lastSyncedMemberDescriptionsRef.current = next;
       queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });
@@ -1269,6 +1661,26 @@ export default function LegacyDormApp() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] });
       setAvatarFile(null);
+    },
+  });
+
+  const uploadBotAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const response = await fetch('/api/dorm/bot/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message || eText.avatarUploadFailed);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+      setBotAvatarFile(null);
     },
   });
 
@@ -1317,7 +1729,7 @@ export default function LegacyDormApp() {
   });
 
   const autoReadByTypeMutation = useMutation({
-    mutationFn: (type: 'chat' | 'bill' | 'duty') =>
+    mutationFn: (type: 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader') =>
       apiRequest('/api/notifications/batch', {
         method: 'POST',
         body: JSON.stringify({
@@ -1393,10 +1805,57 @@ export default function LegacyDormApp() {
     updateDormMutation.mutate(nextDormName);
   }, [dormNameInput, me?.isLeader, updateDormMutation]);
 
+  const saveBotNow = useCallback(() => {
+    if (!me?.isLeader || updateBotMutation.isPending) return;
+    const synced = lastSyncedBotNameRef.current;
+    const trimmed = botNameInput.trim();
+    const nextBotName = trimmed || synced;
+    if (!nextBotName || nextBotName === synced) return;
+    if (!trimmed) {
+      setBotNameInput(synced);
+    }
+    updateBotMutation.mutate(nextBotName);
+  }, [botNameInput, me?.isLeader, updateBotMutation]);
+
+  const saveBotSettingsNow = useCallback(() => {
+    if (!me?.isLeader || updateBotSettingsMutation.isPending) return;
+    const otherContent = botOtherContent.trim();
+    if (otherContent.length > LIMITS.BOT_OTHER_CONTENT) return;
+    const normalized = botSettingsInput
+      .map((item) => ({ key: item.key.trim(), value: item.value }))
+      .filter((item) => item.key.length > 0);
+    const old = JSON.stringify(lastSyncedBotSettingsRef.current);
+    const next = JSON.stringify(normalized);
+    const syncedOtherContent = lastSyncedBotOtherContentRef.current;
+    if (old === next && otherContent === syncedOtherContent) return;
+    updateBotSettingsMutation.mutate({ settings: normalized, otherContent });
+  }, [botOtherContent, botSettingsInput, me?.isLeader, updateBotSettingsMutation]);
+
+  const saveMemberDescriptionsNow = useCallback(() => {
+    if (!me || updateDescriptionsMutation.isPending) return;
+    const current = memberDescriptionsInput;
+    const synced = lastSyncedMemberDescriptionsRef.current;
+    const baseMembers = me.members || [];
+    const targetMembers = me.isLeader ? baseMembers : baseMembers.filter((member) => member.id === me.id);
+    const changed = targetMembers
+      .map((member) => ({
+        userId: member.id,
+        description: (current[member.id] || '').trim(),
+      }))
+      .filter((item) => (synced[item.userId] || '') !== item.description);
+    if (changed.length === 0) return;
+    updateDescriptionsMutation.mutate(changed);
+  }, [me, memberDescriptionsInput, updateDescriptionsMutation]);
+
   const saveAvatarNow = useCallback(() => {
     if (!avatarFile || uploadAvatarMutation.isPending) return;
     uploadAvatarMutation.mutate(avatarFile);
   }, [avatarFile, uploadAvatarMutation]);
+
+  const saveBotAvatarNow = useCallback(() => {
+    if (!botAvatarFile || uploadBotAvatarMutation.isPending) return;
+    uploadBotAvatarMutation.mutate(botAvatarFile);
+  }, [botAvatarFile, uploadBotAvatarMutation]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !me) return;
@@ -1442,6 +1901,68 @@ export default function LegacyDormApp() {
   }, [activeTab, dormNameInput, me?.isLeader, saveDormNow]);
 
   useEffect(() => {
+    if (activeTab !== 'settings' || !me?.isLeader) return;
+    const synced = lastSyncedBotNameRef.current;
+    const nextBotName = botNameInput.trim() || synced;
+    if (!nextBotName || nextBotName === synced) return;
+
+    if (botSaveTimerRef.current) {
+      clearTimeout(botSaveTimerRef.current);
+    }
+    botSaveTimerRef.current = setTimeout(() => {
+      saveBotNow();
+    }, 900);
+
+    return () => {
+      if (botSaveTimerRef.current) {
+        clearTimeout(botSaveTimerRef.current);
+        botSaveTimerRef.current = null;
+      }
+    };
+  }, [activeTab, botNameInput, me?.isLeader, saveBotNow]);
+
+  useEffect(() => {
+    if (activeTab !== 'settings' || !me?.isLeader) return;
+    if (botSettingsSaveTimerRef.current) {
+      clearTimeout(botSettingsSaveTimerRef.current);
+    }
+    botSettingsSaveTimerRef.current = setTimeout(() => {
+      saveBotSettingsNow();
+    }, 900);
+
+    return () => {
+      if (botSettingsSaveTimerRef.current) {
+        clearTimeout(botSettingsSaveTimerRef.current);
+        botSettingsSaveTimerRef.current = null;
+      }
+    };
+  }, [activeTab, botOtherContent, botSettingsInput, me?.isLeader, saveBotSettingsNow]);
+
+  useEffect(() => {
+    if (!botOtherEditing) return;
+    const el = botOtherTextareaRef.current;
+    if (!el) return;
+    autoResizeTextarea(el);
+    el.focus();
+  }, [botOtherEditing]);
+
+  useEffect(() => {
+    if (activeTab !== 'settings' || !me) return;
+    if (memberDescriptionsSaveTimerRef.current) {
+      clearTimeout(memberDescriptionsSaveTimerRef.current);
+    }
+    memberDescriptionsSaveTimerRef.current = setTimeout(() => {
+      saveMemberDescriptionsNow();
+    }, 900);
+    return () => {
+      if (memberDescriptionsSaveTimerRef.current) {
+        clearTimeout(memberDescriptionsSaveTimerRef.current);
+        memberDescriptionsSaveTimerRef.current = null;
+      }
+    };
+  }, [activeTab, me, memberDescriptionsInput, saveMemberDescriptionsNow]);
+
+  useEffect(() => {
     if (activeTab !== 'settings' || !avatarFile) return;
     if (avatarSaveTimerRef.current) {
       clearTimeout(avatarSaveTimerRef.current);
@@ -1459,6 +1980,23 @@ export default function LegacyDormApp() {
   }, [activeTab, avatarFile, saveAvatarNow]);
 
   useEffect(() => {
+    if (activeTab !== 'settings' || !botAvatarFile || !me?.isLeader) return;
+    if (botAvatarSaveTimerRef.current) {
+      clearTimeout(botAvatarSaveTimerRef.current);
+    }
+    botAvatarSaveTimerRef.current = setTimeout(() => {
+      saveBotAvatarNow();
+    }, 1200);
+
+    return () => {
+      if (botAvatarSaveTimerRef.current) {
+        clearTimeout(botAvatarSaveTimerRef.current);
+        botAvatarSaveTimerRef.current = null;
+      }
+    };
+  }, [activeTab, botAvatarFile, me?.isLeader, saveBotAvatarNow]);
+
+  useEffect(() => {
     if (lastActiveTabRef.current === 'settings' && activeTab !== 'settings') {
       if (profileSaveTimerRef.current) {
         clearTimeout(profileSaveTimerRef.current);
@@ -1468,20 +2006,67 @@ export default function LegacyDormApp() {
         clearTimeout(dormSaveTimerRef.current);
         dormSaveTimerRef.current = null;
       }
+      if (botSaveTimerRef.current) {
+        clearTimeout(botSaveTimerRef.current);
+        botSaveTimerRef.current = null;
+      }
+      if (botSettingsSaveTimerRef.current) {
+        clearTimeout(botSettingsSaveTimerRef.current);
+        botSettingsSaveTimerRef.current = null;
+      }
+      if (memberDescriptionsSaveTimerRef.current) {
+        clearTimeout(memberDescriptionsSaveTimerRef.current);
+        memberDescriptionsSaveTimerRef.current = null;
+      }
       if (avatarSaveTimerRef.current) {
         clearTimeout(avatarSaveTimerRef.current);
         avatarSaveTimerRef.current = null;
       }
+      if (botAvatarSaveTimerRef.current) {
+        clearTimeout(botAvatarSaveTimerRef.current);
+        botAvatarSaveTimerRef.current = null;
+      }
       saveProfileNow();
       saveDormNow();
+      saveBotNow();
+      saveBotSettingsNow();
+      saveMemberDescriptionsNow();
       saveAvatarNow();
+      saveBotAvatarNow();
     }
     lastActiveTabRef.current = activeTab;
-  }, [activeTab, saveAvatarNow, saveDormNow, saveProfileNow]);
+  }, [activeTab, saveAvatarNow, saveBotAvatarNow, saveBotNow, saveBotSettingsNow, saveDormNow, saveMemberDescriptionsNow, saveProfileNow]);
 
   useEffect(() => {
     if (activeTab === 'chat') {
       chatAutoScrolledRef.current = false;
+      requestAnimationFrame(() => {
+        const container = chatScrollRef.current;
+        if (!container) return;
+        const nearBottom = isChatNearBottom(container);
+        chatAtBottomRef.current = nearBottom;
+        if (nearBottom && pendingNewChatIdsRef.current.size > 0) {
+          pendingNewChatIdsRef.current.clear();
+          setNewChatHintCount(0);
+          return;
+        }
+        const pending = pendingNewChatIdsRef.current;
+        if (pending.size === 0) return;
+        const viewportBottom = container.scrollTop + container.clientHeight;
+        const seenIds: number[] = [];
+        pending.forEach((id) => {
+          const node = chatMessageRefs.current[id];
+          if (!node) return;
+          if (node.offsetTop <= viewportBottom - 8) {
+            seenIds.push(id);
+          }
+        });
+        if (seenIds.length === 0) return;
+        for (const id of seenIds) {
+          pending.delete(id);
+        }
+        setNewChatHintCount(pending.size);
+      });
     }
   }, [activeTab]);
 
@@ -1498,6 +2083,12 @@ export default function LegacyDormApp() {
     }
     if (activeTab === 'duty') {
       autoReadByTypeMutation.mutate('duty');
+      return;
+    }
+    if (activeTab === 'settings') {
+      autoReadByTypeMutation.mutate('settings');
+      autoReadByTypeMutation.mutate('dorm');
+      autoReadByTypeMutation.mutate('leader');
     }
   }, [activeTab, autoReadByTypeMutation]);
 
@@ -1509,8 +2100,20 @@ export default function LegacyDormApp() {
       if (dormSaveTimerRef.current) {
         clearTimeout(dormSaveTimerRef.current);
       }
+      if (botSaveTimerRef.current) {
+        clearTimeout(botSaveTimerRef.current);
+      }
+      if (botSettingsSaveTimerRef.current) {
+        clearTimeout(botSettingsSaveTimerRef.current);
+      }
+      if (memberDescriptionsSaveTimerRef.current) {
+        clearTimeout(memberDescriptionsSaveTimerRef.current);
+      }
       if (avatarSaveTimerRef.current) {
         clearTimeout(avatarSaveTimerRef.current);
+      }
+      if (botAvatarSaveTimerRef.current) {
+        clearTimeout(botAvatarSaveTimerRef.current);
       }
     },
     [],
@@ -1613,7 +2216,14 @@ export default function LegacyDormApp() {
   const onChatListScroll = useCallback(async (event: React.UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
     const nearTop = el.scrollTop <= 80;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
+    const nearBottom = isChatNearBottom(el);
+    chatAtBottomRef.current = nearBottom;
+    if (nearBottom && pendingNewChatIdsRef.current.size > 0) {
+      pendingNewChatIdsRef.current.clear();
+      setNewChatHintCount(0);
+    } else {
+      syncSeenNewChatHint();
+    }
 
     if (chatWindowMode) {
       if (nearTop && chatHasOlder && chatOlderCursor && !chatLoadingOlderRef.current) {
@@ -1663,7 +2273,7 @@ export default function LegacyDormApp() {
       };
       await chatQuery.fetchNextPage();
     }
-  }, [chatHasNewer, chatHasOlder, chatNewerCursor, chatOlderCursor, chatQuery, chatWindowMode]);
+  }, [chatHasNewer, chatHasOlder, chatNewerCursor, chatOlderCursor, chatQuery, chatWindowMode, syncSeenNewChatHint]);
 
 
   const dormName = me?.dormName || t.dormTitle;
@@ -2132,7 +2742,7 @@ export default function LegacyDormApp() {
           )}
 
           {activeTab === 'chat' && (
-            <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl">
+            <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl relative">
               <div className="p-6 border-b border-slate-200/20 flex items-center justify-between bg-white/10">
                 <h2 className="font-black text-lg">{dormName} {t.chatRoom}</h2>
                 {lastPositionChatId && unreadChatCount > 20 ? (
@@ -2170,7 +2780,24 @@ export default function LegacyDormApp() {
                         )}
                         <div className={`max-w-[70%] p-4 rounded-3xl shadow-sm ${msg.userId === meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}>
                           <p className="text-xs text-muted mb-1">{msg.userName}</p>
-                          <p className="text-sm font-medium leading-relaxed">{msg.localizedContent}</p>
+                          {msg.isBotMessage ? (
+                            <div className="bot-markdown text-sm leading-relaxed">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  a: ({ children, href }) => (
+                                    <a href={href} target="_blank" rel="noreferrer" className="underline font-bold">
+                                      {children}
+                                    </a>
+                                  ),
+                                }}
+                              >
+                                {msg.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
+                          )}
                         </div>
                       </div>
                     )}
@@ -2178,9 +2805,32 @@ export default function LegacyDormApp() {
                 ))}
                 <div ref={chatEndRef} />
               </div>
+              {newChatHintCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={jumpToFirstNewChat}
+                  className="absolute right-5 bottom-24 z-20 flex flex-col items-center group"
+                  aria-label="new chat messages"
+                >
+                  <span className="w-12 h-12 rounded-full accent-bg text-white font-black text-sm flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform">
+                    {newChatHintCount > 99 ? '99+' : newChatHintCount}
+                  </span>
+                  <span className="w-0 h-0 border-l-[9px] border-r-[9px] border-t-[13px] border-l-transparent border-r-transparent border-t-[var(--accent)] -mt-[2px]" />
+                </button>
+              ) : null}
               <div className="p-4 bg-white/20 border-t border-slate-200/20">
                 <div className="flex gap-3">
-                  <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendChatMutation.mutate()} className="flex-1 p-4 rounded-2xl glass-card custom-field outline-none focus:accent-border font-medium" placeholder={t.inputMessage} />
+                  <textarea
+                    ref={chatInputRef}
+                    value={chatInput}
+                    onChange={(e) =>
+                      tryApplyLimitedInput('chat_input', e.target.value, LIMITS.CHAT_USER_CONTENT, eText.messageTooLong, setChatInput)
+                    }
+                    onKeyDown={onChatInputKeyDown}
+                    rows={2}
+                    className="flex-1 p-4 rounded-2xl glass-card custom-field outline-none focus:accent-border font-medium resize-none min-h-[58px] leading-6"
+                    placeholder={t.inputMessage}
+                  />
                   <button onClick={() => sendChatMutation.mutate()} className="p-4 accent-bg rounded-2xl shadow-lg hover:scale-105 transition-transform"><Send className="w-6 h-6" /></button>
                 </div>
               </div>
@@ -2270,7 +2920,15 @@ export default function LegacyDormApp() {
               <div className="glass-card sleep-depth-mid p-8 rounded-2xl h-fit">
                 <h3 className="text-xl font-black mb-6">{t.quickBill}</h3>
                 <div className="space-y-4">
-                  <input type="text" value={billDescription} onChange={(e) => setBillDescription(e.target.value)} className="w-full p-4 rounded-2xl glass-card custom-field outline-none focus:accent-border font-bold" placeholder={t.billDesc} />
+                  <input
+                    type="text"
+                    value={billDescription}
+                    onChange={(e) =>
+                      tryApplyLimitedInput('bill_description', e.target.value, LIMITS.BILL_DESCRIPTION, eText.billDescTooLong, setBillDescription)
+                    }
+                    className="w-full p-4 rounded-2xl glass-card custom-field outline-none focus:accent-border font-bold"
+                    placeholder={t.billDesc}
+                  />
                   <input type="number" value={billTotal} onChange={(e) => setBillTotal(e.target.value)} className="w-full p-4 rounded-2xl glass-card custom-field outline-none focus:accent-border font-bold" placeholder={`${t.billAmount} ¥`} />
                   <select value={billCategory} onChange={(e) => setBillCategory(e.target.value)} className="w-full p-4 rounded-2xl glass-card custom-field outline-none">
                     {BILL_CATEGORIES.map((category) => (
@@ -2280,7 +2938,21 @@ export default function LegacyDormApp() {
                     ))}
                   </select>
                   {billCategory === BILL_CATEGORY_CUSTOM ? (
-                    <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full p-4 rounded-2xl glass-card custom-field outline-none" placeholder={t.customCategory} />
+                    <input
+                      type="text"
+                      value={customCategory}
+                      onChange={(e) =>
+                        tryApplyLimitedInput(
+                          'custom_category',
+                          e.target.value,
+                          LIMITS.BILL_CUSTOM_CATEGORY,
+                          eText.customCategoryTooLong,
+                          setCustomCategory,
+                        )
+                      }
+                      className="w-full p-4 rounded-2xl glass-card custom-field outline-none"
+                      placeholder={t.customCategory}
+                    />
                   ) : null}
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {(me?.members || []).map((member) => (
@@ -2440,19 +3112,19 @@ export default function LegacyDormApp() {
           )}
 
           {activeTab === 'settings' && (
-            <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <section className="lg:col-span-2 glass-card sleep-depth-mid rounded-3xl p-8">
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 items-start">
+            <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-9">
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 md:gap-10 items-center">
                   <div className="flex flex-col items-center text-center">
-                    <div className="relative w-44 h-44">
-                      <div className="w-44 h-44 rounded-full overflow-hidden ring-4 ring-white/40 shadow-2xl">
+                    <div className="relative w-36 h-36 md:w-40 md:h-40">
+                      <div className="w-full h-full rounded-full overflow-hidden ring-4 ring-white/40 shadow-2xl">
                         <img src={resolveAvatar(me?.avatarPath, meId || 0)} alt={t.userInfo} className="w-full h-full object-cover" />
                       </div>
                       <button
                         type="button"
                         title={changeAvatarTitle}
                         onClick={() => avatarInputRef.current?.click()}
-                        className="absolute right-1 bottom-1 w-11 h-11 rounded-full accent-bg shadow-xl flex items-center justify-center border-2 border-white/70"
+                        className="absolute right-1 bottom-1 w-10 h-10 rounded-full accent-bg shadow-xl flex items-center justify-center border-2 border-white/70"
                       >
                         <Camera className="w-5 h-5 text-white" />
                       </button>
@@ -2464,53 +3136,305 @@ export default function LegacyDormApp() {
                       accept="image/png,image/jpeg,image/webp"
                       onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
                     />
-                    <p className="mt-4 text-xl font-black">{name || '-'}</p>
-                    <p className="text-sm text-muted">{me?.email || '-'}</p>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <h4 className="font-black text-xl">{t.userInfo}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <input className="w-full p-3 rounded-xl glass-card custom-field" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.nickname} />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+                      <input
+                        className="w-full p-3 rounded-xl glass-card custom-field"
+                        value={name}
+                        onChange={(e) => tryApplyLimitedInput('user_name', e.target.value, LIMITS.USER_NAME, eText.nameTooLong, setName)}
+                        placeholder={t.nickname}
+                      />
                       <select className="w-full p-3 rounded-xl glass-card custom-field" value={language} onChange={(e) => setLanguage(e.target.value as LanguageCode)}>
                         {LANG_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
+                      <div className="glass-card rounded-xl px-4 py-3 lg:col-span-2">
+                        <p className="text-[11px] text-muted font-bold mb-1">Email</p>
+                        <p className="font-black break-all">{me?.email || '-'}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </section>
 
-              <div className="space-y-6">
-                <section className="glass-card sleep-depth-deep rounded-3xl p-6 space-y-4">
-                  <h4 className="font-black text-lg">{t.dormInfo}</h4>
-                  <div className="glass-card rounded-2xl p-4">
-                    <p className="text-xs text-muted mb-2">{t.inviteCodeLabel}</p>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-black tracking-[0.2em] text-base">{me?.inviteCode || '-'}</span>
-                      <button onClick={copyInviteCode} className="glass-card px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1">
-                        <Copy className="w-4 h-4" />
-                        {t.copy}
-                      </button>
+              <section className="glass-card sleep-depth-deep rounded-3xl p-7 md:p-8 space-y-6">
+                <h4 className="font-black text-lg">{t.dormInfo}</h4>
+                <div className="glass-card rounded-2xl px-5 py-5 md:py-6 w-[96%] md:w-[92%] mx-auto">
+                  <p className="text-xs text-muted mb-2">{t.inviteCodeLabel}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-black tracking-[0.2em] text-base">{me?.inviteCode || '-'}</span>
+                    <button onClick={copyInviteCode} className="glass-card px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1">
+                      <Copy className="w-4 h-4" />
+                      {t.copy}
+                    </button>
+                  </div>
+                </div>
+                {me?.isLeader ? (
+                  <input
+                    className="w-[96%] md:w-[92%] mx-auto block p-4 min-h-[56px] rounded-xl glass-card custom-field text-[15px] placeholder:text-[14px]"
+                    value={dormNameInput}
+                    onChange={(e) =>
+                      tryApplyLimitedInput('dorm_name', e.target.value, LIMITS.DORM_NAME, eText.dormNameTooLong, setDormNameInput)
+                    }
+                    placeholder={t.dormName}
+                  />
+                ) : (
+                  <div className="glass-card rounded-xl px-5 py-5 md:py-6 w-[96%] md:w-[92%] mx-auto">
+                    <p className="text-[11px] text-muted font-bold mb-1">{t.dormName}</p>
+                    <p className="font-black break-all">{dormNameInput || '-'}</p>
+                  </div>
+                )}
+
+                {me?.isLeader ? (
+                  <div className="pt-3 border-t border-slate-200/20 space-y-4">
+                    <select className="w-[96%] md:w-[92%] mx-auto block p-4 min-h-[56px] rounded-xl glass-card custom-field text-[15px]" value={targetLeaderId || ''} onChange={(e) => setTargetLeaderId(Number(e.target.value))}>
+                      {(me?.members || []).filter((item) => !item.isLeader).map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => transferMutation.mutate()} className="glass-card px-4 py-4 min-h-[56px] rounded-xl font-bold w-[96%] md:w-[92%] mx-auto block text-rose-500 text-[15px]">{t.transferLeader}</button>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-8 space-y-6">
+                <h4 className="font-black text-lg">{memberDescLabel}</h4>
+                {me?.isLeader ? (
+                  <div className="space-y-6">
+                    {(me?.members || []).map((member) => (
+                      <div key={`desc-${member.id}`} className="py-4 border-b border-slate-200/20 last:border-b-0">
+                        <div className="flex items-center gap-4 mb-4">
+                          <img src={resolveAvatar(member.avatarPath, member.id)} className="w-8 h-8 rounded-full" alt={member.name} />
+                          <p className="font-bold text-sm">
+                            {member.name}
+                            {member.isLeader ? (
+                              <span className="ml-2 text-[10px] font-black accent-bg px-1.5 py-0.5 rounded-md">{t.leaderTag}</span>
+                            ) : null}
+                          </p>
+                        </div>
+                        <textarea
+                          className="w-[96%] md:w-[92%] mx-auto block p-4 min-h-[72px] rounded-xl glass-card custom-field resize-none overflow-hidden text-[15px] placeholder:text-[14px] leading-7"
+                          value={memberDescriptionsInput[member.id] || ''}
+                          placeholder={memberDescPlaceholder}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            const accepted = tryApplyLimitedInput(
+                              `member_desc_${member.id}`,
+                              nextValue,
+                              LIMITS.MEMBER_DESCRIPTION,
+                              eText.memberDescriptionTooLong,
+                              (safeValue) => setMemberDescriptionsInput((prev) => ({ ...prev, [member.id]: safeValue })),
+                            );
+                            if (!accepted) return;
+                            autoResizeTextarea(event.target);
+                          }}
+                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                          onFocus={(event) => autoResizeTextarea(event.currentTarget)}
+                          onBlur={(event) => resetTextareaHeight(event.currentTarget)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <textarea
+                    className="w-[96%] md:w-[92%] mx-auto block p-4 min-h-[72px] rounded-xl glass-card custom-field resize-none overflow-hidden text-[15px] placeholder:text-[14px] leading-7"
+                    value={memberDescriptionsInput[me?.id || 0] || ''}
+                    placeholder={memberDescPlaceholder}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      const meIdLocal = me?.id || 0;
+                      const accepted = tryApplyLimitedInput(
+                        `member_desc_${meIdLocal}`,
+                        nextValue,
+                        LIMITS.MEMBER_DESCRIPTION,
+                        eText.memberDescriptionTooLong,
+                        (safeValue) => setMemberDescriptionsInput((prev) => ({ ...prev, [meIdLocal]: safeValue })),
+                      );
+                      if (!accepted) return;
+                      autoResizeTextarea(event.target);
+                    }}
+                    onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                    onFocus={(event) => autoResizeTextarea(event.currentTarget)}
+                    onBlur={(event) => resetTextareaHeight(event.currentTarget)}
+                  />
+                )}
+              </section>
+
+              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-8">
+                  <h4 className="font-black text-lg mb-4">{botLabel}</h4>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-[auto_1fr] gap-8 md:gap-10 items-center">
+                      <div className="relative w-20 h-20">
+                        <div className="w-full h-full rounded-full overflow-hidden ring-2 ring-white/40 shadow-lg">
+                          <img src={resolveAvatar(me?.botAvatarPath, -999)} className="w-full h-full object-cover" alt={botLabel} />
+                        </div>
+                        {me?.isLeader ? (
+                          <button
+                            type="button"
+                            title={changeBotAvatarTitle}
+                            onClick={() => botAvatarInputRef.current?.click()}
+                            className="absolute -right-0.5 -bottom-0.5 z-20 w-7 h-7 rounded-full accent-bg flex items-center justify-center border border-white/70 shadow-xl"
+                          >
+                            <Camera className="w-4 h-4 text-white" />
+                          </button>
+                        ) : null}
+                      </div>
+                      <input
+                        className="w-full max-w-[560px] p-4 min-h-[56px] rounded-xl custom-field text-[15px] placeholder:text-[14px]"
+                        value={botNameInput}
+                        onChange={(e) =>
+                          tryApplyLimitedInput('bot_name', e.target.value, LIMITS.BOT_NAME, eText.botNameTooLong, setBotNameInput)
+                        }
+                        placeholder={botNamePlaceholder}
+                        disabled={!me?.isLeader}
+                      />
+                    </div>
+
+                    <div className="pt-5 border-t border-slate-200/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-muted font-bold">{botSettingsLabel}</p>
+                        {me?.isLeader ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setBotSettingsInput((prev) => {
+                                if (prev.length >= LIMITS.BOT_SETTINGS_ITEMS) {
+                                  dispatchToast('error', eText.botSettingsTooMany);
+                                  return prev;
+                                }
+                                return [...prev, { key: '', value: '' }];
+                              })
+                            }
+                            title={addFieldLabel}
+                            aria-label={addFieldLabel}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center border border-slate-300/40 hover:bg-slate-100/10 custom-field bot-kv-btn"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="space-y-4">
+                        {botSettingsInput.map((row, index) => (
+                          me?.isLeader ? (
+                            <div key={`bot-setting-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-center">
+                              <input
+                                className="w-[92%] justify-self-center min-w-0 p-3 min-h-[50px] rounded-lg glass-card custom-field bot-kv-field text-[15px] placeholder:text-[14px]"
+                                value={row.key}
+                                  onChange={(e) =>
+                                    tryApplyLimitedInput(
+                                      `bot_key_${index}`,
+                                      e.target.value,
+                                      LIMITS.BOT_SETTING_KEY,
+                                      eText.botSettingKeyTooLong,
+                                      (safeValue) =>
+                                        setBotSettingsInput((prev) =>
+                                          prev.map((item, i) => (i === index ? { ...item, key: safeValue } : item)),
+                                        ),
+                                    )
+                                  }
+                                placeholder={botSettingKeyLabel}
+                                disabled={!me?.isLeader}
+                              />
+                              <input
+                                className="w-[92%] justify-self-center min-w-0 p-3 min-h-[50px] rounded-lg glass-card custom-field bot-kv-field text-[15px] placeholder:text-[14px]"
+                                value={row.value}
+                                  onChange={(e) =>
+                                    tryApplyLimitedInput(
+                                      `bot_value_${index}`,
+                                      e.target.value,
+                                      LIMITS.BOT_SETTING_VALUE,
+                                      eText.botSettingValueTooLong,
+                                      (safeValue) =>
+                                        setBotSettingsInput((prev) =>
+                                          prev.map((item, i) => (i === index ? { ...item, value: safeValue } : item)),
+                                        ),
+                                    )
+                                  }
+                                placeholder={botSettingValueLabel}
+                                disabled={!me?.isLeader}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setBotSettingsInput((prev) => prev.filter((_, i) => i !== index))}
+                                title={removeFieldLabel}
+                                aria-label={removeFieldLabel}
+                                className="w-10 h-10 rounded-xl flex items-center justify-center text-rose-500 shrink-0 border border-rose-300/40 hover:bg-rose-500/10 custom-field bot-kv-btn"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div key={`bot-setting-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 items-center">
+                              <input className="w-[92%] justify-self-center min-w-0 p-3 min-h-[50px] rounded-lg glass-card custom-field bot-kv-field text-[15px] placeholder:text-[14px]" value={row.key} placeholder={botSettingKeyLabel} disabled />
+                              <input className="w-[92%] justify-self-center min-w-0 p-3 min-h-[50px] rounded-lg glass-card custom-field bot-kv-field text-[15px] placeholder:text-[14px]" value={row.value} placeholder={botSettingValueLabel} disabled />
+                            </div>
+                          )
+                        ))}
+                        {botSettingsInput.length === 0 ? (
+                          <p className="text-xs text-muted">{me?.language === 'en' ? 'No fields yet' : me?.language === 'fr' ? 'Aucun champ' : me?.language === 'zh-TW' ? '暫無欄位' : '暂无字段'}</p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="pt-5 border-t border-slate-200/20 space-y-3">
+                      <p className="text-[11px] text-muted font-bold">{botOtherContentLabel}</p>
+                      {me?.isLeader && botOtherEditing ? (
+                        <textarea
+                          ref={botOtherTextareaRef}
+                          className="w-full p-4 rounded-xl custom-field resize-none overflow-hidden text-[15px] placeholder:text-[14px] leading-7"
+                          value={botOtherContent}
+                          placeholder={botOtherContentPlaceholder}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                          if (nextValue.length > LIMITS.BOT_OTHER_CONTENT) {
+                            dispatchToast('error', eText.botOtherTooLong);
+                            return;
+                          }
+                            setBotOtherContent(nextValue);
+                            autoResizeTextarea(event.target);
+                          }}
+                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                          onFocus={(event) => autoResizeTextarea(event.currentTarget)}
+                          onBlur={(event) => {
+                            resetTextareaHeight(event.currentTarget);
+                            setBotOtherEditing(false);
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className={`w-full rounded-xl p-4 ${me?.isLeader ? 'cursor-text custom-field' : 'glass-card'} min-h-[112px]`}
+                          onClick={() => {
+                            if (!me?.isLeader) return;
+                            setBotOtherEditing(true);
+                          }}
+                        >
+                          {botOtherContent.trim() ? (
+                            <div className="bot-markdown text-[15px] leading-7">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{botOtherContent}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-muted text-[14px]">{botOtherContentPlaceholder}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <input className="w-full p-3 rounded-xl glass-card custom-field" value={dormNameInput} onChange={(e) => setDormNameInput(e.target.value)} placeholder={t.dormName} />
-
-                  {me?.isLeader ? (
-                    <div className="pt-4 border-t border-slate-200/20 space-y-3">
-                      <select className="w-full p-3 rounded-xl glass-card custom-field" value={targetLeaderId || ''} onChange={(e) => setTargetLeaderId(Number(e.target.value))}>
-                        {(me?.members || []).filter((item) => !item.isLeader).map((item) => (
-                          <option key={item.id} value={item.id}>{item.name}</option>
-                        ))}
-                      </select>
-                      <button onClick={() => transferMutation.mutate()} className="glass-card px-4 py-3 rounded-xl font-bold w-full text-rose-500">{t.transferLeader}</button>
-                    </div>
-                  ) : null}
+                  <input
+                    ref={botAvatarInputRef}
+                    className="hidden"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => setBotAvatarFile(e.target.files?.[0] || null)}
+                  />
                 </section>
 
-                <section className="glass-card sleep-depth-mid rounded-3xl p-6 space-y-3">
-                  <h4 className="font-black text-lg">{t.accountSecurity}</h4>
+              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-8 space-y-5">
+                <h4 className="font-black text-lg">{t.accountSecurity}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <button
                     onClick={() => {
                       if (typeof window !== 'undefined' && window.confirm(t.logoutConfirm)) {
@@ -2531,10 +3455,10 @@ export default function LegacyDormApp() {
                   >
                     {t.deleteAccount}
                   </button>
-                  {logoutMutation.error ? <p className="text-rose-500 text-sm">{(logoutMutation.error as Error).message}</p> : null}
-                  {deleteAccountMutation.error ? <p className="text-rose-500 text-sm">{(deleteAccountMutation.error as Error).message}</p> : null}
-                </section>
-              </div>
+                </div>
+                {logoutMutation.error ? <p className="text-rose-500 text-sm">{(logoutMutation.error as Error).message}</p> : null}
+                {deleteAccountMutation.error ? <p className="text-rose-500 text-sm">{(deleteAccountMutation.error as Error).message}</p> : null}
+              </section>
             </motion.div>
           )}
         </AnimatePresence>

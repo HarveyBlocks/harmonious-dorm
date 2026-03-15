@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { LIMITS } from '@/lib/limits';
 import type { CursorPage, SessionUser } from '@/lib/types';
 
 import { emitToDorm } from '@/lib/socket-server';
+import { replyByDormBotIfMentioned } from './chat-bot-service';
 import { ensureSessionUser } from './helpers';
 import { pushDormNotification } from './notification-service';
 
@@ -180,15 +182,19 @@ export async function findChatAnchorByTime(session: SessionUser, fromIso: string
 
 export async function sendChatMessage(session: SessionUser, content: string) {
   const user = await ensureSessionUser(session);
-  if (!content.trim()) {
+  const trimmed = content.trim();
+  if (!trimmed) {
     throw new ApiError(400, '消息不能为空');
+  }
+  if (trimmed.length > LIMITS.CHAT_USER_CONTENT) {
+    throw new ApiError(400, `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字`);
   }
 
   const message = await prisma.chatMessage.create({
     data: {
       dormId: session.dormId,
       userId: session.userId,
-      content: content.trim(),
+      content: trimmed,
     },
   });
 
@@ -207,10 +213,12 @@ export async function sendChatMessage(session: SessionUser, content: string) {
     type: 'chat',
     title: `${user.name} 发来新消息`,
     content: message.content.slice(0, 60),
-    targetPath: '/',
+    targetPath: '/chat',
     groupKey: 'chat',
     actorUserId: session.userId,
   });
+
+  await replyByDormBotIfMentioned(session, message.content);
 
   return payload;
 }

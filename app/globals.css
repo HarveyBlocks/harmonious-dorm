@@ -263,3 +263,130 @@ body {
   color: #f3f8ff !important;
   border-color: rgba(140, 174, 224, 0.42) !important;
 }
+
+.bot-kv-field {
+  background-color: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(15, 23, 42, 0.1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  outline: none;
+}
+
+.bot-kv-btn {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.bot-kv-field:focus {
+  border-color: var(--accent) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent 62%),
+    0 3px 8px rgba(15, 23, 42, 0.16);
+}
+
+.dark-mode .bot-kv-field {
+  background-color: rgba(10, 20, 36, 0.78) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 2px 6px rgba(2, 6, 23, 0.25);
+}
+
+.dark-mode .bot-kv-btn {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 2px 6px rgba(2, 6, 23, 0.28);
+}
+
+.dark-mode .bot-kv-field:focus {
+  border-color: #60a5fa !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 2px rgba(96, 165, 250, 0.35),
+    0 3px 8px rgba(2, 6, 23, 0.35);
+}
+
+.bot-markdown {
+  color: inherit;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.bot-markdown h1,
+.bot-markdown h2,
+.bot-markdown h3 {
+  margin: 0.2rem 0 0.55rem;
+  line-height: 1.25;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.bot-markdown h2 {
+  font-size: 0.98rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid rgba(79, 70, 229, 0.22);
+}
+
+.bot-markdown h3 {
+  font-size: 0.84rem;
+  color: color-mix(in srgb, var(--text-main) 70%, var(--accent) 30%);
+  margin-top: 0.65rem;
+}
+
+.bot-markdown p {
+  margin: 0.22rem 0;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--text-main) 86%, #ffffff 14%);
+}
+
+.bot-markdown ol,
+.bot-markdown ul {
+  margin: 0.32rem 0;
+  padding-left: 1.2rem;
+  list-style-position: outside;
+}
+
+.bot-markdown li {
+  margin: 0.28rem 0;
+  padding-left: 0.1rem;
+}
+
+.bot-markdown ol {
+  list-style-type: decimal;
+}
+
+.bot-markdown ul {
+  list-style-type: disc;
+}
+
+.bot-markdown ol > li::marker,
+.bot-markdown ul > li::marker {
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-main) 28%);
+  font-weight: 800;
+}
+
+.bot-markdown code {
+  border-radius: 0.35rem;
+  padding: 0.08rem 0.34rem;
+  background-color: color-mix(in srgb, var(--accent) 16%, #ffffff 84%);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent 76%);
+  color: color-mix(in srgb, var(--text-main) 88%, var(--accent) 12%);
+}
+
+.dark-mode .bot-markdown code {
+  background-color: rgba(96, 165, 250, 0.2);
+  color: #f8fbff;
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.dark-mode .bot-markdown h2 {
+  border-bottom-color: rgba(96, 165, 250, 0.35);
+}
+
+.dark-mode .bot-markdown h3 {
+  color: #c9def7;
+}
+
+.dark-mode .bot-markdown p {
+  color: #e6f0ff;
+}
+
+.dark-mode .bot-markdown ol > li::marker,
+.dark-mode .bot-markdown ul > li::marker {
+  color: #93c5fd;
+}

@@ -68,6 +68,7 @@ export async function pushDormNotification(input: {
     emitToDorm(dormId, 'notification:new', {
       id: notification.id,
       userId,
+      type: notification.type,
       title: notification.title,
       content: notification.content,
       targetPath: notification.targetPath,

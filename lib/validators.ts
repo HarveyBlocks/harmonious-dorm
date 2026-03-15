@@ -1,14 +1,15 @@
 import { z } from 'zod';
+import { LIMITS } from '@/lib/limits';
 
 export const loginInputSchema = z.object({
   email: z.string().trim().email('邮箱格式错误'),
-  name: z.string().trim().max(20, '昵称最多 20 字').optional(),
+  name: z.string().trim().max(LIMITS.USER_NAME, `昵称最多 ${LIMITS.USER_NAME} 字`).optional(),
   mode: z.enum(['login', 'register']).optional().default('login'),
   inviteCode: z.string().trim().max(16).optional(),
 });
 
 export const updateNameSchema = z.object({
-  name: z.string().trim().min(1, '昵称不能为空').max(20, '昵称最多 20 字').optional(),
+  name: z.string().trim().min(1, '昵称不能为空').max(LIMITS.USER_NAME, `昵称最多 ${LIMITS.USER_NAME} 字`).optional(),
   language: z.enum(['zh-CN', 'zh-TW', 'fr', 'en']).optional(),
 });
 
@@ -36,9 +37,9 @@ export const createBillSchema = z
       .finite('账单金额无效')
       .gt(0, '账单金额必须大于 0')
       .max(1000000, '账单金额不能超过 1000000'),
-    description: z.string().trim().max(120, '账单描述最多 120 字').optional().nullable(),
+    description: z.string().trim().max(LIMITS.BILL_DESCRIPTION, `账单描述最多 ${LIMITS.BILL_DESCRIPTION} 字`).optional().nullable(),
     category: z.string().trim().min(1, '消费类型不能为空').max(20, '消费类型过长').optional(),
-    customCategory: z.string().trim().max(30, '自定义类型最多 30 字').optional().nullable(),
+    customCategory: z.string().trim().max(LIMITS.BILL_CUSTOM_CATEGORY, `自定义类型最多 ${LIMITS.BILL_CUSTOM_CATEGORY} 字`).optional().nullable(),
     participants: z
       .array(z.number().int().positive('参与人 ID 无效'))
       .min(1, '至少选择一位参与人')
@@ -86,7 +87,7 @@ export const markPaySchema = z.object({
 });
 
 export const updateDormSchema = z.object({
-  name: z.string().trim().min(1, '宿舍名不能为空').max(30),
+  name: z.string().trim().min(1, '宿舍名不能为空').max(LIMITS.DORM_NAME, `宿舍名最多 ${LIMITS.DORM_NAME} 字`),
 });
 
 export const transferLeaderSchema = z.object({
@@ -94,5 +95,5 @@ export const transferLeaderSchema = z.object({
 });
 
 export const sendChatSchema = z.object({
-  content: z.string().trim().min(1, '消息不能为空').max(500),
+  content: z.string().trim().min(1, '消息不能为空').max(LIMITS.CHAT_USER_CONTENT, `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字`),
 });

@@ -16,9 +16,24 @@ model Dorm {
   bills      Bill[]
   chats      ChatMessage[]
   notifications Notification[]
+  botSettings DormBotSetting[]
   createdAt  DateTime @default(now())
 
   @@map("dorms")
+}
+
+model DormBotSetting {
+  id        Int      @id @default(autoincrement())
+  dormId    Int      @map("dorm_id")
+  dorm      Dorm     @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  orderNo   Int      @default(0) @map("order_no")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([dormId, orderNo])
+  @@map("dorm_bot_settings")
 }
 
 model User {

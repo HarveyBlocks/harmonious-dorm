@@ -40,6 +40,7 @@ export interface DormMember {
   name: string;
   avatarPath?: string | null;
   isLeader: boolean;
+  description: string;
 }
 
 export interface MePayload {
@@ -47,6 +48,11 @@ export interface MePayload {
   email: string;
   name: string;
   avatarPath: string | null;
+  botId: number;
+  botName: string;
+  botAvatarPath: string | null;
+  botSettings: Array<{ key: string; value: string }>;
+  botOtherContent: string;
   language: 'zh-CN' | 'zh-TW' | 'fr' | 'en';
   dormId: number;
   dormName: string;

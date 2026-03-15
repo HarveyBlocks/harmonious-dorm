@@ -1,11 +1,16 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { LIMITS } from '@/lib/limits';
 import type { MePayload, SessionUser } from '@/lib/types';
 
+import { ensureDormBotUser, isBotEmail } from './bot-service';
+import { BOT_OTHER_CONTENT_KEY, listDormBotSettingsSafe } from './bot-settings-service';
 import { ensureSessionUser, normalizeName } from './helpers';
+import { saveImageToPublic } from './media-service';
+import { pushDormNotification } from './notification-service';
+import { listDormUserDescriptions, upsertUserDescriptions } from './user-description-service';
 
 export async function getMe(session: SessionUser): Promise<MePayload> {
   await ensureSessionUser(session);
@@ -29,23 +34,42 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
   if (!me) {
     throw new ApiError(404, '用户不存在');
   }
+  const bot = await ensureDormBotUser(me.dormId);
+  const rawBotSettings = await listDormBotSettingsSafe(me.dormId);
+  const members = me.dorm.users.filter((user) => !isBotEmail(user.email));
+  const descriptionMap = await listDormUserDescriptions(me.dormId);
+
+  let botOtherContent = '';
+  const botSettings = rawBotSettings.filter((item) => {
+    if (item.key === BOT_OTHER_CONTENT_KEY) {
+      botOtherContent = item.value || '';
+      return false;
+    }
+    return true;
+  });
 
   return {
     id: me.id,
     email: me.email,
     name: me.name,
     avatarPath: me.avatarPath,
+    botId: bot.id,
+    botName: bot.name,
+    botAvatarPath: bot.avatarPath,
+    botSettings,
+    botOtherContent,
     language: (me.language as 'zh-CN' | 'zh-TW' | 'fr' | 'en') || 'zh-CN',
     dormId: me.dormId,
     dormName: me.dorm.name,
     isLeader: me.isLeader,
     inviteCode: me.dorm.inviteCode,
-    members: me.dorm.users.map((user) => ({
+    members: members.map((user) => ({
       id: user.id,
       email: user.email,
       name: user.name,
       avatarPath: user.avatarPath,
       isLeader: user.isLeader,
+      description: descriptionMap.get(user.id) || '',
     })),
   };
 }
@@ -73,39 +97,77 @@ export async function updateMyName(
   return getMe(session);
 }
 
+export async function updateMemberDescriptions(
+  session: SessionUser,
+  items: Array<{ userId: number; description: string }>,
+): Promise<{ success: true }> {
+  const me = await ensureSessionUser(session);
+  const dedup = new Map<number, string>();
+  for (const item of items || []) {
+    const userId = Number(item.userId);
+    if (!Number.isInteger(userId) || userId <= 0) continue;
+    const normalizedDescription = (item.description || '').trim();
+    if (normalizedDescription.length > LIMITS.MEMBER_DESCRIPTION) {
+      throw new ApiError(400, `成员描述不能超过 ${LIMITS.MEMBER_DESCRIPTION} 字`);
+    }
+    dedup.set(userId, normalizedDescription);
+  }
+
+  if (dedup.size === 0) {
+    return { success: true };
+  }
+
+  const targets = await prisma.user.findMany({
+    where: {
+      dormId: session.dormId,
+      id: { in: [...dedup.keys()] },
+      NOT: { email: { endsWith: '@harmonious.bot' } },
+    },
+    select: { id: true },
+  });
+  const allowedIds = new Set(targets.map((item) => item.id));
+  const validItems = [...dedup.entries()]
+    .filter(([userId]) => allowedIds.has(userId))
+    .map(([userId, description]) => ({ userId, description }));
+
+  if (validItems.length === 0) {
+    return { success: true };
+  }
+
+  if (!me.isLeader && validItems.some((item) => item.userId !== me.id)) {
+    throw new ApiError(403, '仅舍长可以修改其他成员描述');
+  }
+
+  await upsertUserDescriptions(validItems);
+
+  if (me.isLeader) {
+    const leaderTargets = validItems.filter((item) => item.userId !== me.id);
+    for (const item of leaderTargets) {
+      await pushDormNotification({
+        dormId: session.dormId,
+        type: 'settings',
+        title: '个人描述已更新',
+        content: item.description || '你的个人描述已被舍长更新',
+        targetPath: '/settings',
+        groupKey: `profile-desc-${item.userId}`,
+        recipientUserIds: [item.userId],
+      });
+    }
+  }
+
+  return { success: true };
+}
+
 export async function updateMyAvatar(
   session: SessionUser,
   file: File,
 ): Promise<{ avatarPath: string }> {
   const me = await ensureSessionUser(session);
-
-  const maxSize = 5 * 1024 * 1024;
-  if (file.size <= 0 || file.size > maxSize) {
-    throw new ApiError(400, '头像文件大小必须在 0-5MB');
-  }
-
-  const mime = file.type.toLowerCase();
-  const ext =
-    mime === 'image/png'
-      ? 'png'
-      : mime === 'image/jpeg' || mime === 'image/jpg'
-      ? 'jpg'
-      : mime === 'image/webp'
-      ? 'webp'
-      : '';
-  if (!ext) {
-    throw new ApiError(400, '头像仅支持 PNG/JPG/WEBP');
-  }
-
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const relativeDir = path.join('uploads', 'avatars');
-  const absoluteDir = path.join(process.cwd(), 'public', relativeDir);
-  await fs.mkdir(absoluteDir, { recursive: true });
-
-  const fileName = `${me.id}-${Date.now()}.${ext}`;
-  const relativePath = `${relativeDir.replace(/\\/g, '/')}/${fileName}`;
-  const absolutePath = path.join(absoluteDir, fileName);
-  await fs.writeFile(absolutePath, bytes);
+  const relativePath = await saveImageToPublic({
+    file,
+    prefix: `${me.id}`,
+    relativeDir: path.join('uploads', 'avatars'),
+  });
 
   await prisma.user.update({
     where: { id: me.id },
@@ -123,6 +185,7 @@ export async function deleteMyAccount(session: SessionUser): Promise<{ success: 
       where: {
         dormId: me.dormId,
         id: { not: me.id },
+        NOT: { email: { endsWith: '@harmonious.bot' } },
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true },
@@ -143,7 +206,12 @@ export async function deleteMyAccount(session: SessionUser): Promise<{ success: 
       where: { id: me.id },
     });
 
-    const count = await tx.user.count({ where: { dormId: me.dormId } });
+    const count = await tx.user.count({
+      where: {
+        dormId: me.dormId,
+        NOT: { email: { endsWith: '@harmonious.bot' } },
+      },
+    });
     if (count === 0) {
       await tx.dorm.delete({ where: { id: me.dormId } });
     }

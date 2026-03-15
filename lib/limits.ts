@@ -1,0 +1,25 @@
+function envNumber(keys: string[], fallback: number): number {
+  for (const key of keys) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.floor(parsed);
+    }
+  }
+  return fallback;
+}
+
+export const LIMITS = {
+  USER_NAME: envNumber(['NEXT_PUBLIC_LIMIT_USER_NAME', 'LIMIT_USER_NAME'], 20),
+  DORM_NAME: envNumber(['NEXT_PUBLIC_LIMIT_DORM_NAME', 'LIMIT_DORM_NAME'], 30),
+  BILL_DESCRIPTION: envNumber(['NEXT_PUBLIC_LIMIT_BILL_DESCRIPTION', 'LIMIT_BILL_DESCRIPTION'], 120),
+  BILL_CUSTOM_CATEGORY: envNumber(['NEXT_PUBLIC_LIMIT_BILL_CUSTOM_CATEGORY', 'LIMIT_BILL_CUSTOM_CATEGORY'], 30),
+  MEMBER_DESCRIPTION: envNumber(['NEXT_PUBLIC_LIMIT_MEMBER_DESCRIPTION', 'LIMIT_MEMBER_DESCRIPTION'], 300),
+  BOT_NAME: envNumber(['NEXT_PUBLIC_LIMIT_BOT_NAME', 'LIMIT_BOT_NAME'], 30),
+  BOT_SETTING_KEY: envNumber(['NEXT_PUBLIC_LIMIT_BOT_SETTING_KEY', 'LIMIT_BOT_SETTING_KEY'], 40),
+  BOT_SETTING_VALUE: envNumber(['NEXT_PUBLIC_LIMIT_BOT_SETTING_VALUE', 'LIMIT_BOT_SETTING_VALUE'], 300),
+  BOT_SETTINGS_ITEMS: envNumber(['NEXT_PUBLIC_LIMIT_BOT_SETTINGS_ITEMS', 'LIMIT_BOT_SETTINGS_ITEMS'], 20),
+  BOT_OTHER_CONTENT: envNumber(['NEXT_PUBLIC_LIMIT_BOT_OTHER_CONTENT', 'LIMIT_BOT_OTHER_CONTENT'], 800),
+  CHAT_USER_CONTENT: envNumber(['NEXT_PUBLIC_LIMIT_CHAT_USER_CONTENT', 'LIMIT_CHAT_USER_CONTENT'], 200),
+} as const;
