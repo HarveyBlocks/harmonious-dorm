@@ -1,4 +1,3 @@
-'use client';
 
 import { BookOpen, Coffee, Moon, Music } from 'lucide-react';
 

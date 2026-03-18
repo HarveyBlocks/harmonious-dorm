@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect } from 'react';
 import { io, type Socket } from 'socket.io-client';

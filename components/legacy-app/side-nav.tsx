@@ -1,4 +1,3 @@
-'use client';
 
 import { Bell, Calendar, LayoutDashboard, MessageSquare, Settings, Users, Wallet } from 'lucide-react';
 

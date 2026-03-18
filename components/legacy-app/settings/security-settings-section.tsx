@@ -1,4 +1,3 @@
-'use client';
 
 import { SettingsSection } from '../settings-section';
 

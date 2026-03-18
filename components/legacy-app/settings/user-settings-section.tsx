@@ -1,4 +1,3 @@
-'use client';
 
 import { Camera } from 'lucide-react';
 import type { LanguageCode } from '@/lib/i18n';

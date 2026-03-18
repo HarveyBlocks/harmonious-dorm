@@ -1,4 +1,3 @@
-'use client';
 
 import { FoldIcon } from './fold-icon';
 

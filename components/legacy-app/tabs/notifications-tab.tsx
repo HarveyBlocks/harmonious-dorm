@@ -1,4 +1,3 @@
-'use client';
 
 import { Check, MoreHorizontal } from 'lucide-react';
 import { motion } from 'motion/react';

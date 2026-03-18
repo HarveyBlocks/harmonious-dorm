@@ -1,4 +1,3 @@
-'use client';
 
 import { ArrowDownLeft, ArrowUpRight, CreditCard } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -9,7 +8,7 @@ import { QuickBillForm } from '@/components/bill-quick-form';
 import { BILL_CATEGORIES, BILL_CATEGORY_CUSTOM } from '../constants';
 import { LineChartCard, PieChartCard } from '../charts';
 import { categoryLabel } from '../localization';
-import { formatPaidInfo, unnamedBill } from '../helpers';
+import { formatPaidInfo } from '../helpers';
 import type { LineGranularity, PeriodType } from '../types';
 
 export function WalletTab(props: {

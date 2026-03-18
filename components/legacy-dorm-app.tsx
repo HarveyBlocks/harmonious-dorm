@@ -3,19 +3,12 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { type Socket } from 'socket.io-client';
 
-import { apiRequest } from '@/lib/client-api';
-import { getUiText, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
+import { getUiText, type LanguageCode } from '@/lib/i18n';
 import { LIMITS } from '@/lib/limits';
-import type { BillSummary, CursorPage, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
-import { LineChartCard, PieChartCard } from '@/components/legacy-app/charts';
-import {
-  BILL_CATEGORIES,
-  BILL_PAGE_LIMIT,
-  CHAT_PAGE_LIMIT,
-} from '@/components/legacy-app/constants';
+import type { DormState } from '@/lib/types';
 import {
   dispatchToast,
   isChatNearBottom,
@@ -33,6 +26,8 @@ import { useChatInput } from '@/components/legacy-app/hooks/use-chat-input';
 import { useChatWindow } from '@/components/legacy-app/hooks/use-chat-window';
 import { useDormSocket } from '@/components/legacy-app/hooks/use-dorm-socket';
 import { useInfiniteScrollTrigger } from '@/components/legacy-app/hooks/use-infinite-scroll-trigger';
+import { useLegacyQueries } from '@/components/legacy-app/hooks/use-legacy-queries';
+import { useMeSyncState } from '@/components/legacy-app/hooks/use-me-sync-state';
 import { useDomainMutations } from '@/components/legacy-app/hooks/use-domain-mutations';
 import { useNoticeAuthMutations } from '@/components/legacy-app/hooks/use-notice-auth-mutations';
 import { useNotificationSelection } from '@/components/legacy-app/hooks/use-notification-selection';
@@ -54,9 +49,7 @@ import { TopHeader } from '@/components/legacy-app/top-header';
 import { buildErrorText, buildPanelText, buildSettingsText, calcMonthTotal, calcPreviewAmounts, groupBillsByMonth, groupDutiesByWeek, mapBillChartViewModel, mapDutyChartViewModel, splitDutyLists } from '@/components/legacy-app/view-models';
 import type {
   ActiveTab,
-  ChartPoint,
   ChatMessage,
-  LineSeries,
   LineGranularity,
   NotificationFilter,
   PeriodType,
@@ -162,104 +155,27 @@ export default function LegacyDormApp() {
     [],
   );
 
-  const meQuery = useQuery({
-    queryKey: ['me'],
-    queryFn: () => apiRequest<MePayload>('/api/users/me'),
-  });
-  const authReady = Boolean(meQuery.data?.id);
-
-  const dutyAllQuery = useInfiniteQuery({
-    queryKey: ['duty', 'all'],
-    queryFn: ({ pageParam }) =>
-      apiRequest<CursorPage<DutyItem>>(
-        `/api/duty?scope=all&limit=8${pageParam ? `&cursor=${pageParam}` : ''}`,
-      ),
-    initialPageParam: null as number | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: authReady,
-  });
-
-  const billsQuery = useInfiniteQuery({
-    queryKey: ['bills'],
-    queryFn: ({ pageParam }) =>
-      apiRequest<CursorPage<BillSummary>>(`/api/bills?limit=${BILL_PAGE_LIMIT}${pageParam ? `&cursor=${pageParam}` : ''}`),
-    initialPageParam: null as number | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: authReady,
-  });
-
-  const chatQuery = useInfiniteQuery({
-    queryKey: ['chat'],
-    queryFn: ({ pageParam }) =>
-      apiRequest<CursorPage<ChatMessage>>(`/api/chat?limit=${CHAT_PAGE_LIMIT}${pageParam ? `&cursor=${pageParam}` : ''}`),
-    initialPageParam: null as number | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: authReady,
-  });
-
-  const statusQuery = useQuery({
-    queryKey: ['status'],
-    queryFn: () => apiRequest<Array<{ userId: number; state: DormState }>>('/api/status'),
-    enabled: authReady,
-  });
-
-  const notificationsQuery = useInfiniteQuery({
-    queryKey: ['notifications', notificationFilter],
-    queryFn: ({ pageParam }) =>
-      apiRequest<CursorPage<NotificationPayload>>(
-        `/api/notifications?status=${notificationFilter}&limit=10${pageParam ? `&cursor=${pageParam}` : ''}`,
-      ),
-    initialPageParam: null as number | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: authReady,
-  });
-
-  const notificationsUnreadQuery = useQuery({
-    queryKey: ['notifications-unread'],
-    queryFn: () => apiRequest<CursorPage<NotificationPayload>>('/api/notifications?status=unread&limit=60'),
-    enabled: authReady,
-  });
-
-  const chatAnchorNoticeQuery = useQuery({
-    queryKey: ['notifications-chat-anchor'],
-    queryFn: () => apiRequest<{ oldestUnreadChatNotificationTime: string | null }>('/api/notifications/chat-anchor'),
-    enabled: authReady,
-  });
-
-  const chatAnchorQuery = useQuery({
-    queryKey: ['chat-anchor-id', chatAnchorNoticeQuery.data?.oldestUnreadChatNotificationTime],
-    queryFn: () =>
-      apiRequest<{ anchorId: number | null }>(
-        `/api/chat/anchor?from=${encodeURIComponent(chatAnchorNoticeQuery.data?.oldestUnreadChatNotificationTime || '')}`,
-      ),
-    enabled: authReady && Boolean(chatAnchorNoticeQuery.data?.oldestUnreadChatNotificationTime),
-  });
-
-  const billStatsQuery = useQuery({
-    queryKey: ['stats-bills', billPeriodType, billYear, billPeriodMarker, billLineGranularity],
-    queryFn: () =>
-      apiRequest<{
-        pieData: ChartPoint[];
-        lineData: ChartPoint[];
-        categoryLineSeries: LineSeries[];
-      }>(
-        `/api/stats/bills?periodType=${billPeriodType}&year=${encodeURIComponent(billYear)}&marker=${billPeriodMarker}&lineGranularity=${billLineGranularity}`,
-      ),
-    enabled: authReady,
-  });
-
-  const dutyStatsQuery = useQuery({
-    queryKey: ['stats-duty', dutyPeriodType, dutyYear, dutyPeriodMarker, dutyLineGranularity],
-    queryFn: () =>
-      apiRequest<{
-        pieData: ChartPoint[];
-        memberPieData: ChartPoint[];
-        lineData: ChartPoint[];
-        memberLineSeries: LineSeries[];
-      }>(
-        `/api/stats/duty?periodType=${dutyPeriodType}&year=${encodeURIComponent(dutyYear)}&marker=${dutyPeriodMarker}&lineGranularity=${dutyLineGranularity}`,
-      ),
-    enabled: authReady,
+  const {
+    meQuery,
+    dutyAllQuery,
+    billsQuery,
+    chatQuery,
+    statusQuery,
+    notificationsQuery,
+    notificationsUnreadQuery,
+    chatAnchorQuery,
+    billStatsQuery,
+    dutyStatsQuery,
+  } = useLegacyQueries({
+    notificationFilter,
+    billPeriodType,
+    billYear,
+    billPeriodMarker,
+    billLineGranularity,
+    dutyPeriodType,
+    dutyYear,
+    dutyPeriodMarker,
+    dutyLineGranularity,
   });
 
 
@@ -321,50 +237,29 @@ export default function LegacyDormApp() {
     }
   }, [activeTab, liveMessages.length]);
 
-  useEffect(() => {
-    if (!assignUserId && meQuery.data?.members.length) {
-      setAssignUserId(meQuery.data.members[0].id);
-      setParticipants(meQuery.data.members.map((item) => item.id));
-    }
-  }, [assignUserId, meQuery.data]);
-
-  useEffect(() => {
-    if (meQuery.data) {
-      setName(meQuery.data.name);
-      setLanguage(meQuery.data.language);
-      setDormNameInput(meQuery.data.dormName);
-      setBotNameInput(meQuery.data.botName || '');
-      setBotSettingsInput(meQuery.data.botSettings || []);
-      setBotOtherContent(meQuery.data.botOtherContent || '');
-      setMemberDescriptionsInput(
-        Object.fromEntries((meQuery.data.members || []).map((member) => [member.id, member.description || ''])),
-      );
-      lastSyncedProfileRef.current = {
-        name: meQuery.data.name.trim(),
-        language: meQuery.data.language,
-      };
-      lastSyncedDormNameRef.current = meQuery.data.dormName.trim();
-      lastSyncedBotNameRef.current = (meQuery.data.botName || '').trim();
-      lastSyncedBotOtherContentRef.current = meQuery.data.botOtherContent || '';
-      lastSyncedBotSettingsRef.current = meQuery.data.botSettings || [];
-      lastSyncedMemberDescriptionsRef.current = Object.fromEntries(
-        (meQuery.data.members || []).map((member) => [member.id, member.description || '']),
-      );
-      if (!targetLeaderId) {
-        const candidate = meQuery.data.members.find((item) => !item.isLeader);
-        setTargetLeaderId(candidate?.id || null);
-      }
-    }
-  }, [meQuery.data, targetLeaderId]);
-
-  useEffect(() => {
-    const myId = meQuery.data?.id;
-    if (!myId) return;
-    const mine = (statusQuery.data || []).find((item) => item.userId === myId);
-    if (mine?.state) {
-      setSelectedState(mine.state);
-    }
-  }, [meQuery.data?.id, statusQuery.data]);
+  useMeSyncState({
+    me: meQuery.data,
+    statusRows: statusQuery.data,
+    assignUserId,
+    setAssignUserId,
+    setParticipants,
+    setName,
+    setLanguage,
+    setDormNameInput,
+    setBotNameInput,
+    setBotSettingsInput,
+    setBotOtherContent,
+    setMemberDescriptionsInput,
+    lastSyncedProfileRef,
+    lastSyncedDormNameRef,
+    lastSyncedBotNameRef,
+    lastSyncedBotOtherContentRef,
+    lastSyncedBotSettingsRef,
+    lastSyncedMemberDescriptionsRef,
+    targetLeaderId,
+    setTargetLeaderId,
+    setSelectedState,
+  });
 
   const me = meQuery.data;
   const t = getUiText(me?.language || 'zh-CN');

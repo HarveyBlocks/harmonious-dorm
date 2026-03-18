@@ -1,4 +1,3 @@
-'use client';
 
 import { LIMITS } from '@/lib/limits';
 

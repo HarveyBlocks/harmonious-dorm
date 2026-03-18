@@ -1,4 +1,3 @@
-'use client';
 
 import { useMutation, type QueryClient } from '@tanstack/react-query';
 import type { Socket } from 'socket.io-client';

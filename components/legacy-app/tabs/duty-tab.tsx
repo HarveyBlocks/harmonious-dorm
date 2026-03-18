@@ -1,4 +1,3 @@
-'use client';
 
 import { CheckCircle2, Circle, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';

@@ -1,7 +1,7 @@
 import type { Server as IOServer } from 'socket.io';
 
 declare global {
-  var __io: IOServer | undefined;
+    let __io: IOServer | undefined;
 }
 
 function roomOfDorm(dormId: number): string {
