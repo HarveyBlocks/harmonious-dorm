@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,7 +6,7 @@ import { motion } from 'motion/react';
 import { LogIn, Users } from 'lucide-react';
 
 import { apiRequest } from '@/lib/client-api';
-import { I18N, type LanguageCode } from '@/lib/i18n';
+import { getUiText, type LanguageCode } from '@/lib/i18n';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function LoginPage() {
       ? ((window.localStorage.getItem('app_lang') as LanguageCode) || 'zh-CN')
       : 'zh-CN';
   const [lang] = useState<LanguageCode>(initialLang);
-  const t = useMemo(() => I18N[lang], [lang]);
+  const t = useMemo(() => getUiText(lang), [lang]);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
@@ -124,3 +124,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

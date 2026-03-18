@@ -1,10 +1,38 @@
-import { prisma } from '@/lib/db';
+﻿import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { allocateAmounts, normalizeWeights, validateWeights } from '@/lib/share-allocation';
+import { normalizeBillCategory } from '@/lib/domain-codes';
 import type { BillSummary, CursorPage, SessionUser } from '@/lib/types';
 
 import { ensureSessionUser } from './helpers';
 import { pushDormNotification } from './notification-service';
 import { emitToDorm } from '@/lib/socket-server';
+
+async function syncLegacyBillParticipantAmounts(dormId: number): Promise<void> {
+  const bills = await prisma.bill.findMany({
+    where: { dormId },
+    include: { participants: true },
+  });
+
+  for (const bill of bills) {
+    if (bill.participants.length === 0) continue;
+    const allZero = bill.participants.every((item) => item.actualAmount <= 0);
+    if (!allZero) continue;
+
+    const rows = normalizeWeights(bill.participants.map((item) => item.userId));
+    const amountMap = allocateAmounts(bill.totalAmount, rows.map((item) => item.userId), rows);
+    if (amountMap.size !== bill.participants.length) continue;
+
+    await prisma.$transaction(
+      bill.participants.map((item) =>
+        prisma.billParticipant.update({
+          where: { billId_userId: { billId: bill.id, userId: item.userId } },
+          data: { actualAmount: amountMap.get(item.userId) || 0 },
+        }),
+      ),
+    );
+  }
+}
 
 export async function createBill(
   session: SessionUser,
@@ -14,6 +42,7 @@ export async function createBill(
     category?: string;
     customCategory?: string | null;
     participants: number[];
+    participantWeights?: Array<{ userId: number; weight: number }>;
   },
 ): Promise<{ billId: number }> {
   await ensureSessionUser(session);
@@ -35,22 +64,42 @@ export async function createBill(
     throw new ApiError(400, '参与人必须属于当前宿舍');
   }
 
+  const normalizedWeights = normalizeWeights(participants, input.participantWeights);
+  if (!validateWeights(normalizedWeights)) {
+    throw new ApiError(400, '权重不能小于 0');
+  }
+
+  const amountMap = allocateAmounts(input.total, participants, normalizedWeights);
+  if (amountMap.size !== participants.length) {
+    throw new ApiError(400, '至少一位成员需要支付');
+  }
+
+  const payableParticipants = participants
+    .map((userId) => ({ userId, actualAmount: amountMap.get(userId) || 0 }))
+    .filter((item) => item.actualAmount > 0);
+
+  if (payableParticipants.length === 0) {
+    throw new ApiError(400, '至少一位成员需要支付');
+  }
+
+  const normalizedCategory = normalizeBillCategory(input.category?.trim());
   const bill = await prisma.$transaction(async (tx) => {
     const created = await tx.bill.create({
       data: {
         dormId: session.dormId,
         totalAmount: input.total,
-        description: input.description?.trim() || null,
-        category: input.category?.trim() || '其他',
-        customCategory: input.customCategory?.trim() || null,
+        description: normalizedCategory === 'other' ? (input.customCategory?.trim() || null) : null,
+        category: normalizedCategory,
+        customCategory: normalizedCategory === 'other' ? (input.customCategory?.trim() || null) : null,
         createdBy: session.userId,
       },
     });
 
     await tx.billParticipant.createMany({
-      data: participants.map((userId) => ({
+      data: payableParticipants.map((item) => ({
         billId: created.id,
-        userId,
+        userId: item.userId,
+        actualAmount: item.actualAmount,
       })),
     });
 
@@ -65,8 +114,9 @@ export async function createBill(
     targetPath: '/',
     groupKey: 'bill-created',
     actorUserId: session.userId,
-    recipientUserIds: participants,
+    recipientUserIds: payableParticipants.map((item) => item.userId),
   });
+
   emitToDorm(session.dormId, 'bill:changed', { billId: bill.id });
 
   return {
@@ -79,12 +129,15 @@ export async function listBills(
   options?: { limit?: number; cursor?: number },
 ): Promise<CursorPage<BillSummary>> {
   await ensureSessionUser(session);
+  await syncLegacyBillParticipantAmounts(session.dormId);
+
   const limit = Math.max(1, Math.min(options?.limit ?? 20, 100));
   const cursor = options?.cursor && Number.isInteger(options.cursor) && options.cursor > 0 ? options.cursor : undefined;
 
   const bills = await prisma.bill.findMany({
     where: {
       dormId: session.dormId,
+      participants: { some: { userId: session.userId, actualAmount: { gt: 0 } } },
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
     include: {
@@ -95,6 +148,7 @@ export async function listBills(
     },
     take: limit + 1,
   });
+
   const hasMore = bills.length > limit;
   const pageBills = hasMore ? bills.slice(0, limit) : bills;
   const nextCursor = hasMore ? pageBills[pageBills.length - 1]?.id ?? null : null;
@@ -102,7 +156,7 @@ export async function listBills(
   const items = pageBills.map((bill) => {
     const totalCount = bill.participants.length;
     const paidCount = bill.participants.filter((item) => item.paid).length;
-    const myShare = bill.participants.find((item) => item.userId === session.userId);
+    const myShare = bill.participants.find((item) => item.userId === session.userId && item.actualAmount > 0);
 
     return {
       id: bill.id,
@@ -114,6 +168,7 @@ export async function listBills(
       paidCount,
       totalCount,
       myPaid: Boolean(myShare?.paid),
+      myAmount: myShare?.actualAmount ?? 0,
     };
   });
 
@@ -144,6 +199,7 @@ export async function markBillPaid(
     select: {
       id: true,
       participants: {
+        where: { actualAmount: { gt: 0 } },
         select: { userId: true },
       },
     },
@@ -162,7 +218,7 @@ export async function markBillPaid(
     },
   });
 
-  if (!share) {
+  if (!share || share.actualAmount <= 0) {
     throw new ApiError(400, '你不在该账单参与列表中');
   }
 
@@ -191,7 +247,7 @@ export async function markBillPaid(
 
   if (paid) {
     const shares = await prisma.billParticipant.findMany({
-      where: { billId },
+      where: { billId, actualAmount: { gt: 0 } },
       select: { paid: true },
     });
     const allPaid = shares.length > 0 && shares.every((item) => item.paid);
@@ -212,9 +268,14 @@ export async function markBillPaid(
       });
     }
   }
+
   emitToDorm(session.dormId, 'bill:changed', { billId });
 
   return {
     success: true,
   };
 }
+
+
+
+

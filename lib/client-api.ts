@@ -1,4 +1,4 @@
-import { I18N, type LanguageCode } from '@/lib/i18n';
+﻿import { getUiText, type LanguageCode } from '@/lib/i18n';
 
 export class ClientApiError extends Error {
   status: number;
@@ -15,7 +15,7 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
   const preferredLang = (
     typeof window !== 'undefined' ? window.localStorage.getItem('app_lang') || 'zh-CN' : 'zh-CN'
   ) as LanguageCode;
-  const langPack = I18N[preferredLang] || I18N['zh-CN'];
+  const langPack = getUiText(preferredLang); 
 
   try {
     response = await fetch(url, {
@@ -70,3 +70,4 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
 
   return (await response.json()) as T;
 }
+

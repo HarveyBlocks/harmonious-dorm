@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/errors';
 import { prisma } from '@/lib/db';
@@ -55,8 +55,8 @@ describe('backend services', () => {
     const aMember = await loginOrRegister('A成员', 'amember@campus.edu.cn', dormA.inviteCode);
     const dormB = await loginOrRegister('B舍长', 'bleader@campus.edu.cn');
 
-    await updateStatus(toSession(aMember), '学习');
-    await updateStatus(toSession(dormB), '睡觉');
+    await updateStatus(toSession(aMember), 'study');
+    await updateStatus(toSession(dormB), 'sleep');
 
     const statusA = await listStatus(toSession(dormA));
 
@@ -72,18 +72,21 @@ describe('backend services', () => {
     await assignDuty(toSession(leader), {
       userId: member.userId,
       date: '2026-03-16',
+      task: 'wipe desk',
     });
 
     await expect(
       assignDuty(toSession(member), {
         userId: member.userId,
         date: '2026-03-17',
+        task: 'mop floor',
       }),
     ).rejects.toBeInstanceOf(ApiError);
 
     const duties = await listDuties(toSession(member), { week: '2026-03-16' });
     expect(duties.items).toHaveLength(1);
     expect(duties.items[0].userId).toBe(member.userId);
+    expect(duties.items[0].task).toBe('wipe desk');
 
     await expect(
       completeDuty(toSession(leader), {
@@ -105,6 +108,10 @@ describe('backend services', () => {
       total: 120,
       description: '三月电费',
       participants: [leader.userId, member.userId],
+      participantWeights: [
+        { userId: leader.userId, weight: 1 },
+        { userId: member.userId, weight: 3 },
+      ],
     });
 
     expect(created.billId).toBeGreaterThan(0);
@@ -112,6 +119,7 @@ describe('backend services', () => {
     const billList = await listBills(toSession(member));
     expect(billList.items).toHaveLength(1);
     expect(billList.items[0].totalCount).toBe(2);
+    expect(billList.items[0].myAmount).toBeCloseTo(90, 2);
 
     const payResult = await markBillPaid(toSession(member), billList.items[0].id);
     expect(payResult.success).toBe(true);
@@ -135,3 +143,5 @@ describe('backend services', () => {
     await expect(updateMyName(toSession(leader), { name: '成员' })).resolves.toBeTruthy();
   });
 });
+
+

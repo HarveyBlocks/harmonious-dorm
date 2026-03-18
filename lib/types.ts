@@ -1,4 +1,4 @@
-export type DormState = '学习' | '睡觉' | '游戏' | '外出';
+﻿export type DormState = 'out' | 'study' | 'sleep' | 'game';
 
 export interface SessionUser {
   userId: number;
@@ -18,6 +18,7 @@ export interface DutyItem {
   date: string;
   userId: number;
   userName: string;
+  task: string;
   completed: boolean;
   imageUrl: string | null;
 }
@@ -32,6 +33,7 @@ export interface BillSummary {
   paidCount: number;
   totalCount: number;
   myPaid: boolean;
+  myAmount: number;
 }
 
 export interface DormMember {
@@ -76,3 +78,4 @@ export interface CursorPage<T> {
   items: T[];
   nextCursor: number | null;
 }
+

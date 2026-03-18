@@ -1,4 +1,4 @@
-import { INVITE_CODE_LENGTH } from '@/lib/constants';
+﻿import { INVITE_CODE_LENGTH } from '@/lib/constants';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import type { LoginResult } from '@/lib/types';
@@ -50,7 +50,7 @@ async function createDormAndLeader(name: string, email: string): Promise<LoginRe
 
     await tx.status.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, state: '外出' },
+      create: { userId: user.id, state: 'out' },
       update: {},
     });
 
@@ -104,7 +104,7 @@ export async function loginOrRegister(
 
     await prisma.status.upsert({
       where: { userId: existedByEmail.id },
-      create: { userId: existedByEmail.id, state: '外出' },
+      create: { userId: existedByEmail.id, state: 'out' },
       update: {},
     });
 
@@ -140,7 +140,7 @@ export async function loginOrRegister(
 
   await prisma.status.upsert({
     where: { userId: user.id },
-    create: { userId: user.id, state: '外出' },
+    create: { userId: user.id, state: 'out' },
     update: {},
   });
 
@@ -151,3 +151,4 @@ export async function loginOrRegister(
     inviteCode: dorm.inviteCode,
   };
 }
+

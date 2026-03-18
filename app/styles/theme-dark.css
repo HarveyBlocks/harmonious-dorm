@@ -1,0 +1,94 @@
+.dark-mode {
+  --bg-main: #010409;
+  --text-main: #ffffff;
+  --text-muted: #c9def7;
+  --card-bg: rgba(13, 17, 23, 0.9);
+  --card-border: rgba(48, 54, 61, 0.8);
+  --accent: #58a6ff;
+  --input-bg: rgba(12, 20, 31, 0.85);
+  --input-border: rgba(148, 163, 184, 0.35);
+  --input-placeholder: #b7cbe7;
+  background: #010409;
+  color: var(--text-main);
+}
+
+.study-mode {
+  --accent: #238636;
+}
+
+.party-mode {
+  --accent: #f85149;
+}
+
+.study-mode .wallet-total-card {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.28), transparent 44%),
+    radial-gradient(circle at 88% 88%, rgba(5, 46, 22, 0.28), transparent 52%),
+    linear-gradient(145deg, #16a34a 0%, #166534 58%, #14532d 100%);
+}
+
+.party-mode .wallet-total-card {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.26), transparent 44%),
+    radial-gradient(circle at 88% 88%, rgba(76, 5, 25, 0.3), transparent 52%),
+    linear-gradient(145deg, #ef4444 0%, #be123c 58%, #881337 100%);
+}
+
+.dark-mode ::-webkit-scrollbar-thumb {
+  @apply bg-slate-600/50;
+}
+
+.dark-mode input,
+.dark-mode select,
+.dark-mode textarea {
+  color: var(--text-main) !important;
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+}
+
+.dark-mode .custom-field {
+  color: var(--text-main) !important;
+}
+
+.dark-mode .sleep-depth-near {
+  background: linear-gradient(145deg, rgba(43, 89, 170, 0.78), rgba(23, 55, 114, 0.82));
+  border-color: rgba(146, 185, 255, 0.45);
+  color: #ffffff !important;
+}
+
+.dark-mode .wallet-total-card {
+  border-color: rgba(147, 197, 253, 0.45);
+  background:
+    radial-gradient(circle at 16% 18%, rgba(147, 197, 253, 0.32), transparent 44%),
+    radial-gradient(circle at 88% 88%, rgba(2, 6, 23, 0.5), transparent 52%),
+    linear-gradient(150deg, #1d4ed8 0%, #1e3a8a 55%, #0b1220 100%);
+}
+
+.dark-mode .sleep-depth-near .text-muted {
+  color: #eff6ff !important;
+}
+
+.dark-mode .sleep-depth-mid {
+  background: linear-gradient(155deg, rgba(13, 29, 56, 0.9), rgba(7, 17, 34, 0.92));
+  border-color: rgba(114, 140, 180, 0.4);
+  color: #e6f0ff !important;
+}
+
+.dark-mode .sleep-depth-mid .text-muted {
+  color: #c8dcf7 !important;
+}
+
+.dark-mode .sleep-depth-deep {
+  background: linear-gradient(160deg, rgba(5, 10, 20, 0.95), rgba(1, 4, 10, 0.98));
+  border-color: rgba(88, 107, 138, 0.35);
+  color: #d7e6fa !important;
+}
+
+.dark-mode .sleep-depth-deep .text-muted {
+  color: #a8bedf !important;
+}
+
+.dark-mode .light-tooltip,
+.dark-mode .light-tooltip * {
+  color: #0f172a !important;
+}

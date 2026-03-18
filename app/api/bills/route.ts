@@ -29,6 +29,7 @@ export async function POST(request: Request) {
         category?: string;
         customCategory?: string | null;
         participants: number[];
+        participantWeights?: Array<{ userId: number; weight: number }>;
       }>(request),
     );
     const result = await createBill(session, body);

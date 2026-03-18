@@ -36,6 +36,15 @@ model DormBotSetting {
   @@map("dorm_bot_settings")
 }
 
+
+model UserDescription {
+  userId      Int      @id @map("user_id")
+  description String   @default("")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("user_descriptions")
+}
+
 model User {
   id         Int               @id @default(autoincrement())
   email      String            @unique
@@ -63,11 +72,12 @@ model Duty {
   userId    Int      @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   date      String
+  task      String   @default("Duty task")
   completed Boolean  @default(false)
   imageUrl  String?  @map("image_url")
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@unique([dormId, date, userId])
+  @@unique([dormId, date, userId, task])
   @@index([dormId, date])
   @@map("duties")
 }
@@ -90,11 +100,12 @@ model Bill {
 }
 
 model BillParticipant {
-  billId Int   @map("bill_id")
-  userId Int   @map("user_id")
-  paid   Boolean @default(false)
-  bill   Bill  @relation(fields: [billId], references: [id], onDelete: Cascade)
-  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billId        Int     @map("bill_id")
+  userId        Int     @map("user_id")
+  paid          Boolean @default(false)
+  actualAmount  Float   @default(0) @map("actual_amount")
+  bill          Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([billId, userId])
   @@map("bill_participants")
@@ -142,3 +153,4 @@ model Notification {
   @@index([dormId, userId, groupKey, isRead])
   @@map("notifications")
 }
+

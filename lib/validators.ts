@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 import { LIMITS } from '@/lib/limits';
 
 export const loginInputSchema = z.object({
@@ -14,12 +14,13 @@ export const updateNameSchema = z.object({
 });
 
 export const statusInputSchema = z.object({
-  state: z.enum(['学习', '睡觉', '游戏', '外出']),
+  state: z.enum(['out', 'study', 'sleep', 'game']),
 });
 
 export const assignDutySchema = z.object({
   userId: z.number().int().positive(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD'),
+  task: z.string().trim().min(1, '任务内容不能为空').max(LIMITS.DUTY_TASK, `任务内容最多 ${LIMITS.DUTY_TASK} 字`),
 });
 
 export const completeDutySchema = z.object({
@@ -28,7 +29,7 @@ export const completeDutySchema = z.object({
   completed: z.boolean().optional(),
 });
 
-const allowedBillCategories = ['电费', '水费', '网费', '日用品', '其他'] as const;
+const allowedBillCategories = ['electricity', 'water', 'internet', 'supplies', 'other'] as const;
 
 export const createBillSchema = z
   .object({
@@ -44,6 +45,18 @@ export const createBillSchema = z
       .array(z.number().int().positive('参与人 ID 无效'))
       .min(1, '至少选择一位参与人')
       .max(50, '参与人数过多'),
+    participantWeights: z
+      .array(
+        z.object({
+          userId: z.number().int().positive('参与人 ID 无效'),
+          weight: z
+            .number()
+            .finite('权重必须是数字')
+            .min(0, '权重不能小于 0')
+            .max(LIMITS.BILL_WEIGHT, `权重不能超过 ${LIMITS.BILL_WEIGHT}`),
+        }),
+      )
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (!Number.isInteger(value.total * 100)) {
@@ -63,7 +76,29 @@ export const createBillSchema = z
       });
     }
 
-    const category = value.category?.trim() || '其他';
+    if (value.participantWeights && value.participantWeights.length > 0) {
+      const participantSet = new Set(value.participants);
+      const weightUserSet = new Set<number>();
+      for (const item of value.participantWeights) {
+        if (!participantSet.has(item.userId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['participantWeights'],
+            message: '权重用户必须在参与人列表中',
+          });
+        }
+        if (weightUserSet.has(item.userId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['participantWeights'],
+            message: '权重用户不能重复',
+          });
+        }
+        weightUserSet.add(item.userId);
+      }
+    }
+
+    const category = value.category?.trim() || 'other';
     if (!allowedBillCategories.includes(category as (typeof allowedBillCategories)[number])) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -72,7 +107,7 @@ export const createBillSchema = z
       });
     }
 
-    if (category === '其他' && value.customCategory && value.customCategory.trim().length === 0) {
+    if (category === 'other' && (!value.customCategory || value.customCategory.trim().length === 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['customCategory'],
@@ -97,3 +132,6 @@ export const transferLeaderSchema = z.object({
 export const sendChatSchema = z.object({
   content: z.string().trim().min(1, '消息不能为空').max(LIMITS.CHAT_USER_CONTENT, `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字`),
 });
+
+
+

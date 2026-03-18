@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 
 import { apiRequest } from '@/lib/client-api';
-import { I18N, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
+import { getUiText, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
 import type { MePayload } from '@/lib/types';
 
 export default function SettingsPage() {
@@ -16,7 +16,7 @@ export default function SettingsPage() {
   });
 
   const me = meQuery.data;
-  const t = I18N[me?.language || 'zh-CN'];
+  const t = getUiText(me?.language || 'zh-CN');
 
   const [name, setName] = useState('');
   const [language, setLanguage] = useState<LanguageCode>('zh-CN');

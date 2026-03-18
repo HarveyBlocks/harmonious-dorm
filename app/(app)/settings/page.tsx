@@ -1,5 +1,3 @@
-﻿import LegacyDormApp from '@/components/legacy-dorm-app';
-
-export default function SettingsPage() {
-  return <LegacyDormApp />;
+export default function RoutePage() {
+  return null;
 }

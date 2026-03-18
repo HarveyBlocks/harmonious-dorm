@@ -1,5 +1,7 @@
+﻿import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { LIMITS } from '@/lib/limits';
 import type { CursorPage, DutyItem, SessionUser } from '@/lib/types';
 
 import { ensureSessionUser, weekRange } from './helpers';
@@ -58,6 +60,7 @@ export async function listDuties(
       date: duty.date,
       userId: duty.userId,
       userName: duty.user.name,
+      task: duty.task,
       completed: duty.completed,
       imageUrl: duty.imageUrl,
     }))
@@ -71,12 +74,20 @@ export async function listDuties(
 
 export async function assignDuty(
   session: SessionUser,
-  input: { userId: number; date: string },
+  input: { userId: number; date: string; task: string },
 ): Promise<{ success: true }> {
   await ensureSessionUser(session);
 
   if (!session.isLeader) {
     throw new ApiError(403, '只有舍长可以分配值日');
+  }
+
+  const task = input.task.trim();
+  if (!task) {
+    throw new ApiError(400, '任务内容不能为空');
+  }
+  if (task.length > LIMITS.DUTY_TASK) {
+    throw new ApiError(400, `任务内容最多 ${LIMITS.DUTY_TASK} 字`);
   }
 
   const targetUser = await prisma.user.findFirst({
@@ -91,26 +102,23 @@ export async function assignDuty(
     throw new ApiError(400, '被分配用户不在当前宿舍');
   }
 
-  await prisma.duty.upsert({
-    where: {
-      dormId_date_userId: {
+  try {
+    await prisma.duty.create({
+      data: {
         dormId: session.dormId,
-        date: input.date,
         userId: input.userId,
+        date: input.date,
+        task,
+        completed: false,
+        imageUrl: null,
       },
-    },
-    create: {
-      dormId: session.dormId,
-      userId: input.userId,
-      date: input.date,
-      completed: false,
-      imageUrl: null,
-    },
-    update: {
-      completed: false,
-      imageUrl: null,
-    },
-  });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ApiError(409, '相同日期和任务已存在');
+    }
+    throw error;
+  }
 
   const leaders = await prisma.user.findMany({
     where: {
@@ -124,9 +132,9 @@ export async function assignDuty(
     dormId: session.dormId,
     type: 'duty',
     title: '值日安排已发布',
-    content: `已安排 ${input.date} 的值日任务`,
+    content: `已安排 ${input.date} 的值日任务：${task}`,
     targetPath: '/',
-    groupKey: `duty-assign-${input.date}-${input.userId}`,
+    groupKey: `duty-assign-${input.date}-${input.userId}-${task}`,
     actorUserId: session.userId,
     recipientUserIds: [...new Set([input.userId, ...leaders.map((item) => item.id)])],
   });
@@ -216,3 +224,4 @@ export async function deleteDuty(session: SessionUser, dutyId: number): Promise<
   emitToDorm(session.dormId, 'duty:changed', { dutyId: duty.id, deleted: true });
   return { success: true };
 }
+

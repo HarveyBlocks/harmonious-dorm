@@ -1,4 +1,4 @@
-import type { SessionUser } from '@/lib/types';
+﻿import type { SessionUser } from '@/lib/types';
 import { ensureSessionUser } from './helpers';
 import { prisma } from '@/lib/db';
 
@@ -44,7 +44,7 @@ export async function getBillStats(
   const categoryLineMap = new Map<string, Map<string, number>>();
   const lineLabels = new Set<string>();
   for (const item of filtered) {
-    const categoryKey = item.customCategory || item.category || '其他';
+    const categoryKey = item.customCategory || item.category || 'other';
     pieMap.set(categoryKey, (pieMap.get(categoryKey) || 0) + item.totalAmount);
     const key = dateLabel(item.createdAt, input.lineGranularity);
     lineLabels.add(key);
@@ -143,3 +143,4 @@ export async function getDutyStats(
     memberLineSeries,
   };
 }
+

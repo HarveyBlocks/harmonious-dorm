@@ -17,7 +17,8 @@
     "seed:large": "node scripts/seed-large-data.cjs",
     "seed:d0003": "node scripts/seed-d0003-heavy.cjs",
     "test:backend": "vitest run tests/backend",
-    "test:backend:watch": "vitest tests/backend"
+    "test:backend:watch": "vitest tests/backend",
+    "migrate:enum-values": "node scripts/migrate-enum-values.cjs"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",

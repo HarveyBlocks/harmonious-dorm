@@ -1,5 +1,6 @@
-import { prisma } from '@/lib/db';
+﻿import { prisma } from '@/lib/db';
 import type { SessionUser } from '@/lib/types';
+import { normalizeDormState, type DormStateCode } from '@/lib/domain-codes';
 
 import { emitToDorm } from '@/lib/socket-server';
 import { ensureSessionUser } from './helpers';
@@ -20,13 +21,15 @@ export async function listStatus(session: SessionUser) {
   return users.map((user) => ({
     userId: user.id,
     name: user.name,
-    state: user.status?.state ?? '外出',
+    state: normalizeDormState(user.status?.state),
     updatedAt: user.status?.updatedAt?.toISOString() ?? null,
   }));
 }
 
-export async function updateStatus(session: SessionUser, state: '学习' | '睡觉' | '游戏' | '外出') {
+export async function updateStatus(session: SessionUser, state: DormStateCode) {
   const me = await ensureSessionUser(session);
+
+  const normalizedState = normalizeDormState(state);
 
   const status = await prisma.status.upsert({
     where: {
@@ -34,10 +37,10 @@ export async function updateStatus(session: SessionUser, state: '学习' | '睡�
     },
     create: {
       userId: session.userId,
-      state,
+      state: normalizedState,
     },
     update: {
-      state,
+      state: normalizedState,
     },
   });
 
@@ -45,7 +48,7 @@ export async function updateStatus(session: SessionUser, state: '学习' | '睡�
     data: {
       dormId: session.dormId,
       userId: me.id,
-      content: `${me.name}现在是${state}状态`,
+      content: `__status_change__:${me.name}:${normalizedState}`,
     },
   });
   emitToDorm(session.dormId, 'chat:new', {
@@ -57,7 +60,7 @@ export async function updateStatus(session: SessionUser, state: '学习' | '睡�
   });
   emitToDorm(session.dormId, 'status:changed', {
     userId: me.id,
-    state,
+    state: normalizedState,
   });
 
   return {
@@ -66,3 +69,5 @@ export async function updateStatus(session: SessionUser, state: '学习' | '睡�
     updatedAt: status.updatedAt.toISOString(),
   };
 }
+
+

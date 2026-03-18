@@ -29,6 +29,8 @@ import {
   Maximize2,
   X,
   Camera,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,12 +39,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { apiRequest } from '@/lib/client-api';
-import { I18N, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
+import { getUiText, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
 import { LIMITS } from '@/lib/limits';
 import { BILL_CATEGORY_COLOR, STATE_DOT, STATUS_COLOR } from '@/lib/theme/status-colors';
 import type { BillSummary, CursorPage, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
 
 type ActiveTab = 'dashboard' | 'duty' | 'wallet' | 'chat' | 'notifications' | 'settings';
+type SettingsSectionKey = 'user' | 'dorm' | 'member' | 'bot' | 'security';
 
 type ChatMessage = {
   id: number;
@@ -100,6 +103,17 @@ function weekStartLabel(isoDate: string): string {
   const start = new Date(base);
   start.setDate(base.getDate() - diff);
   return `周起始 ${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, '0')}-${`${start.getDate()}`.padStart(2, '0')}`;
+}
+
+function settingsFoldLabel(lang: LanguageCode, folded: boolean): string {
+  if (lang === 'en') return folded ? 'Expand' : 'Collapse';
+  if (lang === 'fr') return folded ? 'Developper' : 'Reduire';
+  if (lang === 'zh-TW') return folded ? '展開' : '收合';
+  return folded ? '展开' : '收起';
+}
+
+function FoldIcon({ folded }: { folded: boolean }) {
+  return folded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />;
 }
 
 function mapPathToTab(path: string): ActiveTab {
@@ -169,32 +183,35 @@ function unnamedBill(lang: LanguageCode): string {
 
 const BILL_CATEGORIES = ['电费', '水费', '网费', '日用品', '其他', '自定义'];
 const BILL_CATEGORY_CUSTOM = '__custom__';
-const STATUS_OPTIONS: DormState[] = ['外出', '学习', '睡觉', '游戏'];
+const STATUS_OPTIONS: DormState[] = ['out', 'study', 'sleep', 'game'];
 
 function stateLabel(lang: LanguageCode, state: DormState): string {
   if (lang === 'en') {
-    if (state === '学习') return 'Studying';
-    if (state === '睡觉') return 'Sleeping';
-    if (state === '游戏') return 'Gaming';
+    if (state === 'study') return 'Studying';
+    if (state === 'sleep') return 'Sleeping';
+    if (state === 'game') return 'Gaming';
     return 'Out';
   }
   if (lang === 'fr') {
-    if (state === '学习') return 'Etude';
-    if (state === '睡觉') return 'Sommeil';
-    if (state === '游戏') return 'Jeu';
+    if (state === 'study') return 'Etude';
+    if (state === 'sleep') return 'Sommeil';
+    if (state === 'game') return 'Jeu';
     return 'Sorti';
   }
   if (lang === 'zh-TW') {
-    if (state === '学习') return '學習';
-    if (state === '睡觉') return '睡覺';
-    if (state === '游戏') return '遊戲';
+    if (state === 'study') return '學習';
+    if (state === 'sleep') return '睡覺';
+    if (state === 'game') return '遊戲';
     return '外出';
   }
-  return state;
+  if (state === 'study') return '学习';
+  if (state === 'sleep') return '睡觉';
+  if (state === 'game') return '游戏';
+  return '外出';
 }
 
 function parseStatusSystemMessage(text: string): { userName: string; state: DormState } | null {
-  const hit = text.match(/^(.+?)现在是(学习|睡觉|游戏|外出)状态$/) || text.match(/^(.+?) 的状态改变了：(学习|睡觉|游戏|外出)$/);
+  const hit = text.match(/^__status_change__:(.+?):(out|study|sleep|game)$/);
   if (!hit) return null;
   return {
     userName: hit[1],
@@ -235,99 +252,42 @@ function categoryLabel(lang: LanguageCode, category: string): string {
 }
 
 function localizeServerText(lang: LanguageCode, text: string): string {
-  const staticMap: Record<string, Record<LanguageCode, string>> = {
-    新账单已发布: {
-      'zh-CN': '新账单已发布',
-      'zh-TW': '新帳單已發布',
-      fr: 'Nouvelle facture publiée',
-      en: 'New bill published',
-    },
-    账单支付状态更新: {
-      'zh-CN': '账单支付状态更新',
-      'zh-TW': '帳單支付狀態更新',
-      fr: 'Statut de paiement mis à jour',
-      en: 'Bill payment status updated',
-    },
-    账单支付已撤销: {
-      'zh-CN': '账单支付已撤销',
-      'zh-TW': '帳單支付已撤銷',
-      fr: 'Paiement de facture annulé',
-      en: 'Bill payment reverted',
-    },
-    账单已全部支付: {
-      'zh-CN': '账单已全部支付',
-      'zh-TW': '帳單已全部支付',
-      fr: 'Facture entièrement payée',
-      en: 'Bill fully paid',
-    },
-    该账单所有参与成员已完成支付: {
-      'zh-CN': '该账单所有参与成员已完成支付',
-      'zh-TW': '該帳單所有參與成員已完成支付',
-      fr: 'Tous les participants ont payé cette facture',
-      en: 'All participants have completed payment',
-    },
-    值日安排已发布: {
-      'zh-CN': '值日安排已发布',
-      'zh-TW': '值日安排已發布',
-      fr: 'Corvée assignée',
-      en: 'Duty assignment published',
-    },
-    值日状态已恢复: {
-      'zh-CN': '值日状态已恢复',
-      'zh-TW': '值日狀態已恢復',
-      fr: 'Statut de corvée rétabli',
-      en: 'Duty status restored',
-    },
-    值日任务已完成: {
-      'zh-CN': '值日任务已完成',
-      'zh-TW': '值日任務已完成',
-      fr: 'Corvée terminée',
-      en: 'Duty completed',
-    },
-    宿舍信息已更新: {
-      'zh-CN': '宿舍信息已更新',
-      'zh-TW': '宿舍資訊已更新',
-      fr: 'Informations du dortoir mises à jour',
-      en: 'Dorm info updated',
-    },
-    舍长权限已移交: {
-      'zh-CN': '舍长权限已移交',
-      'zh-TW': '舍長權限已移交',
-      fr: 'Droits du chef transférés',
-      en: 'Leader rights transferred',
-    },
-    有成员标记了已支付: {
-      'zh-CN': '有成员标记了已支付',
-      'zh-TW': '有成員標記了已支付',
-      fr: 'Un membre a marqué comme payé',
-      en: 'A member marked as paid',
-    },
-    有成员撤销了已支付: {
-      'zh-CN': '有成员撤销了已支付',
-      'zh-TW': '有成員撤銷了已支付',
-      fr: 'Un membre a annulé le paiement',
-      en: 'A member reverted payment',
-    },
-    有成员将值日恢复为未完成: {
-      'zh-CN': '有成员将值日恢复为未完成',
-      'zh-TW': '有成員將值日恢復為未完成',
-      fr: 'Un membre a rouvert une corvée',
-      en: 'A member reopened a duty',
-    },
-    有成员完成了值日任务: {
-      'zh-CN': '有成员完成了值日任务',
-      'zh-TW': '有成員完成了值日任務',
-      fr: 'Un membre a terminé une corvée',
-      en: 'A member completed a duty',
-    },
-    未命名账单: {
-      'zh-CN': '未命名账单',
-      'zh-TW': '未命名帳單',
-      fr: 'Facture sans titre',
-      en: 'Untitled bill',
-    },
+  const sourceKeyPairs: Array<[string, string]> = [
+    ['新账单已发布', 'newBillPublished'],
+    ['账单支付状态更新', 'billPaymentStatusUpdated'],
+    ['账单支付已撤销', 'billPaymentReverted'],
+    ['账单已全部支付', 'billFullyPaid'],
+    ['该账单所有参与成员已完成支付', 'billAllParticipantsPaid'],
+    ['值日安排已发布', 'dutyPublished'],
+    ['值日状态已恢复', 'dutyRestored'],
+    ['值日任务已完成', 'dutyCompleted'],
+    ['宿舍信息已更新', 'dormInfoUpdated'],
+    ['舍长权限已移交', 'leaderRightsTransferred'],
+    ['有成员标记了已支付', 'memberMarkedPaid'],
+    ['有成员撤销了已支付', 'memberRevertedPaid'],
+    ['有成员将值日恢复为未完成', 'memberReopenedDuty'],
+    ['有成员完成了值日任务', 'memberCompletedDuty'],
+    ['未命名账单', 'untitledBill'],
+  ];
+  const sourceToKeyMap: Record<string, string> = Object.fromEntries(sourceKeyPairs);
+  const staticTextMap: Record<string, Record<LanguageCode, string>> = {
+    newBillPublished: { 'zh-CN': '新账单已发布', 'zh-TW': '新帳單已發布', fr: 'Nouvelle facture publiée', en: 'New bill published' },
+    billPaymentStatusUpdated: { 'zh-CN': '账单支付状态更新', 'zh-TW': '帳單支付狀態更新', fr: 'Statut de paiement mis à jour', en: 'Bill payment status updated' },
+    billPaymentReverted: { 'zh-CN': '账单支付已撤销', 'zh-TW': '帳單支付已撤銷', fr: 'Paiement de facture annulé', en: 'Bill payment reverted' },
+    billFullyPaid: { 'zh-CN': '账单已全部支付', 'zh-TW': '帳單已全部支付', fr: 'Facture entièrement payée', en: 'Bill fully paid' },
+    billAllParticipantsPaid: { 'zh-CN': '该账单所有参与成员已完成支付', 'zh-TW': '該帳單所有參與成員已完成支付', fr: 'Tous les participants ont payé cette facture', en: 'All participants have completed payment' },
+    dutyPublished: { 'zh-CN': '值日安排已发布', 'zh-TW': '值日安排已發布', fr: 'Corvée assignée', en: 'Duty assignment published' },
+    dutyRestored: { 'zh-CN': '值日状态已恢复', 'zh-TW': '值日狀態已恢復', fr: 'Statut de corvée rétabli', en: 'Duty status restored' },
+    dutyCompleted: { 'zh-CN': '值日任务已完成', 'zh-TW': '值日任務已完成', fr: 'Corvée terminée', en: 'Duty completed' },
+    dormInfoUpdated: { 'zh-CN': '宿舍信息已更新', 'zh-TW': '宿舍資訊已更新', fr: 'Informations du dortoir mises à jour', en: 'Dorm info updated' },
+    leaderRightsTransferred: { 'zh-CN': '舍长权限已移交', 'zh-TW': '舍長權限已移交', fr: 'Droits du chef transférés', en: 'Leader rights transferred' },
+    memberMarkedPaid: { 'zh-CN': '有成员标记了已支付', 'zh-TW': '有成員標記了已支付', fr: 'Un membre a marqué comme payé', en: 'A member marked as paid' },
+    memberRevertedPaid: { 'zh-CN': '有成员撤销了已支付', 'zh-TW': '有成員撤銷了已支付', fr: 'Un membre a annulé le paiement', en: 'A member reverted payment' },
+    memberReopenedDuty: { 'zh-CN': '有成员将值日恢复为未完成', 'zh-TW': '有成員將值日恢復為未完成', fr: 'Un membre a rouvert une corvée', en: 'A member reopened a duty' },
+    memberCompletedDuty: { 'zh-CN': '有成员完成了值日任务', 'zh-TW': '有成員完成了值日任務', fr: 'Un membre a terminé une corvée', en: 'A member completed a duty' },
+    untitledBill: { 'zh-CN': '未命名账单', 'zh-TW': '未命名帳單', fr: 'Facture sans titre', en: 'Untitled bill' },
   };
-  const mapped = staticMap[text];
+  const mapped = staticTextMap[sourceToKeyMap[text] || ''];
   if (mapped) {
     return mapped[lang];
   }
@@ -400,7 +360,17 @@ function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]): ChatMe
 type ChartPoint = { label: string; value: number };
 type LineSeries = { name: string; points: ChartPoint[] };
 
-function PieChartCard({ title, data, currency = false }: { title: string; data: ChartPoint[]; currency?: boolean }) {
+function PieChartCard({
+  title,
+  data,
+  currency = false,
+  darkMode = false,
+}: {
+  title: string;
+  data: ChartPoint[];
+  currency?: boolean;
+  darkMode?: boolean;
+}) {
   const [hovered, setHovered] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
   const [focusedLabel, setFocusedLabel] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -437,7 +407,7 @@ function PieChartCard({ title, data, currency = false }: { title: string; data: 
       {total <= 0 ? null : (
         <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-center">
           <div className="cursor-zoom-in" onClick={() => setFullscreen(true)}>
-            <svg className="w-full max-w-[380px] h-auto drop-shadow-[0_6px_20px_rgba(15,23,42,0.25)]" viewBox="0 0 300 300">
+            <svg className={`w-full max-w-[380px] h-auto ${darkMode ? 'drop-shadow-[0_6px_20px_rgba(2,6,23,0.65)]' : 'drop-shadow-[0_6px_20px_rgba(15,23,42,0.25)]'}`} viewBox="0 0 300 300">
               {slices.map((slice) => {
                 const isActive = !activeLabel || activeLabel === slice.label;
                 const shift = activeLabel === slice.label ? 7 : 0;
@@ -497,7 +467,7 @@ function PieChartCard({ title, data, currency = false }: { title: string; data: 
       )}
       {hovered ? (
         <div
-          className="pointer-events-none absolute z-20 rounded-xl bg-white/96 text-slate-900 shadow-xl border border-slate-200 px-3 py-2 text-xs font-bold"
+          className="light-tooltip pointer-events-none absolute z-20 rounded-xl bg-white/96 text-slate-900 shadow-xl border border-slate-200 px-3 py-2 text-xs font-bold"
           style={{ left: hovered.x + 12, top: hovered.y + 12 }}
         >
           <div>{hovered.label}</div>
@@ -525,11 +495,13 @@ function LineChartCard({
   data,
   series,
   currency = false,
+  darkMode = false,
 }: {
   title: string;
   data?: ChartPoint[];
   series?: LineSeries[];
   currency?: boolean;
+  darkMode?: boolean;
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const normalizedSeries = useMemo(() => {
@@ -553,6 +525,11 @@ function LineChartCard({
   const option = useMemo(() => {
     const lineWidth = fullscreen ? 5.2 : 3.8;
     const focusLineWidth = fullscreen ? 7.2 : 5.6;
+    const axisTextColor = darkMode ? '#c8dcf7' : '#64748b';
+    const tooltipTextColor = darkMode ? '#e2e8f0' : '#0f172a';
+    const tooltipBg = darkMode ? 'rgba(2,6,23,0.95)' : 'rgba(255,255,255,0.96)';
+    const tooltipBorder = darkMode ? 'rgba(148,163,184,0.35)' : '#e2e8f0';
+    const splitLineColor = darkMode ? 'rgba(148,163,184,0.22)' : 'rgba(148,163,184,0.28)';
     return {
       animation: true,
       color: seriesWithValues.map((item) => item.color),
@@ -566,11 +543,11 @@ function LineChartCard({
       tooltip: {
         trigger: 'axis',
         confine: true,
-        backgroundColor: 'rgba(255,255,255,0.96)',
-        borderColor: '#e2e8f0',
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
         borderWidth: 1,
         textStyle: {
-          color: '#0f172a',
+          color: tooltipTextColor,
           fontWeight: 700,
         },
         formatter: (params: any) => {
@@ -586,7 +563,7 @@ function LineChartCard({
       legend: {
         bottom: 6,
         textStyle: {
-          color: '#64748b',
+          color: axisTextColor,
           fontWeight: 700,
           fontSize: 12,
         },
@@ -596,15 +573,15 @@ function LineChartCard({
         boundaryGap: false,
         data: allLabels,
         axisLine: { lineStyle: { color: 'rgba(148,163,184,0.8)' } },
-        axisLabel: { color: '#64748b', fontWeight: 700 },
+        axisLabel: { color: axisTextColor, fontWeight: 700 },
       },
       yAxis: {
         type: 'value',
         min: 0,
-        splitLine: { lineStyle: { color: 'rgba(148,163,184,0.28)', type: 'dashed' } },
+        splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } },
         axisLine: { show: false },
         axisLabel: {
-          color: '#64748b',
+          color: axisTextColor,
           fontWeight: 700,
           formatter: (value: number) => (currency ? `¥${Number(value).toFixed(0)}` : `${value}`),
         },
@@ -628,7 +605,7 @@ function LineChartCard({
         data: line.points.map((point) => point.value),
       })),
     };
-  }, [allLabels, currency, fullscreen, seriesWithValues]);
+  }, [allLabels, currency, darkMode, fullscreen, seriesWithValues]);
 
   const renderChart = (isFullscreen: boolean) => (
     <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-6 md:p-8 flex flex-col' : 'p-6'}`}>
@@ -669,7 +646,7 @@ export default function LegacyDormApp() {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => mapPathToTab(pathname || '/'));
-  const [selectedState, setSelectedState] = useState<DormState>('外出');
+  const [selectedState, setSelectedState] = useState<DormState>('out');
   const [assignUserId, setAssignUserId] = useState<number | null>(null);
   const [assignDate, setAssignDate] = useState(todayText());
   const [billTotal, setBillTotal] = useState('');
@@ -700,6 +677,13 @@ export default function LegacyDormApp() {
   const [dutyLineGranularity, setDutyLineGranularity] = useState<LineGranularity>('day');
   const [showAllDoneDuty, setShowAllDoneDuty] = useState(false);
   const [noticePopup, setNoticePopup] = useState<{ title: string; content: string } | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Record<SettingsSectionKey, boolean>>({
+    user: false,
+    dorm: false,
+    member: false,
+    bot: false,
+    security: false,
+  });
 
   const [name, setName] = useState('');
   const [language, setLanguage] = useState<LanguageCode>('zh-CN');
@@ -751,6 +735,10 @@ export default function LegacyDormApp() {
   const lastSyncedBotOtherContentRef = useRef<string>('');
   const lastSyncedBotSettingsRef = useRef<Array<{ key: string; value: string }>>([]);
   const lastSyncedMemberDescriptionsRef = useRef<Record<number, string>>({});
+
+  const toggleSettingsSection = useCallback((section: SettingsSectionKey) => {
+    setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  }, []);
 
   const tryApplyLimitedInput = useCallback(
     (key: string, value: string, max: number, message: string, apply: (safeValue: string) => void) => {
@@ -1082,7 +1070,7 @@ export default function LegacyDormApp() {
   }, [meQuery.data?.id, statusQuery.data]);
 
   const me = meQuery.data;
-  const t = I18N[me?.language || 'zh-CN'];
+  const t = getUiText(me?.language || 'zh-CN');
   const copyInviteCode = async () => {
     const code = me?.inviteCode;
     if (!code || typeof window === 'undefined') return;
@@ -1344,7 +1332,7 @@ export default function LegacyDormApp() {
       name: member.name,
       avatar: resolveAvatar(member.avatarPath, member.id),
       role: member.isLeader ? 'leader' : 'member',
-      state: statusMap.get(member.id) || '外出',
+      state: statusMap.get(member.id) || 'out',
       status: member.isLeader ? 'online' : 'busy',
     }));
   }, [me, statusQuery.data]);
@@ -1357,9 +1345,9 @@ export default function LegacyDormApp() {
   }, [me?.members]);
 
   const themeClass = useMemo(() => {
-    let classes = selectedState === '睡觉' ? 'dark-mode' : '';
-    if (selectedState === '学习') classes += ' study-mode';
-    if (selectedState === '游戏') classes += ' party-mode';
+    let classes = selectedState === 'sleep' ? 'dark-mode' : '';
+    if (selectedState === 'study') classes += ' study-mode';
+    if (selectedState === 'game') classes += ' party-mode';
     return classes;
   }, [selectedState]);
   const billsRows = useMemo(() => billsQuery.data?.pages.flatMap((page) => page.items) || [], [billsQuery.data?.pages]);
@@ -2482,7 +2470,7 @@ export default function LegacyDormApp() {
   }, [activeTab, notificationRows.length, notificationsQuery]);
 
   return (
-    <div className={`min-h-screen ${themeClass}`}>
+    <div className={`min-h-screen app-shell ${themeClass}`}>
       <AnimatePresence>
         {noticePopup ? (
           <motion.aside
@@ -2544,10 +2532,10 @@ export default function LegacyDormApp() {
                   selectedState === state ? 'accent-bg shadow-lg' : 'hover:bg-slate-100/20 text-muted'
                 }`}
               >
-                {state === '外出' && <Coffee className="w-4 h-4" />}
-                {state === '学习' && <BookOpen className="w-4 h-4" />}
-                {state === '睡觉' && <Moon className="w-4 h-4" />}
-                {state === '游戏' && <Music className="w-4 h-4" />}
+                {state === 'out' && <Coffee className="w-4 h-4" />}
+                {state === 'study' && <BookOpen className="w-4 h-4" />}
+                {state === 'sleep' && <Moon className="w-4 h-4" />}
+                {state === 'game' && <Music className="w-4 h-4" />}
                 <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity">
                   {stateLabel(me?.language || 'zh-CN', state)}
                 </span>
@@ -2556,9 +2544,9 @@ export default function LegacyDormApp() {
           </div>
         </header>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false}>
           {activeTab === 'dashboard' && (
-            <motion.div key="dash" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <motion.div key="dash" animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 glass-card sleep-depth-near p-8 rounded-2xl accent-bg relative overflow-hidden shadow-2xl">
                 <div className="pointer-events-none absolute inset-0 opacity-25">
                   <Coffee className="absolute right-8 top-8 w-10 h-10 rotate-12" />
@@ -2595,7 +2583,7 @@ export default function LegacyDormApp() {
           )}
 
           {activeTab === 'duty' && (
-            <motion.div key="duty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <motion.div key="duty" animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className={`${me?.isLeader ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
                 <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
                   <h3 className="text-2xl font-black mb-4">{t.dutyBoard}</h3>
@@ -2733,16 +2721,16 @@ export default function LegacyDormApp() {
               </div>
 
               <div className="lg:col-span-3 grid grid-cols-1 gap-6">
-                <PieChartCard title={pText.dutyPie} data={dutyPieData} />
-                <PieChartCard title={pText.dutyByMemberPie} data={dutyByMemberPieData} />
-                <LineChartCard title={pText.dutyLine} data={dutyLineData} />
-                <LineChartCard title={pText.dutyLineByMember} series={dutyMemberLineSeries} />
+                <PieChartCard title={pText.dutyPie} data={dutyPieData} darkMode={selectedState === 'sleep'} />
+                <PieChartCard title={pText.dutyByMemberPie} data={dutyByMemberPieData} darkMode={selectedState === 'sleep'} />
+                <LineChartCard title={pText.dutyLine} data={dutyLineData} darkMode={selectedState === 'sleep'} />
+                <LineChartCard title={pText.dutyLineByMember} series={dutyMemberLineSeries} darkMode={selectedState === 'sleep'} />
               </div>
             </motion.div>
           )}
 
           {activeTab === 'chat' && (
-            <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl relative">
+            <motion.div key="chat" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl relative">
               <div className="p-6 border-b border-slate-200/20 flex items-center justify-between bg-white/10">
                 <h2 className="font-black text-lg">{dormName} {t.chatRoom}</h2>
                 {lastPositionChatId && unreadChatCount > 20 ? (
@@ -2838,7 +2826,7 @@ export default function LegacyDormApp() {
           )}
 
           {activeTab === 'wallet' && (
-            <motion.div key="wallet" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <motion.div key="wallet" animate={{ opacity: 1, scale: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 <div className="glass-card wallet-total-card p-8 rounded-2xl shadow-2xl relative overflow-hidden">
                   <div className="relative z-10">
@@ -2994,15 +2982,15 @@ export default function LegacyDormApp() {
               </div>
 
               <div className="lg:col-span-3 grid grid-cols-1 gap-6">
-                <PieChartCard title={pText.billPie} data={billPieData} currency />
-                <LineChartCard title={pText.billLine} data={billLineData} currency />
-                <LineChartCard title={pText.billLineByCategory} series={billCategoryLineSeries} currency />
+                <PieChartCard title={pText.billPie} data={billPieData} currency darkMode={selectedState === 'sleep'} />
+                <LineChartCard title={pText.billLine} data={billLineData} currency darkMode={selectedState === 'sleep'} />
+                <LineChartCard title={pText.billLineByCategory} series={billCategoryLineSeries} currency darkMode={selectedState === 'sleep'} />
               </div>
             </motion.div>
           )}
 
           {activeTab === 'notifications' && (
-            <motion.div key="notice" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card sleep-depth-mid p-8 rounded-2xl">
+            <motion.div key="notice" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid p-8 rounded-2xl">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <h3 className="text-2xl font-black">{t.notifications}</h3>
                 <div className="flex items-center gap-2 relative">
@@ -3112,9 +3100,22 @@ export default function LegacyDormApp() {
           )}
 
           {activeTab === 'settings' && (
-            <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-9">
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 md:gap-10 items-center">
+            <motion.div key="settings" animate={{ opacity: 1 }} className="space-y-8">
+              <section className={`glass-card sleep-depth-mid rounded-3xl ${collapsedSections.user ? 'px-7 py-4 md:px-9 md:py-4' : 'p-7 md:p-9'}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <h4 className="font-black text-lg">{t.userInfo}</h4>
+                  <button
+                    type="button"
+                    onClick={() => toggleSettingsSection('user')}
+                    title={settingsFoldLabel(language, collapsedSections.user)}
+                    aria-label={settingsFoldLabel(language, collapsedSections.user)}
+                    className="glass-card w-9 h-9 rounded-lg flex items-center justify-center"
+                  >
+                    <FoldIcon folded={collapsedSections.user} />
+                  </button>
+                </div>
+                {!collapsedSections.user ? (
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 md:gap-10 items-center mt-6">
                   <div className="flex flex-col items-center text-center">
                     <div className="relative w-36 h-36 md:w-40 md:h-40">
                       <div className="w-full h-full rounded-full overflow-hidden ring-4 ring-white/40 shadow-2xl">
@@ -3139,7 +3140,6 @@ export default function LegacyDormApp() {
                   </div>
 
                   <div className="space-y-6">
-                    <h4 className="font-black text-xl">{t.userInfo}</h4>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
                       <input
                         className="w-full p-3 rounded-xl glass-card custom-field"
@@ -3159,10 +3159,24 @@ export default function LegacyDormApp() {
                     </div>
                   </div>
                 </div>
+                ) : null}
               </section>
 
-              <section className="glass-card sleep-depth-deep rounded-3xl p-7 md:p-8 space-y-6">
-                <h4 className="font-black text-lg">{t.dormInfo}</h4>
+              <section className={`glass-card sleep-depth-deep rounded-3xl ${collapsedSections.dorm ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <h4 className="font-black text-lg">{t.dormInfo}</h4>
+                  <button
+                    type="button"
+                    onClick={() => toggleSettingsSection('dorm')}
+                    title={settingsFoldLabel(language, collapsedSections.dorm)}
+                    aria-label={settingsFoldLabel(language, collapsedSections.dorm)}
+                    className="glass-card w-9 h-9 rounded-lg flex items-center justify-center"
+                  >
+                    <FoldIcon folded={collapsedSections.dorm} />
+                  </button>
+                </div>
+                {!collapsedSections.dorm ? (
+                <div className="space-y-6 mt-6">
                 <div className="glass-card rounded-2xl px-5 py-5 md:py-6 w-[96%] md:w-[92%] mx-auto">
                   <p className="text-xs text-muted mb-2">{t.inviteCodeLabel}</p>
                   <div className="flex items-center justify-between gap-3">
@@ -3199,10 +3213,25 @@ export default function LegacyDormApp() {
                     <button onClick={() => transferMutation.mutate()} className="glass-card px-4 py-4 min-h-[56px] rounded-xl font-bold w-[96%] md:w-[92%] mx-auto block text-rose-500 text-[15px]">{t.transferLeader}</button>
                   </div>
                 ) : null}
+                </div>
+                ) : null}
               </section>
 
-              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-8 space-y-6">
-                <h4 className="font-black text-lg">{memberDescLabel}</h4>
+              <section className={`glass-card sleep-depth-mid rounded-3xl ${collapsedSections.member ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <h4 className="font-black text-lg">{memberDescLabel}</h4>
+                  <button
+                    type="button"
+                    onClick={() => toggleSettingsSection('member')}
+                    title={settingsFoldLabel(language, collapsedSections.member)}
+                    aria-label={settingsFoldLabel(language, collapsedSections.member)}
+                    className="glass-card w-9 h-9 rounded-lg flex items-center justify-center"
+                  >
+                    <FoldIcon folded={collapsedSections.member} />
+                  </button>
+                </div>
+                {!collapsedSections.member ? (
+                <div className="space-y-6 mt-6">
                 {me?.isLeader ? (
                   <div className="space-y-6">
                     {(me?.members || []).map((member) => (
@@ -3262,11 +3291,26 @@ export default function LegacyDormApp() {
                     onBlur={(event) => resetTextareaHeight(event.currentTarget)}
                   />
                 )}
+                </div>
+                ) : null}
               </section>
 
-              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-8">
-                  <h4 className="font-black text-lg mb-4">{botLabel}</h4>
-                  <div className="space-y-6">
+              <section className={`glass-card sleep-depth-mid rounded-3xl ${collapsedSections.bot ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <h4 className="font-black text-lg">{botLabel}</h4>
+                    <button
+                      type="button"
+                      onClick={() => toggleSettingsSection('bot')}
+                      title={settingsFoldLabel(language, collapsedSections.bot)}
+                      aria-label={settingsFoldLabel(language, collapsedSections.bot)}
+                      className="glass-card w-9 h-9 rounded-lg flex items-center justify-center"
+                    >
+                      <FoldIcon folded={collapsedSections.bot} />
+                    </button>
+                  </div>
+                  {!collapsedSections.bot ? (
+                  <>
+                  <div className="space-y-6 mt-6">
                     <div className="grid grid-cols-[auto_1fr] gap-8 md:gap-10 items-center">
                       <div className="relative w-20 h-20">
                         <div className="w-full h-full rounded-full overflow-hidden ring-2 ring-white/40 shadow-lg">
@@ -3430,10 +3474,25 @@ export default function LegacyDormApp() {
                     accept="image/png,image/jpeg,image/webp"
                     onChange={(e) => setBotAvatarFile(e.target.files?.[0] || null)}
                   />
+                  </>
+                  ) : null}
                 </section>
 
-              <section className="glass-card sleep-depth-mid rounded-3xl p-7 md:p-8 space-y-5">
-                <h4 className="font-black text-lg">{t.accountSecurity}</h4>
+              <section className={`glass-card sleep-depth-mid rounded-3xl ${collapsedSections.security ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <h4 className="font-black text-lg">{t.accountSecurity}</h4>
+                  <button
+                    type="button"
+                    onClick={() => toggleSettingsSection('security')}
+                    title={settingsFoldLabel(language, collapsedSections.security)}
+                    aria-label={settingsFoldLabel(language, collapsedSections.security)}
+                    className="glass-card w-9 h-9 rounded-lg flex items-center justify-center"
+                  >
+                    <FoldIcon folded={collapsedSections.security} />
+                  </button>
+                </div>
+                {!collapsedSections.security ? (
+                <div className="space-y-5 mt-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <button
                     onClick={() => {
@@ -3458,6 +3517,8 @@ export default function LegacyDormApp() {
                 </div>
                 {logoutMutation.error ? <p className="text-rose-500 text-sm">{(logoutMutation.error as Error).message}</p> : null}
                 {deleteAccountMutation.error ? <p className="text-rose-500 text-sm">{(deleteAccountMutation.error as Error).message}</p> : null}
+                </div>
+                ) : null}
               </section>
             </motion.div>
           )}

@@ -1,0 +1,58 @@
+﻿.wallet-total-card {
+  border-color: rgba(199, 210, 254, 0.4);
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.3), transparent 44%),
+    radial-gradient(circle at 88% 88%, rgba(15, 23, 42, 0.25), transparent 52%),
+    linear-gradient(145deg, #4f46e5 0%, #3730a3 56%, #312e81 100%);
+  color: #ffffff !important;
+}
+
+.wallet-total-card .wallet-top-icon {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.wallet-total-card .wallet-main-value {
+  color: #ffffff;
+  text-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+}
+
+.wallet-total-card .wallet-kpi-label {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.wallet-total-card .wallet-kpi-value {
+  color: #ffffff;
+}
+
+.app-toast-container {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, 92vw);
+}
+
+.app-toast {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-weight: 600;
+}
+
+.app-toast-error {
+  background: rgba(190, 24, 93, 0.9);
+}
+
+.app-toast-success {
+  background: rgba(22, 163, 74, 0.9);
+}
+
+.app-toast-info {
+  background: rgba(15, 118, 110, 0.9);
+}
