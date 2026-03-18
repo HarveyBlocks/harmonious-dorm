@@ -40,6 +40,8 @@ import {
 } from '@/components/legacy-app/helpers';
 import { categoryLabel, localizeServerText } from '@/components/legacy-app/localization';
 import { NoticePopup } from '@/components/legacy-app/notice-popup';
+import { useChatWindow } from '@/components/legacy-app/hooks/use-chat-window';
+import { useNotificationSelection } from '@/components/legacy-app/hooks/use-notification-selection';
 import {
   BotSettingsSection,
   DormSettingsSection,
@@ -63,7 +65,7 @@ import type {
   SettingsSectionKey,
 } from '@/components/legacy-app/types';
 
- 
+
 
 
 export default function LegacyDormApp() {
@@ -83,17 +85,8 @@ export default function LegacyDormApp() {
   const [participantWeights, setParticipantWeights] = useState<Record<number, string>>({});
   const [chatInput, setChatInput] = useState('');
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
-  const [chatWindowMode, setChatWindowMode] = useState(false);
-  const [chatOlderCursor, setChatOlderCursor] = useState<number | null>(null);
-  const [chatNewerCursor, setChatNewerCursor] = useState<number | null>(null);
-  const [chatHasOlder, setChatHasOlder] = useState(true);
-  const [chatHasNewer, setChatHasNewer] = useState(false);
   const [newChatHintCount, setNewChatHintCount] = useState(0);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
-  const [notificationSelectAll, setNotificationSelectAll] = useState(false);
-  const [notificationIncludeIds, setNotificationIncludeIds] = useState<Set<number>>(new Set());
-  const [notificationExcludeIds, setNotificationExcludeIds] = useState<Set<number>>(new Set());
-  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [billPeriodType, setBillPeriodType] = useState<PeriodType>('month');
   const [billYear, setBillYear] = useState(`${new Date().getFullYear()}`);
   const [billPeriodMarker, setBillPeriodMarker] = useState<number>(new Date().getMonth() + 1);
@@ -140,13 +133,6 @@ export default function LegacyDormApp() {
   const chatAtBottomRef = useRef(true);
   const chatForceBottomOnNextLayoutRef = useRef(false);
   const pendingNewChatIdsRef = useRef<Set<number>>(new Set());
-  const chatLoadingOlderRef = useRef(false);
-  const chatLoadingNewerRef = useRef(false);
-  const chatPrependStateRef = useRef<{ pending: boolean; prevHeight: number; prevTop: number }>({
-    pending: false,
-    prevHeight: 0,
-    prevTop: 0,
-  });
   const profileSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dormSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const avatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -283,16 +269,6 @@ export default function LegacyDormApp() {
       ),
     enabled: authReady,
   });
-
-  useEffect(() => {
-    if (chatWindowMode) return;
-    if (!chatQuery.data?.pages) return;
-    const merged = chatQuery.data.pages
-      .slice()
-      .reverse()
-      .flatMap((page) => page.items);
-    setLiveMessages((prev) => mergeChatMessages(prev, merged));
-  }, [chatQuery.dataUpdatedAt, chatWindowMode]);
 
   useEffect(() => {
     const dormId = meQuery.data?.dormId;
@@ -581,6 +557,19 @@ export default function LegacyDormApp() {
     () => notificationsQuery.data?.pages.flatMap((page) => page.items) || [],
     [notificationsQuery.data?.pages],
   );
+  const {
+    menuOpen: notificationMenuOpen,
+    setMenuOpen: setNotificationMenuOpen,
+    isChecked: isNoticeChecked,
+    selectedCount: selectedNoticeCount,
+    selectionPayload,
+    toggleSelect: toggleNoticeSelect,
+    selectAllRows: setNoticeSelectAll,
+    clearSelection: clearNoticeSelection,
+  } = useNotificationSelection({
+    filterKey: notificationFilter,
+    totalRowCount: notificationRows.length,
+  });
   const renderedLiveMessages = useMemo<RenderedChatMessage[]>(() => {
     const lang = me?.language || 'zh-CN';
     return liveMessages.map((msg) => {
@@ -774,6 +763,44 @@ export default function LegacyDormApp() {
     }
     setNewChatHintCount(pending.size);
   }, []);
+
+  const {
+    chatWindowMode,
+    setChatOlderCursor,
+    setChatNewerCursor,
+    setChatHasOlder,
+    setChatHasNewer,
+    chatPrependStateRef,
+    unreadChatCount,
+    lastPositionChatId,
+    jumpToLastPosition,
+    resetChatToLatest,
+    onChatListScroll,
+  } = useChatWindow({
+    unreadRows: notificationsUnreadQuery.data?.items || [],
+    anchorId: chatAnchorQuery.data?.anchorId || null,
+    chatQuery: {
+      hasNextPage: Boolean(chatQuery.hasNextPage),
+      isFetchingNextPage: chatQuery.isFetchingNextPage,
+      fetchNextPage: () => chatQuery.fetchNextPage(),
+    },
+    setLiveMessages,
+    chatMessageRefs,
+    pendingNewChatIdsRef,
+    chatAtBottomRef,
+    syncSeenNewChatHint,
+    setNewChatHintCount,
+  });
+
+  useEffect(() => {
+    if (chatWindowMode) return;
+    if (!chatQuery.data?.pages) return;
+    const merged = chatQuery.data.pages
+      .slice()
+      .reverse()
+      .flatMap((page) => page.items);
+    setLiveMessages((prev) => mergeChatMessages(prev, merged));
+  }, [chatQuery.dataUpdatedAt, chatWindowMode]);
 
   const jumpToFirstNewChat = useCallback(() => {
     const pendingIds = [...pendingNewChatIdsRef.current].sort((a, b) => a - b);
@@ -1361,43 +1388,6 @@ export default function LegacyDormApp() {
     [pathname, router],
   );
 
-  useEffect(() => {
-    setNotificationSelectAll(false);
-    setNotificationIncludeIds(new Set());
-    setNotificationExcludeIds(new Set());
-    setNotificationMenuOpen(false);
-  }, [notificationFilter]);
-
-  const toggleNoticeSelect = useCallback((id: number) => {
-    if (notificationSelectAll) {
-      setNotificationExcludeIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
-      return;
-    }
-    setNotificationIncludeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, [notificationSelectAll]);
-
-  const setNoticeSelectAll = useCallback(() => {
-    setNotificationSelectAll(true);
-    setNotificationIncludeIds(new Set());
-    setNotificationExcludeIds(new Set());
-  }, []);
-
-  const clearNoticeSelection = useCallback(() => {
-    setNotificationSelectAll(false);
-    setNotificationIncludeIds(new Set());
-    setNotificationExcludeIds(new Set());
-  }, []);
-
   const onNoticeListScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
     if (
@@ -1440,134 +1430,14 @@ export default function LegacyDormApp() {
     }
   }, [dutyAllQuery, showAllDoneDuty]);
 
-  const onChatListScroll = useCallback(async (event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    const nearTop = el.scrollTop <= 80;
-    const nearBottom = isChatNearBottom(el);
-    chatAtBottomRef.current = nearBottom;
-    if (nearBottom && pendingNewChatIdsRef.current.size > 0) {
-      pendingNewChatIdsRef.current.clear();
-      setNewChatHintCount(0);
-    } else {
-      syncSeenNewChatHint();
-    }
-
-    if (chatWindowMode) {
-      if (nearTop && chatHasOlder && chatOlderCursor && !chatLoadingOlderRef.current) {
-        chatLoadingOlderRef.current = true;
-        chatPrependStateRef.current = {
-          pending: true,
-          prevHeight: el.scrollHeight,
-          prevTop: el.scrollTop,
-        };
-        try {
-          const resp = await apiRequest<{ items: ChatMessage[]; nextCursor: number | null; hasMore: boolean }>(
-            `/api/chat/window?mode=older&cursor=${chatOlderCursor}&limit=20`,
-          );
-          if (resp.items.length > 0) {
-            setLiveMessages((prev) => mergeChatMessages(resp.items, prev));
-            setChatOlderCursor(resp.nextCursor ?? chatOlderCursor);
-          }
-          setChatHasOlder(Boolean(resp.hasMore && resp.nextCursor));
-        } finally {
-          chatLoadingOlderRef.current = false;
-        }
-        return;
-      }
-      if (nearBottom && chatHasNewer && chatNewerCursor && !chatLoadingNewerRef.current) {
-        chatLoadingNewerRef.current = true;
-        try {
-          const resp = await apiRequest<{ items: ChatMessage[]; nextCursor: number | null; hasMore: boolean }>(
-            `/api/chat/window?mode=newer&cursor=${chatNewerCursor}&limit=20`,
-          );
-          if (resp.items.length > 0) {
-            setLiveMessages((prev) => mergeChatMessages(prev, resp.items));
-            setChatNewerCursor(resp.nextCursor ?? chatNewerCursor);
-          }
-          setChatHasNewer(Boolean(resp.hasMore && resp.nextCursor));
-        } finally {
-          chatLoadingNewerRef.current = false;
-        }
-      }
-      return;
-    }
-
-    if (nearTop && chatQuery.hasNextPage && !chatQuery.isFetchingNextPage) {
-      chatPrependStateRef.current = {
-        pending: true,
-        prevHeight: el.scrollHeight,
-        prevTop: el.scrollTop,
-      };
-      await chatQuery.fetchNextPage();
-    }
-  }, [chatHasNewer, chatHasOlder, chatNewerCursor, chatOlderCursor, chatQuery, chatWindowMode, syncSeenNewChatHint]);
-
-
   const dormName = me?.dormName || t.dormTitle;
   const meId = me?.id ?? null;
   const notificationAllRows = notificationRows;
   const notificationVisibleRows = notificationAllRows;
-  const isNoticeChecked = useCallback(
-    (id: number) => (notificationSelectAll ? !notificationExcludeIds.has(id) : notificationIncludeIds.has(id)),
-    [notificationExcludeIds, notificationIncludeIds, notificationSelectAll],
-  );
-  const selectedNoticeCount = useMemo(() => {
-    if (notificationSelectAll) {
-      return Math.max(notificationAllRows.length - notificationExcludeIds.size, 0);
-    }
-    return notificationIncludeIds.size;
-  }, [notificationAllRows.length, notificationExcludeIds.size, notificationIncludeIds.size, notificationSelectAll]);
-  const selectionPayload = useMemo(
-    () => ({
-      selectAll: notificationSelectAll,
-      ids: notificationSelectAll ? [...notificationExcludeIds] : [...notificationIncludeIds],
-    }),
-    [notificationExcludeIds, notificationIncludeIds, notificationSelectAll],
-  );
   const unreadNoticeCount = useMemo(
     () => (notificationsUnreadQuery.data?.items || []).reduce((sum, item) => sum + (item.unreadCount || 0), 0),
     [notificationsUnreadQuery.data?.items],
   );
-  const unreadChatCount = useMemo(() => {
-    const unreadRows = notificationsUnreadQuery.data?.items || [];
-    return unreadRows
-      .filter((item) => item.type === 'chat')
-      .reduce((sum, item) => sum + Math.max(item.unreadCount || 0, 1), 0);
-  }, [notificationsUnreadQuery.data?.items]);
-  const lastPositionChatId = chatAnchorQuery.data?.anchorId || null;
-  const jumpToLastPosition = useCallback(async () => {
-    if (unreadChatCount <= 20) return;
-    if (!lastPositionChatId) return;
-    const windowResp = await apiRequest<{
-      items: ChatMessage[];
-      olderCursor: number | null;
-      newerCursor: number | null;
-      hasOlder: boolean;
-      hasNewer: boolean;
-    }>(`/api/chat/window?mode=around&anchorId=${lastPositionChatId}&before=10&after=10`);
-    if (!windowResp.items.length) return;
-    setChatWindowMode(true);
-    setLiveMessages(windowResp.items);
-    setChatOlderCursor(windowResp.olderCursor);
-    setChatNewerCursor(windowResp.newerCursor);
-    setChatHasOlder(windowResp.hasOlder);
-    setChatHasNewer(windowResp.hasNewer);
-    requestAnimationFrame(() => {
-      const node = chatMessageRefs.current[lastPositionChatId];
-      if (node) {
-        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    });
-  }, [lastPositionChatId, unreadChatCount]);
-
-  const resetChatToLatest = useCallback(() => {
-    setChatWindowMode(false);
-    setChatOlderCursor(null);
-    setChatNewerCursor(null);
-    setChatHasOlder(true);
-    setChatHasNewer(false);
-  }, []);
-
   useEffect(() => {
     if (activeTab !== 'chat') {
       resetChatToLatest();
