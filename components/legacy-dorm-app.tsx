@@ -26,11 +26,9 @@ import {
   dispatchToast,
   formatPaidInfo,
   isChatNearBottom,
-  isThisMonth,
   mapPathToTab,
   mapTabToPath,
   mergeChatMessages,
-  monthHeader,
   parseStatusSystemMessage,
   resetTextareaHeight,
   resolveAvatar,
@@ -52,6 +50,7 @@ import {
 import { SideNav } from '@/components/legacy-app/side-nav';
 import { ChatTab, DashboardTab, DutyTab, NotificationsTab, WalletTab } from '@/components/legacy-app/tabs';
 import { TopHeader } from '@/components/legacy-app/top-header';
+import { buildErrorText, buildPanelText, buildSettingsText, calcMonthTotal, calcPreviewAmounts, groupBillsByMonth } from '@/components/legacy-app/view-models';
 import type {
   ActiveTab,
   ChartPoint,
@@ -526,272 +525,22 @@ export default function LegacyDormApp() {
       );
     }
   };
-  const changeAvatarTitle =
-    me?.language === 'en'
-      ? 'Change avatar'
-      : me?.language === 'fr'
-      ? 'Changer l’avatar'
-      : me?.language === 'zh-TW'
-      ? '更換頭像'
-      : '更换头像';
-  const botLabel =
-    me?.language === 'en' ? 'Dorm Bot' : me?.language === 'fr' ? 'Robot du dortoir' : me?.language === 'zh-TW' ? '宿舍機器人' : '宿舍机器人';
-  const botNamePlaceholder =
-    me?.language === 'en' ? 'Bot name' : me?.language === 'fr' ? 'Nom du robot' : me?.language === 'zh-TW' ? '機器人名稱' : '机器人名称';
-  const changeBotAvatarTitle =
-    me?.language === 'en' ? 'Change bot avatar' : me?.language === 'fr' ? 'Changer l’avatar du robot' : me?.language === 'zh-TW' ? '更換機器人頭像' : '更换机器人头像';
-  const botSettingsLabel =
-    me?.language === 'en' ? 'Bot Settings' : me?.language === 'fr' ? 'Paramètres du robot' : me?.language === 'zh-TW' ? '機器人設定' : '机器人设定';
-  const memberDescLabel =
-    me?.language === 'en' ? 'Member Description' : me?.language === 'fr' ? 'Description des membres' : me?.language === 'zh-TW' ? '成員描述' : '成员描述';
-  const memberDescPlaceholder =
-    me?.language === 'en' ? 'Write a short self-introduction...' : me?.language === 'fr' ? 'Écrivez une courte présentation...' : me?.language === 'zh-TW' ? '寫一段自我介紹...' : '写一段自我介绍...';
-  const botOtherContentLabel =
-    me?.language === 'en' ? 'Bot Other Content' : me?.language === 'fr' ? 'Autres contenus du robot' : me?.language === 'zh-TW' ? '機器人的其他內容' : '机器人的其他内容';
-  const botOtherContentPlaceholder =
-    me?.language === 'en'
-      ? 'Input additional bot content...'
-      : me?.language === 'fr'
-      ? 'Saisissez du contenu supplémentaire du robot...'
-      : me?.language === 'zh-TW'
-      ? '輸入機器人的額外內容...'
-      : '输入机器人的额外内容...';
-  const botSettingKeyLabel =
-    me?.language === 'en' ? 'Field name' : me?.language === 'fr' ? 'Nom du champ' : me?.language === 'zh-TW' ? '欄位名' : '字段名';
-  const botSettingValueLabel =
-    me?.language === 'en' ? 'Field value' : me?.language === 'fr' ? 'Valeur du champ' : me?.language === 'zh-TW' ? '欄位值' : '字段值';
-  const addFieldLabel =
-    me?.language === 'en' ? 'Add field' : me?.language === 'fr' ? 'Ajouter un champ' : me?.language === 'zh-TW' ? '新增欄位' : '新增字段';
-  const removeFieldLabel =
-    me?.language === 'en' ? 'Remove' : me?.language === 'fr' ? 'Supprimer' : me?.language === 'zh-TW' ? '刪除' : '删除';
-  const eText = useMemo(() => ({
-    chooseMember: t.chooseMember,
-    invalidDate: t.invalidDate,
-    amountRequired:
-      me?.language === 'en'
-        ? 'Please enter bill amount'
-        : me?.language === 'fr'
-        ? 'Veuillez saisir le montant'
-        : me?.language === 'zh-TW'
-        ? '請輸入帳單金額'
-        : '请输入账单金额',
-    amountNotNumber:
-      me?.language === 'en'
-        ? 'Bill amount must be a number'
-        : me?.language === 'fr'
-        ? 'Le montant doit être un nombre'
-        : me?.language === 'zh-TW'
-        ? '帳單金額必須是數字'
-        : '账单金额必须是数字',
-    amountGtZero:
-      me?.language === 'en'
-        ? 'Bill amount must be greater than 0'
-        : me?.language === 'fr'
-        ? 'Le montant doit être supérieur à 0'
-        : me?.language === 'zh-TW'
-        ? '帳單金額必須大於 0'
-        : '账单金额必须大于 0',
-    amountMax:
-      me?.language === 'en'
-        ? 'Amount cannot exceed 1000000'
-        : me?.language === 'fr'
-        ? 'Le montant ne peut pas dépasser 1000000'
-        : me?.language === 'zh-TW'
-        ? '帳單金額不能超過 1000000'
-        : '账单金额不能超过 1000000',
-    amountDecimal:
-      me?.language === 'en'
-        ? 'Amount can have at most 2 decimal places'
-        : me?.language === 'fr'
-        ? 'Le montant accepte au plus 2 décimales'
-        : me?.language === 'zh-TW'
-        ? '帳單金額最多保留兩位小數'
-        : '账单金额最多保留两位小数',
-    participantsRequired:
-      me?.language === 'en'
-        ? 'Please select at least one participant'
-        : me?.language === 'fr'
-        ? 'Sélectionnez au moins un participant'
-        : me?.language === 'zh-TW'
-        ? '至少選擇一位參與成員'
-        : '至少选择一位参与成员',
-    customCategoryRequired:
-      me?.language === 'en'
-        ? 'Please enter custom category'
-        : me?.language === 'fr'
-        ? 'Veuillez saisir une catégorie personnalisée'
-        : me?.language === 'zh-TW'
-        ? '請輸入自訂消費類型'
-        : '请输入自定义消费类型',
-    messageRequired:
-      me?.language === 'en'
-        ? 'Message cannot be empty'
-        : me?.language === 'fr'
-        ? 'Le message ne peut pas être vide'
-        : me?.language === 'zh-TW'
-        ? '訊息不能為空'
-        : '消息不能为空',
-    messageTooLong:
-      me?.language === 'en'
-        ? `Message cannot exceed ${LIMITS.CHAT_USER_CONTENT} characters`
-        : me?.language === 'fr'
-        ? `Le message ne peut pas dépasser ${LIMITS.CHAT_USER_CONTENT} caractères`
-        : me?.language === 'zh-TW'
-        ? `訊息不能超過 ${LIMITS.CHAT_USER_CONTENT} 字`
-        : `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字`,
-    nameTooLong:
-      me?.language === 'en'
-        ? `Nickname cannot exceed ${LIMITS.USER_NAME} characters`
-        : me?.language === 'fr'
-        ? `Le pseudo ne peut pas dépasser ${LIMITS.USER_NAME} caractères`
-        : me?.language === 'zh-TW'
-        ? `暱稱不能超過 ${LIMITS.USER_NAME} 字`
-        : `昵称不能超过 ${LIMITS.USER_NAME} 字`,
-    dormNameTooLong:
-      me?.language === 'en'
-        ? `Dorm name cannot exceed ${LIMITS.DORM_NAME} characters`
-        : me?.language === 'fr'
-        ? `Le nom du dortoir ne peut pas dépasser ${LIMITS.DORM_NAME} caractères`
-        : me?.language === 'zh-TW'
-        ? `宿舍名稱不能超過 ${LIMITS.DORM_NAME} 字`
-        : `宿舍名称不能超过 ${LIMITS.DORM_NAME} 字`,
-    billDescTooLong:
-      me?.language === 'en'
-        ? `Bill description cannot exceed ${LIMITS.BILL_DESCRIPTION} characters`
-        : me?.language === 'fr'
-        ? `La description de la facture ne peut pas dépasser ${LIMITS.BILL_DESCRIPTION} caractères`
-        : me?.language === 'zh-TW'
-        ? `帳單說明不能超過 ${LIMITS.BILL_DESCRIPTION} 字`
-        : `账单说明不能超过 ${LIMITS.BILL_DESCRIPTION} 字`,
-    customCategoryTooLong:
-      me?.language === 'en'
-        ? `Custom category cannot exceed ${LIMITS.BILL_CUSTOM_CATEGORY} characters`
-        : me?.language === 'fr'
-        ? `La catégorie personnalisée ne peut pas dépasser ${LIMITS.BILL_CUSTOM_CATEGORY} caractères`
-        : me?.language === 'zh-TW'
-        ? `自訂類型不能超過 ${LIMITS.BILL_CUSTOM_CATEGORY} 字`
-        : `自定义账单类型不能超过 ${LIMITS.BILL_CUSTOM_CATEGORY} 字`,
-    memberDescriptionTooLong:
-      me?.language === 'en'
-        ? `Member description cannot exceed ${LIMITS.MEMBER_DESCRIPTION} characters`
-        : me?.language === 'fr'
-        ? `La description du membre ne peut pas dépasser ${LIMITS.MEMBER_DESCRIPTION} caractères`
-        : me?.language === 'zh-TW'
-        ? `成員描述不能超過 ${LIMITS.MEMBER_DESCRIPTION} 字`
-        : `成员描述不能超过 ${LIMITS.MEMBER_DESCRIPTION} 字`,
-    botNameTooLong:
-      me?.language === 'en'
-        ? `Bot name cannot exceed ${LIMITS.BOT_NAME} characters`
-        : me?.language === 'fr'
-        ? `Le nom du robot ne peut pas dépasser ${LIMITS.BOT_NAME} caractères`
-        : me?.language === 'zh-TW'
-        ? `機器人名稱不能超過 ${LIMITS.BOT_NAME} 字`
-        : `机器人名称不能超过 ${LIMITS.BOT_NAME} 字`,
-    botSettingKeyTooLong:
-      me?.language === 'en'
-        ? `Bot setting key cannot exceed ${LIMITS.BOT_SETTING_KEY} characters`
-        : me?.language === 'fr'
-        ? `La clé du paramètre du robot ne peut pas dépasser ${LIMITS.BOT_SETTING_KEY} caractères`
-        : me?.language === 'zh-TW'
-        ? `機器人設定鍵不能超過 ${LIMITS.BOT_SETTING_KEY} 字`
-        : `机器人设定键不能超过 ${LIMITS.BOT_SETTING_KEY} 字`,
-    botSettingValueTooLong:
-      me?.language === 'en'
-        ? `Bot setting value cannot exceed ${LIMITS.BOT_SETTING_VALUE} characters`
-        : me?.language === 'fr'
-        ? `La valeur du paramètre du robot ne peut pas dépasser ${LIMITS.BOT_SETTING_VALUE} caractères`
-        : me?.language === 'zh-TW'
-        ? `機器人設定值不能超過 ${LIMITS.BOT_SETTING_VALUE} 字`
-        : `机器人设定值不能超过 ${LIMITS.BOT_SETTING_VALUE} 字`,
-    botOtherTooLong:
-      me?.language === 'en'
-        ? `Bot extra content cannot exceed ${LIMITS.BOT_OTHER_CONTENT} characters`
-        : me?.language === 'fr'
-        ? `Le contenu supplémentaire du robot ne peut pas dépasser ${LIMITS.BOT_OTHER_CONTENT} caractères`
-        : me?.language === 'zh-TW'
-        ? `機器人的其他內容不能超過 ${LIMITS.BOT_OTHER_CONTENT} 字`
-        : `机器人的其他内容不能超过 ${LIMITS.BOT_OTHER_CONTENT} 字`,
-    botSettingsTooMany:
-      me?.language === 'en'
-        ? `Bot settings cannot exceed ${LIMITS.BOT_SETTINGS_ITEMS} items`
-        : me?.language === 'fr'
-        ? `Les paramètres du robot ne peuvent pas dépasser ${LIMITS.BOT_SETTINGS_ITEMS} éléments`
-        : me?.language === 'zh-TW'
-        ? `機器人設定不能超過 ${LIMITS.BOT_SETTINGS_ITEMS} 條`
-        : `机器人设定不能超过 ${LIMITS.BOT_SETTINGS_ITEMS} 条`,
-    dormNameRequired:
-      me?.language === 'en'
-        ? 'Dorm name cannot be empty'
-        : me?.language === 'fr'
-        ? 'Le nom du dortoir est requis'
-        : me?.language === 'zh-TW'
-        ? '宿舍名稱不能為空'
-        : '宿舍名称不能为空',
-    transferTargetRequired:
-      me?.language === 'en'
-        ? 'Please choose a target user'
-        : me?.language === 'fr'
-        ? 'Veuillez choisir un utilisateur'
-        : me?.language === 'zh-TW'
-        ? '請選擇移交對象'
-        : '请选择移交对象',
-    avatarRequired:
-      me?.language === 'en'
-        ? 'Please choose an avatar file'
-        : me?.language === 'fr'
-        ? 'Veuillez choisir un fichier avatar'
-        : me?.language === 'zh-TW'
-        ? '請選擇頭像檔案'
-        : '请选择头像文件',
-    avatarUploadFailed:
-      me?.language === 'en'
-        ? 'Avatar upload failed'
-        : me?.language === 'fr'
-        ? 'Échec du téléversement de l’avatar'
-        : me?.language === 'zh-TW'
-        ? '頭像上傳失敗'
-        : '头像上传失败',
-    dutyTaskRequired:
-      me?.language === 'en'
-        ? 'Please input duty task'
-        : me?.language === 'fr'
-        ? 'Veuillez saisir la tâche'
-        : me?.language === 'zh-TW'
-        ? '請輸入值日任務'
-        : '请输入值日任务',
-    dutyTaskTooLong:
-      me?.language === 'en'
-        ? `Duty task cannot exceed ${LIMITS.DUTY_TASK} characters`
-        : me?.language === 'fr'
-        ? `La tâche ne peut pas dépasser ${LIMITS.DUTY_TASK} caractères`
-        : me?.language === 'zh-TW'
-        ? `值日任務不能超過 ${LIMITS.DUTY_TASK} 字`
-        : `值日任务不能超过 ${LIMITS.DUTY_TASK} 字`,
-    weightInvalid:
-      me?.language === 'en'
-        ? 'Weight must be a non-negative number'
-        : me?.language === 'fr'
-        ? 'Le poids doit être un nombre non négatif'
-        : me?.language === 'zh-TW'
-        ? '權重必須是大於等於 0 的數字'
-        : '权重必须是大于等于 0 的数字',
-    weightTooLarge:
-      me?.language === 'en'
-        ? `Weight cannot exceed ${LIMITS.BILL_WEIGHT}`
-        : me?.language === 'fr'
-        ? `Le poids ne peut pas dépasser ${LIMITS.BILL_WEIGHT}`
-        : me?.language === 'zh-TW'
-        ? `權重不能超過 ${LIMITS.BILL_WEIGHT}`
-        : `权重不能超过 ${LIMITS.BILL_WEIGHT}`,
-    weightAllZero:
-      me?.language === 'en'
-        ? 'At least one participant must pay'
-        : me?.language === 'fr'
-        ? 'Au moins un participant doit payer'
-        : me?.language === 'zh-TW'
-        ? '至少需要一位成員支付'
-        : '至少需要一位成员支付',
-  }), [me?.language, t.chooseMember, t.invalidDate]);
+  const {
+    changeAvatarTitle,
+    botLabel,
+    botNamePlaceholder,
+    changeBotAvatarTitle,
+    botSettingsLabel,
+    memberDescLabel,
+    memberDescPlaceholder,
+    botOtherContentLabel,
+    botOtherContentPlaceholder,
+    botSettingKeyLabel,
+    botSettingValueLabel,
+    addFieldLabel,
+    removeFieldLabel,
+  } = useMemo(() => buildSettingsText(me?.language), [me?.language]);
+  const eText = useMemo(() => buildErrorText(me?.language, t), [me?.language, t]);
 
   const displayUsers = useMemo(() => {
     const statusMap = new Map((statusQuery.data || []).map((item) => [item.userId, item.state as DormState]));
@@ -847,19 +596,11 @@ export default function LegacyDormApp() {
     });
   }, [liveMessages, me?.botAvatarPath, me?.botId, me?.language, memberAvatarMap]);
 
-  const monthTotal = useMemo(() => {
-    return billsRows.filter((item) => isThisMonth(item.createdAt)).reduce((sum, item) => sum + item.total, 0);
-  }, [billsRows]);
-  const previewAmounts = useMemo(() => {
-    const total = Number(billTotal);
-    if (!Number.isFinite(total) || total <= 0 || participants.length === 0) return new Map<number, number>();
-    const rows = participants.map((userId) => {
-      const raw = participantWeights[userId];
-      const parsed = raw == null || raw === '' ? 1 : Number(raw);
-      return { userId, weight: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0 };
-    });
-    return allocateAmounts(total, participants, rows);
-  }, [billTotal, participantWeights, participants]);
+  const monthTotal = useMemo(() => calcMonthTotal(billsRows), [billsRows]);
+  const previewAmounts = useMemo(
+    () => calcPreviewAmounts(billTotal, participants, participantWeights),
+    [billTotal, participants, participantWeights],
+  );
 
   const assignMutation = useMutation({
     mutationFn: () => {
@@ -1832,34 +1573,7 @@ export default function LegacyDormApp() {
       resetChatToLatest();
     }
   }, [activeTab, resetChatToLatest]);
-  const pText = useMemo(
-    () => ({
-      month: me?.language === 'en' ? 'Month' : me?.language === 'fr' ? 'Mois' : me?.language === 'zh-TW' ? '月份' : '月份',
-      quarter: me?.language === 'en' ? 'Quarter' : me?.language === 'fr' ? 'Trimestre' : me?.language === 'zh-TW' ? '季度' : '季度',
-      year: me?.language === 'en' ? 'Year' : me?.language === 'fr' ? 'Annee' : me?.language === 'zh-TW' ? '年份' : '年份',
-      byMonth: me?.language === 'en' ? 'By month' : me?.language === 'fr' ? 'Par mois' : me?.language === 'zh-TW' ? '按月' : '按月',
-      byDay: me?.language === 'en' ? 'By day' : me?.language === 'fr' ? 'Par jour' : me?.language === 'zh-TW' ? '按日' : '按日',
-      billPie: me?.language === 'en' ? 'Category Share' : me?.language === 'fr' ? 'Part des categories' : me?.language === 'zh-TW' ? '分類占比' : '分类占比',
-      billLine: me?.language === 'en' ? 'Amount Trend' : me?.language === 'fr' ? 'Tendance des montants' : me?.language === 'zh-TW' ? '金額趨勢' : '金额趋势',
-      billLineByCategory: me?.language === 'en' ? 'Category Amount Trend' : me?.language === 'fr' ? 'Tendance par categorie' : me?.language === 'zh-TW' ? '分類金額趨勢' : '分类金额趋势',
-      unpaidBills: me?.language === 'en' ? 'Pending Payment Bills' : me?.language === 'fr' ? 'Factures a payer' : me?.language === 'zh-TW' ? '待支付帳單' : '待支付账单',
-      paidBills: me?.language === 'en' ? 'Paid Bills' : me?.language === 'fr' ? 'Factures payees' : me?.language === 'zh-TW' ? '已支付帳單' : '已支付账单',
-      dutyPie: me?.language === 'en' ? 'Task Status Share' : me?.language === 'fr' ? 'Part des statuts de tache' : me?.language === 'zh-TW' ? '任務狀態占比' : '任务状态占比',
-      dutyByMemberPie: me?.language === 'en' ? 'Completed By Member' : me?.language === 'fr' ? 'Taches terminees par membre' : me?.language === 'zh-TW' ? '完成者占比' : '完成人占比',
-      dutyLine: me?.language === 'en' ? 'Task Trend' : me?.language === 'fr' ? 'Tendance des taches' : me?.language === 'zh-TW' ? '任務趨勢' : '任务趋势',
-      dutyLineByMember: me?.language === 'en' ? 'Member Completion Trend' : me?.language === 'fr' ? 'Tendance de completion par membre' : me?.language === 'zh-TW' ? '成員完成趨勢' : '成员完成趋势',
-      doneList: me?.language === 'en' ? 'Completed List' : me?.language === 'fr' ? 'Liste terminee' : me?.language === 'zh-TW' ? '完成列表' : '完成列表',
-      showMore: me?.language === 'en' ? 'Show all' : me?.language === 'fr' ? 'Tout afficher' : me?.language === 'zh-TW' ? '顯示全部' : '显示全部',
-      showLess: me?.language === 'en' ? 'Collapse' : me?.language === 'fr' ? 'Replier' : me?.language === 'zh-TW' ? '收起' : '收起',
-      pendingTasks: me?.language === 'en' ? 'Pending Tasks' : me?.language === 'fr' ? 'Taches en attente' : me?.language === 'zh-TW' ? '待完成任務' : '待完成任务',
-      popupNewNotice: me?.language === 'en' ? 'New notification' : me?.language === 'fr' ? 'Nouvelle notification' : me?.language === 'zh-TW' ? '新通知' : '新通知',
-      splitEqual: me?.language === 'en' ? 'Split equally' : me?.language === 'fr' ? 'Partage egal' : me?.language === 'zh-TW' ? '平均分攤' : '平均分摊',
-      splitWeight: me?.language === 'en' ? 'Split by weight' : me?.language === 'fr' ? 'Partage par poids' : me?.language === 'zh-TW' ? '按權重分攤' : '按权重分摊',
-      billWeight: me?.language === 'en' ? 'Weight' : me?.language === 'fr' ? 'Poids' : me?.language === 'zh-TW' ? '權重' : '权重',
-      dutyTaskPlaceholder: me?.language === 'en' ? 'Duty task (e.g. mop floor)' : me?.language === 'fr' ? 'Tache (ex: laver le sol)' : me?.language === 'zh-TW' ? '值日任務（例如：拖地）' : '值日任务（例如：拖地）',
-    }),
-    [me?.language],
-  );
+  const pText = useMemo(() => buildPanelText(me?.language), [me?.language]);
 
   const billPieData = useMemo(
     () => (billStatsQuery.data?.pieData || []).map((item) => ({ label: categoryLabel(me?.language || 'zh-CN', item.label), value: item.value })),
@@ -1881,31 +1595,13 @@ export default function LegacyDormApp() {
   const effectiveDoneLimit = showAllDoneDuty ? doneDutyList.length : 5;
   const doneDutyPreview = useMemo(() => doneDutyList.slice(0, effectiveDoneLimit), [doneDutyList, effectiveDoneLimit]);
 
-  const groupedUnpaidBills = useMemo(() => {
-    const map = new Map<string, BillSummary[]>();
-    billListRows
-      .filter((bill) => !bill.myPaid)
-      .forEach((bill) => {
-        const key = monthHeader(bill.createdAt);
-        map.set(key, [...(map.get(key) || []), bill]);
-      });
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [billListRows]);
+  const groupedUnpaidBills = useMemo(() => groupBillsByMonth(billListRows, false), [billListRows]);
   const unpaidBillCount = useMemo(
     () => groupedUnpaidBills.reduce((sum, [, items]) => sum + items.length, 0),
     [groupedUnpaidBills],
   );
 
-  const groupedPaidBills = useMemo(() => {
-    const map = new Map<string, BillSummary[]>();
-    billListRows
-      .filter((bill) => bill.myPaid)
-      .forEach((bill) => {
-        const key = monthHeader(bill.createdAt);
-        map.set(key, [...(map.get(key) || []), bill]);
-      });
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [billListRows]);
+  const groupedPaidBills = useMemo(() => groupBillsByMonth(billListRows, true), [billListRows]);
 
   const groupedPendingDuties = useMemo(() => {
     const map = new Map<string, DutyItem[]>();
