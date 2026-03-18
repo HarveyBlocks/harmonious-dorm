@@ -6,7 +6,7 @@
 
 - [ ] 数据库结构修改
 
-  - [ ] bill_participate里再增加一个"weight"浮点数字段. weight 在落库前需要归一化.
+  - [ ] bill_participate里再增加一个weight浮点数字段. weight 在落库前需要归一化.
 
   - [ ] duty里增加task字段, 用文本描述这个任务的具体工作, 而不是笼统的"值日"
 
@@ -27,23 +27,23 @@
   - [ ] 不需要了吧? 因为流式输出基于Http, 不基于websocket.
   - [ ] 还是说需要? 能实现最好吧. 
 
-- [ ] 限制输入输出tokne
+- [ ] 限制输入输出token
 
 - [ ] 限额
 
-  - [ ] 每个宿舍每小时可以使用AI 20 次, 每天可以使用100次 ( [数值待定](TODO) )
+  - [ ] 每个宿舍每小时可以使用AI 20 次, 每天可以使用100次 ( 数值待定 TODO )
   - [ ] 限制LLM的token数量
 
 - [ ] Tool call
 
   - [ ] AI权限设置(舍长可设置, 且仅能手动设置)(在机器人卡)
-    - 总是禁止 AI 执行 Tool (访问LLM时从Toollist中删除这个Tool)
-    - 总是允许 AI 执行 Tool (访问LLM时, 从Toollist中加入这个Tool)
+    - 总是禁止 AI 执行 Tool (访问LLM时从ToolList中删除这个Tool)
+    - 总是允许 AI 执行 Tool (访问LLM时, 从ToolList中加入这个Tool)
     - 询问(默认)
 
   遇到的问题
 
-  - 好多工具都需要一份自己的 Toolcall
+  - 好多工具都需要一份自己的 ToolList
 
   - 用户能进行确认吗? 如果能, 怎么布局, 怎么设计? 
     - 使用工具call前, 先让用户进行确认, 检查参数, 然后再进行调用tool并执行
@@ -51,7 +51,7 @@
       - task_id(一次任务, 多次调用)
       - call_seq
       - method_name
-      - parameters(josn string)
+      - parameters(json string)
 
 - [ ] 允许用户设置短期记忆(在机器人)
 
@@ -154,7 +154,7 @@
       "nowTimestamp": "17321898398",//后端提供, 单位s
       "longMemoryMaxLength": 1111,//后端提供, 保证是和其他地方统一
       // TODO 待丰富
-  }
+  },
   "longMemory": "长文本, 交给AI总结, Maybe markdown, 可供用户编辑" // 舍长可以修改
 }
 ```
