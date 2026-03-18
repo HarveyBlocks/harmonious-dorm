@@ -6,7 +6,7 @@
 
 - [ ] 数据库结构修改
 
-  - [ ] bill_participate里再增加一个"weight"浮点数字段. weight 在落库前需要归一化.
+  - [ ] bill_participate里再增加一个weight浮点数字段. weight 在落库前需要归一化.
 
   - [ ] duty里增加task字段, 用文本描述这个任务的具体工作, 而不是笼统的"值日"
 

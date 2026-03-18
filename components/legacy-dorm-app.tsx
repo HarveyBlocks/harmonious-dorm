@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -26,11 +25,8 @@ import {
   MoreHorizontal,
   Check,
   Plus,
-  Maximize2,
   X,
   Camera,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -43,603 +39,54 @@ import { getUiText, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
 import { LIMITS } from '@/lib/limits';
 import { BILL_CATEGORY_COLOR, STATE_DOT, STATUS_COLOR } from '@/lib/theme/status-colors';
 import type { BillSummary, CursorPage, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
+import { LineChartCard, PieChartCard } from '@/components/legacy-app/charts';
+import {
+  BILL_AUTO_FILL_TOTAL_GROUPS,
+  BILL_AUTO_FILL_UNPAID,
+  BILL_CATEGORIES,
+  BILL_CATEGORY_CUSTOM,
+  BILL_PAGE_LIMIT,
+  CHAT_PAGE_LIMIT,
+  STATUS_OPTIONS,
+} from '@/components/legacy-app/constants';
+import { FoldIcon } from '@/components/legacy-app/fold-icon';
+import {
+  autoResizeTextarea,
+  currentQuarter,
+  dispatchToast,
+  formatPaidInfo,
+  isChatNearBottom,
+  isThisMonth,
+  mapPathToTab,
+  mapTabToPath,
+  mergeChatMessages,
+  monthHeader,
+  parseStatusSystemMessage,
+  resetTextareaHeight,
+  resolveAvatar,
+  settingsFoldLabel,
+  stateLabel,
+  tabForNotificationType,
+  todayText,
+  unnamedBill,
+  weekStartLabel,
+} from '@/components/legacy-app/helpers';
+import { categoryLabel, localizeServerText } from '@/components/legacy-app/localization';
+import { NavButton } from '@/components/legacy-app/nav-button';
+import type {
+  ActiveTab,
+  ChartPoint,
+  ChatMessage,
+  LineSeries,
+  LineGranularity,
+  NotificationFilter,
+  PeriodType,
+  RenderedChatMessage,
+  SettingsSectionKey,
+} from '@/components/legacy-app/types';
 
-type ActiveTab = 'dashboard' | 'duty' | 'wallet' | 'chat' | 'notifications' | 'settings';
-type SettingsSectionKey = 'user' | 'dorm' | 'member' | 'bot' | 'security';
+ 
 
-type ChatMessage = {
-  id: number;
-  userId: number;
-  userName: string;
-  content: string;
-  createdAt: string;
-};
-type RenderedChatMessage = ChatMessage & {
-  isStatusMessage: boolean;
-  isBotMessage: boolean;
-  localizedContent: string;
-  avatar: string;
-};
-
-type NotificationFilter = 'all' | 'unread' | 'read';
-type PeriodType = 'month' | 'quarter' | 'year';
-type LineGranularity = 'month' | 'day';
-const CHAT_PAGE_LIMIT = 20;
-const BILL_PAGE_LIMIT = 8;
-const BILL_AUTO_FILL_UNPAID = 10;
-const BILL_AUTO_FILL_TOTAL_GROUPS = 4;
-const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
-
-function fakeAvatar(id: number): string {
-  return `https://picsum.photos/seed/user-${id}/100/100`;
-}
-
-function resolveAvatar(path: string | null | undefined, id: number): string {
-  if (!path) return fakeAvatar(id);
-  return path.startsWith('/') ? path : `/${path}`;
-}
-
-function todayText(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = `${now.getMonth() + 1}`.padStart(2, '0');
-  const d = `${now.getDate()}`.padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function currentQuarter(): number {
-  return Math.floor(new Date().getMonth() / 3) + 1;
-}
-
-function monthHeader(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}年${`${d.getMonth() + 1}`.padStart(2, '0')}月`;
-}
-
-function weekStartLabel(isoDate: string): string {
-  const base = new Date(`${isoDate}T00:00:00`);
-  const day = base.getDay();
-  const diff = (day + 6) % 7;
-  const start = new Date(base);
-  start.setDate(base.getDate() - diff);
-  return `周起始 ${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, '0')}-${`${start.getDate()}`.padStart(2, '0')}`;
-}
-
-function settingsFoldLabel(lang: LanguageCode, folded: boolean): string {
-  if (lang === 'en') return folded ? 'Expand' : 'Collapse';
-  if (lang === 'fr') return folded ? 'Developper' : 'Reduire';
-  if (lang === 'zh-TW') return folded ? '展開' : '收合';
-  return folded ? '展开' : '收起';
-}
-
-function FoldIcon({ folded }: { folded: boolean }) {
-  return folded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />;
-}
-
-function mapPathToTab(path: string): ActiveTab {
-  if (path.includes('settings')) return 'settings';
-  if (path.includes('notifications')) return 'notifications';
-  if (path.includes('chat')) return 'chat';
-  if (path.includes('duty')) return 'duty';
-  if (path.includes('bill')) return 'wallet';
-  if (path.includes('profile')) return 'settings';
-  return 'dashboard';
-}
-
-function mapTabToPath(tab: ActiveTab): string {
-  if (tab === 'settings') return '/settings';
-  if (tab === 'notifications') return '/notifications';
-  if (tab === 'chat') return '/chat';
-  if (tab === 'duty') return '/duty';
-  if (tab === 'wallet') return '/bills';
-  return '/';
-}
-
-function dispatchToast(type: 'error' | 'success' | 'info', message: string): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('app:toast', { detail: { type, message } }));
-}
-
-function tabForNotificationType(type?: string): ActiveTab | null {
-  if (type === 'chat') return 'chat';
-  if (type === 'bill') return 'wallet';
-  if (type === 'duty') return 'duty';
-  if (type === 'settings' || type === 'dorm' || type === 'leader') return 'settings';
-  return null;
-}
-
-function autoResizeTextarea(el: HTMLTextAreaElement): void {
-  el.style.height = 'auto';
-  el.style.height = `${Math.max(112, el.scrollHeight)}px`;
-}
-
-function resetTextareaHeight(el: HTMLTextAreaElement): void {
-  el.style.height = '';
-}
-
-function isChatNearBottom(container: HTMLDivElement): boolean {
-  return container.scrollHeight - (container.scrollTop + container.clientHeight) <= 80;
-}
-
-function isThisMonth(isoDate: string): boolean {
-  const d = new Date(isoDate);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-}
-
-function formatPaidInfo(lang: LanguageCode, paid: number, total: number): string {
-  if (lang === 'en') return `Paid ${paid}/${total}`;
-  if (lang === 'fr') return `Payé ${paid}/${total}`;
-  if (lang === 'zh-TW') return `已付 ${paid}/${total}`;
-  return `已付 ${paid}/${total}`;
-}
-
-function unnamedBill(lang: LanguageCode): string {
-  if (lang === 'en') return 'Untitled bill';
-  if (lang === 'fr') return 'Facture sans titre';
-  if (lang === 'zh-TW') return '未命名帳單';
-  return '未命名账单';
-}
-
-const BILL_CATEGORIES = ['电费', '水费', '网费', '日用品', '其他', '自定义'];
-const BILL_CATEGORY_CUSTOM = '__custom__';
-const STATUS_OPTIONS: DormState[] = ['out', 'study', 'sleep', 'game'];
-
-function stateLabel(lang: LanguageCode, state: DormState): string {
-  if (lang === 'en') {
-    if (state === 'study') return 'Studying';
-    if (state === 'sleep') return 'Sleeping';
-    if (state === 'game') return 'Gaming';
-    return 'Out';
-  }
-  if (lang === 'fr') {
-    if (state === 'study') return 'Etude';
-    if (state === 'sleep') return 'Sommeil';
-    if (state === 'game') return 'Jeu';
-    return 'Sorti';
-  }
-  if (lang === 'zh-TW') {
-    if (state === 'study') return '學習';
-    if (state === 'sleep') return '睡覺';
-    if (state === 'game') return '遊戲';
-    return '外出';
-  }
-  if (state === 'study') return '学习';
-  if (state === 'sleep') return '睡觉';
-  if (state === 'game') return '游戏';
-  return '外出';
-}
-
-function parseStatusSystemMessage(text: string): { userName: string; state: DormState } | null {
-  const hit = text.match(/^__status_change__:(.+?):(out|study|sleep|game)$/);
-  if (!hit) return null;
-  return {
-    userName: hit[1],
-    state: hit[2] as DormState,
-  };
-}
-
-function categoryLabel(lang: LanguageCode, category: string): string {
-  if (lang === 'en') {
-    if (category === '电费') return 'Electricity';
-    if (category === '水费') return 'Water';
-    if (category === '网费') return 'Internet';
-    if (category === '日用品') return 'Daily Supplies';
-    if (category === '其他') return 'Other';
-    if (category === BILL_CATEGORY_CUSTOM) return 'Custom';
-    return category;
-  }
-  if (lang === 'fr') {
-    if (category === '电费') return 'Electricite';
-    if (category === '水费') return 'Eau';
-    if (category === '网费') return 'Internet';
-    if (category === '日用品') return 'Articles courants';
-    if (category === '其他') return 'Autre';
-    if (category === BILL_CATEGORY_CUSTOM) return 'Personnalisee';
-    return category;
-  }
-  if (lang === 'zh-TW') {
-    if (category === '电费') return '電費';
-    if (category === '水费') return '水費';
-    if (category === '网费') return '網費';
-    if (category === '日用品') return '日用品';
-    if (category === '其他') return '其他';
-    if (category === BILL_CATEGORY_CUSTOM) return '自訂';
-    return category;
-  }
-  if (category === BILL_CATEGORY_CUSTOM) return '自定义';
-  return category;
-}
-
-function localizeServerText(lang: LanguageCode, text: string): string {
-  const sourceKeyPairs: Array<[string, string]> = [
-    ['新账单已发布', 'newBillPublished'],
-    ['账单支付状态更新', 'billPaymentStatusUpdated'],
-    ['账单支付已撤销', 'billPaymentReverted'],
-    ['账单已全部支付', 'billFullyPaid'],
-    ['该账单所有参与成员已完成支付', 'billAllParticipantsPaid'],
-    ['值日安排已发布', 'dutyPublished'],
-    ['值日状态已恢复', 'dutyRestored'],
-    ['值日任务已完成', 'dutyCompleted'],
-    ['宿舍信息已更新', 'dormInfoUpdated'],
-    ['舍长权限已移交', 'leaderRightsTransferred'],
-    ['有成员标记了已支付', 'memberMarkedPaid'],
-    ['有成员撤销了已支付', 'memberRevertedPaid'],
-    ['有成员将值日恢复为未完成', 'memberReopenedDuty'],
-    ['有成员完成了值日任务', 'memberCompletedDuty'],
-    ['未命名账单', 'untitledBill'],
-  ];
-  const sourceToKeyMap: Record<string, string> = Object.fromEntries(sourceKeyPairs);
-  const staticTextMap: Record<string, Record<LanguageCode, string>> = {
-    newBillPublished: { 'zh-CN': '新账单已发布', 'zh-TW': '新帳單已發布', fr: 'Nouvelle facture publiée', en: 'New bill published' },
-    billPaymentStatusUpdated: { 'zh-CN': '账单支付状态更新', 'zh-TW': '帳單支付狀態更新', fr: 'Statut de paiement mis à jour', en: 'Bill payment status updated' },
-    billPaymentReverted: { 'zh-CN': '账单支付已撤销', 'zh-TW': '帳單支付已撤銷', fr: 'Paiement de facture annulé', en: 'Bill payment reverted' },
-    billFullyPaid: { 'zh-CN': '账单已全部支付', 'zh-TW': '帳單已全部支付', fr: 'Facture entièrement payée', en: 'Bill fully paid' },
-    billAllParticipantsPaid: { 'zh-CN': '该账单所有参与成员已完成支付', 'zh-TW': '該帳單所有參與成員已完成支付', fr: 'Tous les participants ont payé cette facture', en: 'All participants have completed payment' },
-    dutyPublished: { 'zh-CN': '值日安排已发布', 'zh-TW': '值日安排已發布', fr: 'Corvée assignée', en: 'Duty assignment published' },
-    dutyRestored: { 'zh-CN': '值日状态已恢复', 'zh-TW': '值日狀態已恢復', fr: 'Statut de corvée rétabli', en: 'Duty status restored' },
-    dutyCompleted: { 'zh-CN': '值日任务已完成', 'zh-TW': '值日任務已完成', fr: 'Corvée terminée', en: 'Duty completed' },
-    dormInfoUpdated: { 'zh-CN': '宿舍信息已更新', 'zh-TW': '宿舍資訊已更新', fr: 'Informations du dortoir mises à jour', en: 'Dorm info updated' },
-    leaderRightsTransferred: { 'zh-CN': '舍长权限已移交', 'zh-TW': '舍長權限已移交', fr: 'Droits du chef transférés', en: 'Leader rights transferred' },
-    memberMarkedPaid: { 'zh-CN': '有成员标记了已支付', 'zh-TW': '有成員標記了已支付', fr: 'Un membre a marqué comme payé', en: 'A member marked as paid' },
-    memberRevertedPaid: { 'zh-CN': '有成员撤销了已支付', 'zh-TW': '有成員撤銷了已支付', fr: 'Un membre a annulé le paiement', en: 'A member reverted payment' },
-    memberReopenedDuty: { 'zh-CN': '有成员将值日恢复为未完成', 'zh-TW': '有成員將值日恢復為未完成', fr: 'Un membre a rouvert une corvée', en: 'A member reopened a duty' },
-    memberCompletedDuty: { 'zh-CN': '有成员完成了值日任务', 'zh-TW': '有成員完成了值日任務', fr: 'Un membre a terminé une corvée', en: 'A member completed a duty' },
-    untitledBill: { 'zh-CN': '未命名账单', 'zh-TW': '未命名帳單', fr: 'Facture sans titre', en: 'Untitled bill' },
-  };
-  const mapped = staticTextMap[sourceToKeyMap[text] || ''];
-  if (mapped) {
-    return mapped[lang];
-  }
-
-  const statusChanged = parseStatusSystemMessage(text);
-  if (statusChanged) {
-    const { userName, state } = statusChanged;
-    if (lang === 'en') return `${userName} is now ${stateLabel(lang, state)}`;
-    if (lang === 'fr') return `${userName} est maintenant en mode ${stateLabel(lang, state)}`;
-    if (lang === 'zh-TW') return `${userName} 現在是 ${stateLabel(lang, state)} 狀態`;
-    return `${userName}现在是${stateLabel(lang, state)}状态`;
-  }
-
-  const renamedDorm = text.match(/^宿舍名称已改为 (.+)$/);
-  if (renamedDorm) {
-    const name = renamedDorm[1];
-    if (lang === 'en') return `Dorm name changed to ${name}`;
-    if (lang === 'fr') return `Nom du dortoir changé en ${name}`;
-    if (lang === 'zh-TW') return `宿舍名稱已改為 ${name}`;
-    return text;
-  }
-
-  const transferLeader = text.match(/^(.+) 已将舍长权限移交给 (.+)$/);
-  if (transferLeader) {
-    const from = transferLeader[1];
-    const to = transferLeader[2];
-    if (lang === 'en') return `${from} transferred leader rights to ${to}`;
-    if (lang === 'fr') return `${from} a transféré les droits de chef à ${to}`;
-    if (lang === 'zh-TW') return `${from} 已將舍長權限移交給 ${to}`;
-    return text;
-  }
-
-  const assignDuty = text.match(/^已安排 (.+) 的值日任务$/);
-  if (assignDuty) {
-    const date = assignDuty[1];
-    if (lang === 'en') return `Duty assigned for ${date}`;
-    if (lang === 'fr') return `Corvée assignée pour ${date}`;
-    if (lang === 'zh-TW') return `已安排 ${date} 的值日任務`;
-    return text;
-  }
-
-  const chatTitle = text.match(/^(.+) 发来新消息$/);
-  if (chatTitle) {
-    const userName = chatTitle[1];
-    if (lang === 'en') return `New message from ${userName}`;
-    if (lang === 'fr') return `Nouveau message de ${userName}`;
-    if (lang === 'zh-TW') return `${userName} 發來新訊息`;
-    return text;
-  }
-
-  return text;
-}
-
-function randomColor(index: number): string {
-  const palette = ['#2563eb', '#06b6d4', '#f43f5e', '#22c55e', '#f59e0b', '#8b5cf6', '#14b8a6', '#f97316', '#10b981', '#e11d48'];
-  return palette[index % palette.length];
-}
-
-function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
-  const map = new Map<number, ChatMessage>();
-  for (const item of base) {
-    map.set(item.id, item);
-  }
-  for (const item of incoming) {
-    map.set(item.id, item);
-  }
-  return [...map.values()].sort((a, b) => a.id - b.id);
-}
-
-type ChartPoint = { label: string; value: number };
-type LineSeries = { name: string; points: ChartPoint[] };
-
-function PieChartCard({
-  title,
-  data,
-  currency = false,
-  darkMode = false,
-}: {
-  title: string;
-  data: ChartPoint[];
-  currency?: boolean;
-  darkMode?: boolean;
-}) {
-  const [hovered, setHovered] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
-  const [focusedLabel, setFocusedLabel] = useState<string | null>(null);
-  const [fullscreen, setFullscreen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-  let acc = 0;
-  const slices = data.map((item, index) => {
-    const start = (acc / (total || 1)) * Math.PI * 2 - Math.PI / 2;
-    acc += item.value;
-    const end = (acc / (total || 1)) * Math.PI * 2 - Math.PI / 2;
-    const mid = (start + end) / 2;
-    const largeArcFlag = end - start > Math.PI ? 1 : 0;
-    const r = 120;
-    const cx = 150;
-    const cy = 150;
-    const x1 = cx + r * Math.cos(start);
-    const y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
-    return { path, color: randomColor(index), mid, ...item };
-  });
-  const activeLabel = focusedLabel || hovered?.label || null;
-
-  const renderChart = (isFullscreen: boolean) => (
-    <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-8' : 'p-6'}`} ref={containerRef}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-slate-500/10 pointer-events-none rounded-2xl" />
-      <div className="relative z-10 flex items-center justify-between mb-4">
-        <h4 className="font-black">{title}</h4>
-        <button type="button" onClick={() => setFullscreen((prev) => !prev)} className="glass-card p-2 rounded-lg">
-          {isFullscreen ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        </button>
-      </div>
-      {total <= 0 ? null : (
-        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-center">
-          <div className="cursor-zoom-in" onClick={() => setFullscreen(true)}>
-            <svg className={`w-full max-w-[380px] h-auto ${darkMode ? 'drop-shadow-[0_6px_20px_rgba(2,6,23,0.65)]' : 'drop-shadow-[0_6px_20px_rgba(15,23,42,0.25)]'}`} viewBox="0 0 300 300">
-              {slices.map((slice) => {
-                const isActive = !activeLabel || activeLabel === slice.label;
-                const shift = activeLabel === slice.label ? 7 : 0;
-                return (
-                  <path
-                    key={slice.label}
-                    d={slice.path}
-                    fill={slice.color}
-                    stroke="rgba(255,255,255,0.7)"
-                    strokeWidth={activeLabel === slice.label ? 2.5 : 1.2}
-                    style={{
-                      opacity: isActive ? 1 : 0.35,
-                      transform: `translate(${Math.cos(slice.mid) * shift}px, ${Math.sin(slice.mid) * shift}px)`,
-                      transformOrigin: '150px 150px',
-                      transition: 'opacity 160ms ease, transform 160ms ease, stroke-width 160ms ease',
-                    }}
-                    onMouseEnter={() => setFocusedLabel(slice.label)}
-                    onMouseMove={(event) => {
-                      const rect = containerRef.current?.getBoundingClientRect();
-                      if (!rect) return;
-                      setHovered({
-                        label: slice.label,
-                        value: slice.value,
-                        x: event.clientX - rect.left,
-                        y: event.clientY - rect.top,
-                      });
-                    }}
-                    onMouseLeave={() => {
-                      setHovered(null);
-                      setFocusedLabel(null);
-                    }}
-                  />
-                );
-              })}
-            </svg>
-          </div>
-          <div className="space-y-2 text-sm">
-            {slices.map((slice) => {
-              const isActive = !activeLabel || activeLabel === slice.label;
-              return (
-                <div
-                  key={slice.label}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors"
-                  style={{ opacity: isActive ? 1 : 0.4 }}
-                  onMouseEnter={() => setFocusedLabel(slice.label)}
-                  onMouseLeave={() => setFocusedLabel(null)}
-                >
-                  <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: slice.color }} />
-                  <span>
-                    {slice.label}: {currency ? `¥${slice.value.toFixed(2)}` : slice.value} ({total > 0 ? ((slice.value / total) * 100).toFixed(1) : '0.0'}%)
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {hovered ? (
-        <div
-          className="light-tooltip pointer-events-none absolute z-20 rounded-xl bg-white/96 text-slate-900 shadow-xl border border-slate-200 px-3 py-2 text-xs font-bold"
-          style={{ left: hovered.x + 12, top: hovered.y + 12 }}
-        >
-          <div>{hovered.label}</div>
-          <div>{currency ? `¥${hovered.value.toFixed(2)}` : hovered.value}</div>
-          <div>{total > 0 ? `${((hovered.value / total) * 100).toFixed(2)}%` : '0%'}</div>
-        </div>
-      ) : null}
-    </div>
-  );
-
-  return (
-    <>
-      {renderChart(false)}
-      {fullscreen ? (
-        <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm p-4 md:p-8">
-          <div className="h-full max-w-7xl mx-auto">{renderChart(true)}</div>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function LineChartCard({
-  title,
-  data,
-  series,
-  currency = false,
-  darkMode = false,
-}: {
-  title: string;
-  data?: ChartPoint[];
-  series?: LineSeries[];
-  currency?: boolean;
-  darkMode?: boolean;
-}) {
-  const [fullscreen, setFullscreen] = useState(false);
-  const normalizedSeries = useMemo(() => {
-    if (series && series.length > 0) return series;
-    if (data && data.length > 0) return [{ name: title, points: data }];
-    return [];
-  }, [data, series, title]);
-  const allLabels = useMemo(() => {
-    const labels = new Set<string>();
-    normalizedSeries.forEach((line) => line.points.forEach((point) => labels.add(point.label)));
-    return [...labels].sort((a, b) => a.localeCompare(b));
-  }, [normalizedSeries]);
-  const seriesWithValues = useMemo(() => {
-    return normalizedSeries.map((line, index) => {
-      const color = randomColor(index);
-      const map = new Map(line.points.map((point) => [point.label, point.value]));
-      const points = allLabels.map((label) => ({ label, value: map.get(label) || 0 }));
-      return { ...line, color, points };
-    });
-  }, [allLabels, normalizedSeries]);
-  const option = useMemo(() => {
-    const lineWidth = fullscreen ? 5.2 : 3.8;
-    const focusLineWidth = fullscreen ? 7.2 : 5.6;
-    const axisTextColor = darkMode ? '#c8dcf7' : '#64748b';
-    const tooltipTextColor = darkMode ? '#e2e8f0' : '#0f172a';
-    const tooltipBg = darkMode ? 'rgba(2,6,23,0.95)' : 'rgba(255,255,255,0.96)';
-    const tooltipBorder = darkMode ? 'rgba(148,163,184,0.35)' : '#e2e8f0';
-    const splitLineColor = darkMode ? 'rgba(148,163,184,0.22)' : 'rgba(148,163,184,0.28)';
-    return {
-      animation: true,
-      color: seriesWithValues.map((item) => item.color),
-      grid: {
-        left: 46,
-        right: 20,
-        top: 26,
-        bottom: 56,
-        containLabel: true,
-      },
-      tooltip: {
-        trigger: 'axis',
-        confine: true,
-        backgroundColor: tooltipBg,
-        borderColor: tooltipBorder,
-        borderWidth: 1,
-        textStyle: {
-          color: tooltipTextColor,
-          fontWeight: 700,
-        },
-        formatter: (params: any) => {
-          if (!Array.isArray(params) || params.length === 0) return '';
-          const lines = [`${params[0].axisValue}`];
-          for (const row of params) {
-            const value = Number(row.value) || 0;
-            lines.push(`${row.marker} ${row.seriesName}: ${currency ? `¥${value.toFixed(2)}` : value}`);
-          }
-          return lines.join('<br/>');
-        },
-      },
-      legend: {
-        bottom: 6,
-        textStyle: {
-          color: axisTextColor,
-          fontWeight: 700,
-          fontSize: 12,
-        },
-      },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: allLabels,
-        axisLine: { lineStyle: { color: 'rgba(148,163,184,0.8)' } },
-        axisLabel: { color: axisTextColor, fontWeight: 700 },
-      },
-      yAxis: {
-        type: 'value',
-        min: 0,
-        splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } },
-        axisLine: { show: false },
-        axisLabel: {
-          color: axisTextColor,
-          fontWeight: 700,
-          formatter: (value: number) => (currency ? `¥${Number(value).toFixed(0)}` : `${value}`),
-        },
-      },
-      series: seriesWithValues.map((line) => ({
-        name: line.name,
-        type: 'line',
-        smooth: true,
-        showSymbol: true,
-        symbol: 'circle',
-        symbolSize: fullscreen ? 9 : 7,
-        lineStyle: {
-          width: lineWidth,
-        },
-        emphasis: {
-          focus: 'series',
-          lineStyle: {
-            width: focusLineWidth,
-          },
-        },
-        data: line.points.map((point) => point.value),
-      })),
-    };
-  }, [allLabels, currency, darkMode, fullscreen, seriesWithValues]);
-
-  const renderChart = (isFullscreen: boolean) => (
-    <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-6 md:p-8 flex flex-col' : 'p-6'}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-cyan-500/10 pointer-events-none rounded-2xl" />
-      <div className="relative z-10 flex items-center justify-between mb-4">
-        <h4 className="font-black">{title}</h4>
-        <button type="button" onClick={() => setFullscreen((prev) => !prev)} className="glass-card p-2 rounded-lg">
-          {isFullscreen ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        </button>
-      </div>
-      {seriesWithValues.length > 0 && allLabels.length > 0 ? (
-        <div className={isFullscreen ? 'flex-1 min-h-0' : ''} onClick={() => !isFullscreen && setFullscreen(true)}>
-          <ReactECharts
-            option={option}
-            notMerge
-            lazyUpdate
-            style={isFullscreen ? { width: '100%', height: '100%' } : { width: '100%', height: 390 }}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-
-  return (
-    <>
-      {renderChart(false)}
-      {fullscreen ? (
-        <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm p-4 md:p-8">
-          <div className="h-full max-w-7xl mx-auto">{renderChart(true)}</div>
-        </div>
-      ) : null}
-    </>
-  );
-}
 
 export default function LegacyDormApp() {
   const router = useRouter();
@@ -3525,32 +2972,5 @@ export default function LegacyDormApp() {
         </AnimatePresence>
       </main>
     </div>
-  );
-}
-
-function NavButton({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-  badge = 0,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ComponentType<any>;
-  label: string;
-  badge?: number;
-}) {
-  return (
-    <button onClick={onClick} className={`flex flex-col md:flex-row items-center gap-3 px-4 py-3 rounded-2xl transition-all w-full relative group ${active ? 'accent-bg shadow-lg' : 'text-muted hover:bg-slate-100/10'}`}>
-      <Icon className={`nav-icon transition-transform group-hover:scale-110 ${active ? 'text-white' : 'text-muted'}`} />
-      {badge > 0 ? (
-        <span className="absolute top-1 right-2 min-w-5 h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] leading-5 font-black text-center">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      ) : null}
-      <span className="text-[10px] md:text-sm font-black md:block hidden uppercase tracking-widest">{label}</span>
-      {active && <motion.div layoutId="nav-indicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-white rounded-r-full hidden md:block" />}
-    </button>
   );
 }
