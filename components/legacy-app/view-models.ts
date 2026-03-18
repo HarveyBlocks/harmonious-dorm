@@ -2,8 +2,10 @@ import { LIMITS } from '@/lib/limits';
 import type { LanguageCode } from '@/lib/i18n';
 import type { BillSummary } from '@/lib/types';
 import { allocateAmounts } from '@/lib/share-allocation';
+import type { ChartPoint, LineSeries } from './types';
 
-import { monthHeader } from './helpers';
+import { monthHeader, weekStartLabel } from './helpers';
+import { categoryLabel } from './localization';
 
 type LangMap = Record<LanguageCode, string>;
 
@@ -233,4 +235,50 @@ export function groupBillsByMonth(bills: BillSummary[], paid: boolean): Array<[s
       map.set(key, [...(map.get(key) || []), bill]);
     });
   return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+export function splitDutyLists<T extends { completed: boolean }>(rows: T[]) {
+  const pending = rows.filter((item) => !item.completed);
+  const done = rows.filter((item) => item.completed);
+  return { pending, done };
+}
+
+export function groupDutiesByWeek<T extends { date: string }>(items: T[]): Array<[string, T[]]> {
+  const map = new Map<string, T[]>();
+  items.forEach((item) => {
+    const key = weekStartLabel(item.date);
+    map.set(key, [...(map.get(key) || []), item]);
+  });
+  return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+export function mapBillChartViewModel(
+  language: LanguageCode | undefined,
+  data: { pieData?: ChartPoint[]; lineData?: ChartPoint[]; categoryLineSeries?: LineSeries[] } | undefined,
+) {
+  return {
+    billPieData: (data?.pieData || []).map((item) => ({ label: categoryLabel(language || 'zh-CN', item.label), value: item.value })),
+    billLineData: data?.lineData || [],
+    billCategoryLineSeries: (data?.categoryLineSeries || []).map((line) => ({
+      name: categoryLabel(language || 'zh-CN', line.name),
+      points: line.points,
+    })),
+  };
+}
+
+export function mapDutyChartViewModel(
+  language: LanguageCode | undefined,
+  data: { pieData?: ChartPoint[]; memberPieData?: ChartPoint[]; lineData?: ChartPoint[]; memberLineSeries?: LineSeries[] } | undefined,
+) {
+  const doneLabel = language === 'en' ? 'Completed' : language === 'fr' ? 'Termine' : language === 'zh-TW' ? '已完成' : '已完成';
+  const pendingLabel = language === 'en' ? 'Pending' : language === 'fr' ? 'En attente' : language === 'zh-TW' ? '未完成' : '未完成';
+  return {
+    dutyPieData: (data?.pieData || []).map((item) => ({
+      label: item.label === 'completed' ? doneLabel : pendingLabel,
+      value: item.value,
+    })),
+    dutyLineData: data?.lineData || [],
+    dutyByMemberPieData: data?.memberPieData || [],
+    dutyMemberLineSeries: data?.memberLineSeries || [],
+  };
 }

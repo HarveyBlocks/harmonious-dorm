@@ -3,45 +3,44 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { io, Socket } from 'socket.io-client';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type Socket } from 'socket.io-client';
 
 import { apiRequest } from '@/lib/client-api';
 import { getUiText, LANG_OPTIONS, type LanguageCode } from '@/lib/i18n';
 import { LIMITS } from '@/lib/limits';
-import { allocateAmounts } from '@/lib/share-allocation';
 import type { BillSummary, CursorPage, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
 import { LineChartCard, PieChartCard } from '@/components/legacy-app/charts';
 import {
-  BILL_AUTO_FILL_TOTAL_GROUPS,
-  BILL_AUTO_FILL_UNPAID,
   BILL_CATEGORIES,
-  BILL_CATEGORY_CUSTOM,
   BILL_PAGE_LIMIT,
   CHAT_PAGE_LIMIT,
 } from '@/components/legacy-app/constants';
 import {
-  autoResizeTextarea,
-  currentQuarter,
   dispatchToast,
-  formatPaidInfo,
   isChatNearBottom,
   mapPathToTab,
   mapTabToPath,
   mergeChatMessages,
   parseStatusSystemMessage,
-  resetTextareaHeight,
   resolveAvatar,
   settingsFoldLabel,
-  tabForNotificationType,
   todayText,
-  unnamedBill,
-  weekStartLabel,
 } from '@/components/legacy-app/helpers';
-import { categoryLabel, localizeServerText } from '@/components/legacy-app/localization';
+import { localizeServerText } from '@/components/legacy-app/localization';
 import { NoticePopup } from '@/components/legacy-app/notice-popup';
+import { useChatInput } from '@/components/legacy-app/hooks/use-chat-input';
 import { useChatWindow } from '@/components/legacy-app/hooks/use-chat-window';
+import { useDormSocket } from '@/components/legacy-app/hooks/use-dorm-socket';
+import { useInfiniteScrollTrigger } from '@/components/legacy-app/hooks/use-infinite-scroll-trigger';
+import { useDomainMutations } from '@/components/legacy-app/hooks/use-domain-mutations';
+import { useNoticeAuthMutations } from '@/components/legacy-app/hooks/use-notice-auth-mutations';
 import { useNotificationSelection } from '@/components/legacy-app/hooks/use-notification-selection';
+import { useSettingsAutoSave } from '@/components/legacy-app/hooks/use-settings-auto-save';
+import { useSettingsMutations } from '@/components/legacy-app/hooks/use-settings-mutations';
+import { useSettingsSaveActions } from '@/components/legacy-app/hooks/use-settings-save-actions';
+import { useTabAutoRead } from '@/components/legacy-app/hooks/use-tab-auto-read';
+import { useTabPrefetch } from '@/components/legacy-app/hooks/use-tab-prefetch';
 import {
   BotSettingsSection,
   DormSettingsSection,
@@ -52,7 +51,7 @@ import {
 import { SideNav } from '@/components/legacy-app/side-nav';
 import { ChatTab, DashboardTab, DutyTab, NotificationsTab, WalletTab } from '@/components/legacy-app/tabs';
 import { TopHeader } from '@/components/legacy-app/top-header';
-import { buildErrorText, buildPanelText, buildSettingsText, calcMonthTotal, calcPreviewAmounts, groupBillsByMonth } from '@/components/legacy-app/view-models';
+import { buildErrorText, buildPanelText, buildSettingsText, calcMonthTotal, calcPreviewAmounts, groupBillsByMonth, groupDutiesByWeek, mapBillChartViewModel, mapDutyChartViewModel, splitDutyLists } from '@/components/legacy-app/view-models';
 import type {
   ActiveTab,
   ChartPoint,
@@ -133,13 +132,6 @@ export default function LegacyDormApp() {
   const chatAtBottomRef = useRef(true);
   const chatForceBottomOnNextLayoutRef = useRef(false);
   const pendingNewChatIdsRef = useRef<Set<number>>(new Set());
-  const profileSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dormSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const avatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botAvatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const memberDescriptionsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActiveTabRef = useRef<ActiveTab>('dashboard');
   const lastAutoReadTabRef = useRef<ActiveTab>('dashboard');
   const lastSyncedProfileRef = useRef<{ name: string; language: LanguageCode } | null>(null);
@@ -270,104 +262,6 @@ export default function LegacyDormApp() {
     enabled: authReady,
   });
 
-  useEffect(() => {
-    const dormId = meQuery.data?.dormId;
-    if (!dormId) return;
-
-    let mounted = true;
-
-    const init = async () => {
-      let initOk = false;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          const initResp = await fetch('/api/socket-init', {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { Accept: 'application/json' },
-          });
-          if (initResp.ok) {
-            initOk = true;
-            break;
-          }
-        } catch (error) {
-          console.error('[socket-init] failed', error);
-        }
-        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
-      }
-      if (!mounted) return;
-
-      const socket = io({
-        path: '/api/socket',
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 500,
-        reconnectionDelayMax: 3000,
-      });
-      if (!initOk) {
-        console.warn('[socket-init] not ready after retries, continue with socket reconnection');
-      }
-      socket.emit('join', dormId);
-
-      socket.on('chat:new', (message: ChatMessage) => {
-        const isChatTab = lastActiveTabRef.current === 'chat';
-        const shouldCountAsNew = Boolean(isChatTab && meQuery.data?.id && message.userId !== meQuery.data.id);
-        if (isChatTab && chatAtBottomRef.current) {
-          chatForceBottomOnNextLayoutRef.current = true;
-        }
-        setLiveMessages((prev) => mergeChatMessages(prev, [message]));
-        if (shouldCountAsNew && !chatAtBottomRef.current) {
-          pendingNewChatIdsRef.current.add(message.id);
-          setNewChatHintCount(pendingNewChatIdsRef.current.size);
-        }
-        setChatNewerCursor((prev) => (prev && prev > message.id ? prev : message.id));
-        setChatHasNewer(false);
-      });
-      socket.on('duty:changed', () => {
-        queryClient.invalidateQueries({ queryKey: ['duty', 'all'] });
-      });
-      socket.on('bill:changed', () => {
-        queryClient.invalidateQueries({ queryKey: ['bills'] });
-      });
-      socket.on('notification:new', (payload: { userId?: number; type?: string; title: string; content: string }) => {
-        if (!meQuery.data?.id || (payload.userId && payload.userId !== meQuery.data.id)) return;
-        const targetTab = tabForNotificationType(payload.type);
-        if (targetTab && lastActiveTabRef.current === targetTab) {
-          const typeToRead = payload.type as 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader';
-          autoReadByTypeMutation.mutate(typeToRead);
-          if (targetTab === 'settings') {
-            queryClient.invalidateQueries({ queryKey: ['me'] });
-          }
-          return;
-        }
-        setNoticePopup({ title: payload.title, content: payload.content });
-        setTimeout(() => {
-          setNoticePopup((current) => (current && current.title === payload.title && current.content === payload.content ? null : current));
-        }, 5000);
-      });
-      socket.on('notification:changed', (payload: { type?: string }) => {
-        queryClient.invalidateQueries({ queryKey: ['notifications'] });
-        queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-        queryClient.invalidateQueries({ queryKey: ['notifications-chat-anchor'] });
-        queryClient.invalidateQueries({ queryKey: ['chat-anchor-id'] });
-        if (payload?.type === 'settings' || payload?.type === 'dorm' || payload?.type === 'leader') {
-          queryClient.invalidateQueries({ queryKey: ['me'] });
-        }
-      });
-      socket.on('status:changed', () => {
-        queryClient.invalidateQueries({ queryKey: ['status'] });
-      });
-
-      socketRef.current = socket;
-    };
-
-    init();
-
-    return () => {
-      mounted = false;
-      socketRef.current?.disconnect();
-      socketRef.current = null;
-    };
-  }, [meQuery.data?.dormId, meQuery.data?.id, queryClient]);
 
   useLayoutEffect(() => {
     if (activeTab !== 'chat' || !chatScrollRef.current || liveMessages.length === 0) return;
@@ -590,157 +484,43 @@ export default function LegacyDormApp() {
     () => calcPreviewAmounts(billTotal, participants, participantWeights),
     [billTotal, participants, participantWeights],
   );
-
-  const assignMutation = useMutation({
-    mutationFn: () => {
-      if (!assignUserId) {
-        throw new Error(eText.chooseMember);
-      }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(assignDate)) {
-        throw new Error(eText.invalidDate);
-      }
-      const task = dutyTask.trim();
-      if (!task) throw new Error(eText.dutyTaskRequired);
-      if (task.length > LIMITS.DUTY_TASK) throw new Error(eText.dutyTaskTooLong);
-      return apiRequest('/api/duty/assign', {
-        method: 'POST',
-        body: JSON.stringify({ userId: assignUserId, date: assignDate, task }),
-      });
-    },
-    onSuccess: () => {
-      setDutyTask('');
-      queryClient.invalidateQueries({ queryKey: ['duty', 'all'] });
-    },
+  const {
+    assignMutation,
+    toggleDutyMutation,
+    deleteDutyMutation,
+    createBillMutation,
+    togglePaidMutation,
+    updateStatusMutation,
+    sendChatMutation,
+  } = useDomainMutations({
+    queryClient,
+    eText,
+    assignUserId,
+    assignDate,
+    dutyTask,
+    setDutyTask,
+    billTotal,
+    billCategory,
+    customCategory,
+    participants,
+    participantWeights,
+    billUseWeights,
+    setBillTotal,
+    setCustomCategory,
+    setBillUseWeights,
+    setParticipantWeights,
+    chatInput,
+    setChatInput,
   });
 
-  const toggleDutyMutation = useMutation({
-    mutationFn: (payload: { dutyId: number; completed: boolean }) =>
-      apiRequest('/api/duty/complete', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['duty', 'all'] });
-    },
+  const { onChatInputKeyDown, onChatInputChange } = useChatInput({
+    chatInput,
+    setChatInput,
+    maxLength: LIMITS.CHAT_USER_CONTENT,
+    tooLongMessage: eText.messageTooLong,
+    tryApplyLimitedInput,
+    onSend: () => sendChatMutation.mutate(),
   });
-
-  const deleteDutyMutation = useMutation({
-    mutationFn: (dutyId: number) => apiRequest(`/api/duty/${dutyId}`, { method: 'DELETE', body: JSON.stringify({}) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['duty', 'all'] });
-    },
-  });
-
-  const createBillMutation = useMutation({
-    mutationFn: () => {
-      const total = Number(billTotal);
-      if (!billTotal.trim()) throw new Error(eText.amountRequired);
-      if (Number.isNaN(total)) throw new Error(eText.amountNotNumber);
-      if (total <= 0) throw new Error(eText.amountGtZero);
-      if (total > 1_000_000) throw new Error(eText.amountMax);
-      if (!Number.isInteger(total * 100)) throw new Error(eText.amountDecimal);
-      if (!participants.length) throw new Error(eText.participantsRequired);
-      if (billCategory === BILL_CATEGORY_CUSTOM && !customCategory.trim()) throw new Error(eText.customCategoryRequired);
-
-      const weightedRows = participants.map((userId) => {
-        const raw = participantWeights[userId];
-        const parsed = raw == null || raw === '' ? 1 : Number(raw);
-        if (!Number.isFinite(parsed) || parsed < 0) throw new Error(eText.weightInvalid);
-        if (parsed > LIMITS.BILL_WEIGHT) throw new Error(eText.weightTooLarge);
-        return { userId, weight: parsed };
-      });
-      const amountMap = allocateAmounts(total, participants, weightedRows);
-      if (amountMap.size === 0) throw new Error(eText.weightAllZero);
-
-      return apiRequest('/api/bills', {
-        method: 'POST',
-        body: JSON.stringify({
-          total,
-          description: billCategory === BILL_CATEGORY_CUSTOM ? customCategory.trim() : null,
-          category: billCategory === BILL_CATEGORY_CUSTOM ? 'other' : billCategory,
-          customCategory: billCategory === BILL_CATEGORY_CUSTOM ? customCategory.trim() : null,
-          participants,
-          participantWeights: billUseWeights ? weightedRows : undefined,
-        }),
-      });
-    },
-    onSuccess: () => {
-      setBillTotal('');
-      setCustomCategory('');
-      setBillUseWeights(false);
-      setParticipantWeights({});
-      queryClient.invalidateQueries({ queryKey: ['bills'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const togglePaidMutation = useMutation({
-    mutationFn: (payload: { billId: number; paid: boolean }) =>
-      apiRequest(`/api/bills/${payload.billId}/pay`, {
-        method: 'POST',
-        body: JSON.stringify({ paid: payload.paid }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bills'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: (state: DormState) =>
-      apiRequest('/api/status', {
-        method: 'PUT',
-        body: JSON.stringify({ state }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['status'] }),
-  });
-
-  const sendChatMutation = useMutation({
-    mutationFn: () => {
-      const trimmed = chatInput.trim();
-      if (!trimmed) throw new Error(eText.messageRequired);
-      if (trimmed.length > LIMITS.CHAT_USER_CONTENT) {
-        dispatchToast('error', eText.messageTooLong);
-        throw new Error(eText.messageTooLong);
-      }
-      return apiRequest('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({ content: trimmed }),
-      });
-    },
-    onSuccess: () => {
-      setChatInput('');
-    },
-  });
-
-  const onChatInputKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.nativeEvent.isComposing) return;
-      if (event.key !== 'Enter') return;
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault();
-        const target = event.currentTarget;
-        const start = target.selectionStart ?? chatInput.length;
-        const end = target.selectionEnd ?? chatInput.length;
-        const next = `${chatInput.slice(0, start)}\n${chatInput.slice(end)}`;
-        tryApplyLimitedInput('chat_input', next, LIMITS.CHAT_USER_CONTENT, eText.messageTooLong, (safeValue) => {
-          setChatInput(safeValue);
-          requestAnimationFrame(() => {
-            target.selectionStart = start + 1;
-            target.selectionEnd = start + 1;
-          });
-        });
-        return;
-      }
-      event.preventDefault();
-      sendChatMutation.mutate();
-    },
-    [chatInput, eText.messageTooLong, sendChatMutation, tryApplyLimitedInput],
-  );
-
-  const onChatInputChange = useCallback((value: string) => {
-    tryApplyLimitedInput('chat_input', value, LIMITS.CHAT_USER_CONTENT, eText.messageTooLong, setChatInput);
-  }, [eText.messageTooLong, tryApplyLimitedInput]);
 
   const syncSeenNewChatHint = useCallback(() => {
     const container = chatScrollRef.current;
@@ -814,482 +594,121 @@ export default function LegacyDormApp() {
     }, 180);
   }, [syncSeenNewChatHint]);
 
-  const updateProfileMutation = useMutation({
-    mutationFn: (payload: { name: string; language: LanguageCode }) =>
-      apiRequest('/api/users/me', {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: (_, payload) => {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('app_lang', payload.language);
-      }
-      lastSyncedProfileRef.current = { name: payload.name.trim(), language: payload.language };
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-    },
+  const {
+    updateProfileMutation,
+    updateDormMutation,
+    updateBotMutation,
+    updateBotSettingsMutation,
+    updateDescriptionsMutation,
+    transferMutation,
+    uploadAvatarMutation,
+    uploadBotAvatarMutation,
+  } = useSettingsMutations({
+    queryClient,
+    eText,
+    targetLeaderId,
+    setAvatarFile,
+    setBotAvatarFile,
+    lastSyncedProfileRef,
+    lastSyncedDormNameRef,
+    lastSyncedBotNameRef,
+    lastSyncedBotOtherContentRef,
+    lastSyncedBotSettingsRef,
+    lastSyncedMemberDescriptionsRef,
   });
 
-  const updateDormMutation = useMutation({
-    mutationFn: (dormName: string) => {
-      if (!dormName.trim()) throw new Error(eText.dormNameRequired);
-      return apiRequest('/api/dorm', {
-        method: 'PUT',
-        body: JSON.stringify({ name: dormName }),
-      });
-    },
-    onSuccess: (_, dormName) => {
-      lastSyncedDormNameRef.current = dormName.trim();
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-    },
+  const {
+    readNoticeMutation,
+    readSelectedNoticeMutation,
+    deleteSelectedNoticeMutation,
+    autoReadByTypeMutation,
+    deleteNoticeMutation,
+    logoutMutation,
+    deleteAccountMutation,
+  } = useNoticeAuthMutations({
+    queryClient,
+    notificationFilter,
+    socketRef,
   });
 
-  const updateBotMutation = useMutation({
-    mutationFn: (botName: string) =>
-      apiRequest<{ name: string; avatarPath: string | null }>('/api/dorm/bot', {
-        method: 'PUT',
-        body: JSON.stringify({ name: botName }),
-      }),
-    onSuccess: (_, botName) => {
-      lastSyncedBotNameRef.current = botName.trim();
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-    },
+  useDormSocket({
+    dormId: meQuery.data?.dormId,
+    meId: meQuery.data?.id,
+    queryClient,
+    socketRef,
+    lastActiveTabRef,
+    chatAtBottomRef,
+    chatForceBottomOnNextLayoutRef,
+    pendingNewChatIdsRef,
+    setLiveMessages,
+    setNewChatHintCount,
+    setChatNewerCursor,
+    setChatHasNewer,
+    setNoticePopup,
+    autoReadByTypeMutation,
   });
 
-  const updateBotSettingsMutation = useMutation({
-    mutationFn: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string }) =>
-      apiRequest<{ settings: Array<{ key: string; value: string }>; otherContent: string }>('/api/dorm/bot/settings', {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: (_, payload) => {
-      const normalized = payload.settings
-        .map((item) => ({ key: item.key.trim(), value: item.value }))
-        .filter((item) => item.key.length > 0);
-      lastSyncedBotSettingsRef.current = normalized;
-      lastSyncedBotOtherContentRef.current = payload.otherContent.trim();
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-    },
+
+  const {
+    saveProfileNow,
+    saveDormNow,
+    saveBotNow,
+    saveBotSettingsNow,
+    saveMemberDescriptionsNow,
+    saveAvatarNow,
+    saveBotAvatarNow,
+  } = useSettingsSaveActions({
+    me,
+    name,
+    setName,
+    language,
+    dormNameInput,
+    setDormNameInput,
+    botNameInput,
+    setBotNameInput,
+    botOtherContent,
+    botSettingsInput,
+    memberDescriptionsInput,
+    avatarFile,
+    botAvatarFile,
+    lastSyncedProfileRef,
+    lastSyncedDormNameRef,
+    lastSyncedBotNameRef,
+    lastSyncedBotOtherContentRef,
+    lastSyncedBotSettingsRef,
+    lastSyncedMemberDescriptionsRef,
+    updateProfileMutation,
+    updateDormMutation,
+    updateBotMutation,
+    updateBotSettingsMutation,
+    updateDescriptionsMutation,
+    uploadAvatarMutation,
+    uploadBotAvatarMutation,
   });
 
-  const updateDescriptionsMutation = useMutation({
-    mutationFn: (items: Array<{ userId: number; description: string }>) =>
-      apiRequest<{ success: true }>('/api/users/descriptions', {
-        method: 'PUT',
-        body: JSON.stringify({ items }),
-      }),
-    onSuccess: (_, items) => {
-      const next = { ...lastSyncedMemberDescriptionsRef.current };
-      for (const item of items) {
-        next[item.userId] = item.description;
-      }
-      lastSyncedMemberDescriptionsRef.current = next;
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-    },
+  useSettingsAutoSave({
+    activeTab,
+    isLeader: Boolean(me?.isLeader),
+    hasMe: Boolean(me),
+    botOtherEditing,
+    botOtherTextareaRef,
+    name,
+    language,
+    dormNameInput,
+    botNameInput,
+    botOtherContent,
+    botSettingsInput,
+    memberDescriptionsInput,
+    avatarFile,
+    botAvatarFile,
+    saveProfileNow,
+    saveDormNow,
+    saveBotNow,
+    saveBotSettingsNow,
+    saveMemberDescriptionsNow,
+    saveAvatarNow,
+    saveBotAvatarNow,
   });
-
-  const transferMutation = useMutation({
-    mutationFn: () => {
-      if (!targetLeaderId) throw new Error(eText.transferTargetRequired);
-      return apiRequest('/api/dorm/transfer-leader', {
-        method: 'POST',
-        body: JSON.stringify({ targetUserId: targetLeaderId }),
-      });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
-  });
-
-  const uploadAvatarMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      const response = await fetch('/api/users/avatar', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { message?: string };
-        throw new Error(payload.message || eText.avatarUploadFailed);
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-      setAvatarFile(null);
-    },
-  });
-
-  const uploadBotAvatarMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      const response = await fetch('/api/dorm/bot/avatar', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { message?: string };
-        throw new Error(payload.message || eText.avatarUploadFailed);
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-      setBotAvatarFile(null);
-    },
-  });
-
-  const readNoticeMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/notifications/${id}/read`, { method: 'PUT', body: JSON.stringify({}) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const readSelectedNoticeMutation = useMutation({
-    mutationFn: (payload: { selectAll: boolean; ids: number[] }) =>
-      apiRequest('/api/notifications/batch', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'read',
-          status: notificationFilter,
-          selectAll: payload.selectAll,
-          ids: payload.ids,
-          types: [],
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const deleteSelectedNoticeMutation = useMutation({
-    mutationFn: (payload: { selectAll: boolean; ids: number[] }) =>
-      apiRequest('/api/notifications/batch', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'delete',
-          status: notificationFilter,
-          selectAll: payload.selectAll,
-          ids: payload.ids,
-          types: [],
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const autoReadByTypeMutation = useMutation({
-    mutationFn: (type: 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader') =>
-      apiRequest('/api/notifications/batch', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'read',
-          status: 'unread',
-          selectAll: true,
-          ids: [],
-          types: [type],
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-chat-anchor'] });
-      queryClient.invalidateQueries({ queryKey: ['chat-anchor-id'] });
-    },
-  });
-
-  const deleteNoticeMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/notifications/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: () => apiRequest<{ success: true }>('/api/logout', { method: 'POST', body: JSON.stringify({}) }),
-    onSuccess: () => {
-      socketRef.current?.disconnect();
-      socketRef.current = null;
-      queryClient.clear();
-      if (typeof window !== 'undefined') {
-        window.location.assign('/login');
-      }
-    },
-  });
-
-  const deleteAccountMutation = useMutation({
-    mutationFn: () => apiRequest<{ success: true }>('/api/users/me', { method: 'DELETE', body: JSON.stringify({}) }),
-    onSuccess: () => {
-      socketRef.current?.disconnect();
-      socketRef.current = null;
-      queryClient.clear();
-      if (typeof window !== 'undefined') {
-        window.location.assign('/login');
-      }
-    },
-  });
-
-  const saveProfileNow = useCallback(() => {
-    const synced = lastSyncedProfileRef.current;
-    if (!me || !synced || updateProfileMutation.isPending) return;
-    const trimmed = name.trim();
-    const nextName = trimmed || synced.name;
-    const nextLanguage = language;
-    if (nextName === synced.name && nextLanguage === synced.language) return;
-    if (!trimmed) {
-      setName(synced.name);
-    }
-    updateProfileMutation.mutate({ name: nextName, language: nextLanguage });
-  }, [language, me, name, updateProfileMutation]);
-
-  const saveDormNow = useCallback(() => {
-    if (!me?.isLeader || updateDormMutation.isPending) return;
-    const synced = lastSyncedDormNameRef.current;
-    const trimmed = dormNameInput.trim();
-    const nextDormName = trimmed || synced;
-    if (!nextDormName || nextDormName === synced) return;
-    if (!trimmed) {
-      setDormNameInput(synced);
-    }
-    updateDormMutation.mutate(nextDormName);
-  }, [dormNameInput, me?.isLeader, updateDormMutation]);
-
-  const saveBotNow = useCallback(() => {
-    if (!me?.isLeader || updateBotMutation.isPending) return;
-    const synced = lastSyncedBotNameRef.current;
-    const trimmed = botNameInput.trim();
-    const nextBotName = trimmed || synced;
-    if (!nextBotName || nextBotName === synced) return;
-    if (!trimmed) {
-      setBotNameInput(synced);
-    }
-    updateBotMutation.mutate(nextBotName);
-  }, [botNameInput, me?.isLeader, updateBotMutation]);
-
-  const saveBotSettingsNow = useCallback(() => {
-    if (!me?.isLeader || updateBotSettingsMutation.isPending) return;
-    const otherContent = botOtherContent.trim();
-    if (otherContent.length > LIMITS.BOT_OTHER_CONTENT) return;
-    const normalized = botSettingsInput
-      .map((item) => ({ key: item.key.trim(), value: item.value }))
-      .filter((item) => item.key.length > 0);
-    const old = JSON.stringify(lastSyncedBotSettingsRef.current);
-    const next = JSON.stringify(normalized);
-    const syncedOtherContent = lastSyncedBotOtherContentRef.current;
-    if (old === next && otherContent === syncedOtherContent) return;
-    updateBotSettingsMutation.mutate({ settings: normalized, otherContent });
-  }, [botOtherContent, botSettingsInput, me?.isLeader, updateBotSettingsMutation]);
-
-  const saveMemberDescriptionsNow = useCallback(() => {
-    if (!me || updateDescriptionsMutation.isPending) return;
-    const current = memberDescriptionsInput;
-    const synced = lastSyncedMemberDescriptionsRef.current;
-    const baseMembers = me.members || [];
-    const targetMembers = me.isLeader ? baseMembers : baseMembers.filter((member) => member.id === me.id);
-    const changed = targetMembers
-      .map((member) => ({
-        userId: member.id,
-        description: (current[member.id] || '').trim(),
-      }))
-      .filter((item) => (synced[item.userId] || '') !== item.description);
-    if (changed.length === 0) return;
-    updateDescriptionsMutation.mutate(changed);
-  }, [me, memberDescriptionsInput, updateDescriptionsMutation]);
-
-  const saveAvatarNow = useCallback(() => {
-    if (!avatarFile || uploadAvatarMutation.isPending) return;
-    uploadAvatarMutation.mutate(avatarFile);
-  }, [avatarFile, uploadAvatarMutation]);
-
-  const saveBotAvatarNow = useCallback(() => {
-    if (!botAvatarFile || uploadBotAvatarMutation.isPending) return;
-    uploadBotAvatarMutation.mutate(botAvatarFile);
-  }, [botAvatarFile, uploadBotAvatarMutation]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !me) return;
-    const synced = lastSyncedProfileRef.current;
-    if (!synced) return;
-    const nextName = name.trim() || synced.name;
-    if (nextName === synced.name && language === synced.language) return;
-
-    if (profileSaveTimerRef.current) {
-      clearTimeout(profileSaveTimerRef.current);
-    }
-    profileSaveTimerRef.current = setTimeout(() => {
-      saveProfileNow();
-    }, 900);
-
-    return () => {
-      if (profileSaveTimerRef.current) {
-        clearTimeout(profileSaveTimerRef.current);
-        profileSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, language, me, name, saveProfileNow]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !me?.isLeader) return;
-    const synced = lastSyncedDormNameRef.current;
-    const nextDormName = dormNameInput.trim() || synced;
-    if (!nextDormName || nextDormName === synced) return;
-
-    if (dormSaveTimerRef.current) {
-      clearTimeout(dormSaveTimerRef.current);
-    }
-    dormSaveTimerRef.current = setTimeout(() => {
-      saveDormNow();
-    }, 900);
-
-    return () => {
-      if (dormSaveTimerRef.current) {
-        clearTimeout(dormSaveTimerRef.current);
-        dormSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, dormNameInput, me?.isLeader, saveDormNow]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !me?.isLeader) return;
-    const synced = lastSyncedBotNameRef.current;
-    const nextBotName = botNameInput.trim() || synced;
-    if (!nextBotName || nextBotName === synced) return;
-
-    if (botSaveTimerRef.current) {
-      clearTimeout(botSaveTimerRef.current);
-    }
-    botSaveTimerRef.current = setTimeout(() => {
-      saveBotNow();
-    }, 900);
-
-    return () => {
-      if (botSaveTimerRef.current) {
-        clearTimeout(botSaveTimerRef.current);
-        botSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, botNameInput, me?.isLeader, saveBotNow]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !me?.isLeader) return;
-    if (botSettingsSaveTimerRef.current) {
-      clearTimeout(botSettingsSaveTimerRef.current);
-    }
-    botSettingsSaveTimerRef.current = setTimeout(() => {
-      saveBotSettingsNow();
-    }, 900);
-
-    return () => {
-      if (botSettingsSaveTimerRef.current) {
-        clearTimeout(botSettingsSaveTimerRef.current);
-        botSettingsSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, botOtherContent, botSettingsInput, me?.isLeader, saveBotSettingsNow]);
-
-  useEffect(() => {
-    if (!botOtherEditing) return;
-    const el = botOtherTextareaRef.current;
-    if (!el) return;
-    autoResizeTextarea(el);
-    el.focus();
-  }, [botOtherEditing]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !me) return;
-    if (memberDescriptionsSaveTimerRef.current) {
-      clearTimeout(memberDescriptionsSaveTimerRef.current);
-    }
-    memberDescriptionsSaveTimerRef.current = setTimeout(() => {
-      saveMemberDescriptionsNow();
-    }, 900);
-    return () => {
-      if (memberDescriptionsSaveTimerRef.current) {
-        clearTimeout(memberDescriptionsSaveTimerRef.current);
-        memberDescriptionsSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, me, memberDescriptionsInput, saveMemberDescriptionsNow]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !avatarFile) return;
-    if (avatarSaveTimerRef.current) {
-      clearTimeout(avatarSaveTimerRef.current);
-    }
-    avatarSaveTimerRef.current = setTimeout(() => {
-      saveAvatarNow();
-    }, 1200);
-
-    return () => {
-      if (avatarSaveTimerRef.current) {
-        clearTimeout(avatarSaveTimerRef.current);
-        avatarSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, avatarFile, saveAvatarNow]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !botAvatarFile || !me?.isLeader) return;
-    if (botAvatarSaveTimerRef.current) {
-      clearTimeout(botAvatarSaveTimerRef.current);
-    }
-    botAvatarSaveTimerRef.current = setTimeout(() => {
-      saveBotAvatarNow();
-    }, 1200);
-
-    return () => {
-      if (botAvatarSaveTimerRef.current) {
-        clearTimeout(botAvatarSaveTimerRef.current);
-        botAvatarSaveTimerRef.current = null;
-      }
-    };
-  }, [activeTab, botAvatarFile, me?.isLeader, saveBotAvatarNow]);
-
-  useEffect(() => {
-    if (lastActiveTabRef.current === 'settings' && activeTab !== 'settings') {
-      if (profileSaveTimerRef.current) {
-        clearTimeout(profileSaveTimerRef.current);
-        profileSaveTimerRef.current = null;
-      }
-      if (dormSaveTimerRef.current) {
-        clearTimeout(dormSaveTimerRef.current);
-        dormSaveTimerRef.current = null;
-      }
-      if (botSaveTimerRef.current) {
-        clearTimeout(botSaveTimerRef.current);
-        botSaveTimerRef.current = null;
-      }
-      if (botSettingsSaveTimerRef.current) {
-        clearTimeout(botSettingsSaveTimerRef.current);
-        botSettingsSaveTimerRef.current = null;
-      }
-      if (memberDescriptionsSaveTimerRef.current) {
-        clearTimeout(memberDescriptionsSaveTimerRef.current);
-        memberDescriptionsSaveTimerRef.current = null;
-      }
-      if (avatarSaveTimerRef.current) {
-        clearTimeout(avatarSaveTimerRef.current);
-        avatarSaveTimerRef.current = null;
-      }
-      if (botAvatarSaveTimerRef.current) {
-        clearTimeout(botAvatarSaveTimerRef.current);
-        botAvatarSaveTimerRef.current = null;
-      }
-      saveProfileNow();
-      saveDormNow();
-      saveBotNow();
-      saveBotSettingsNow();
-      saveMemberDescriptionsNow();
-      saveAvatarNow();
-      saveBotAvatarNow();
-    }
-    lastActiveTabRef.current = activeTab;
-  }, [activeTab, saveAvatarNow, saveBotAvatarNow, saveBotNow, saveBotSettingsNow, saveDormNow, saveMemberDescriptionsNow, saveProfileNow]);
 
   useEffect(() => {
     if (activeTab === 'chat') {
@@ -1324,58 +743,19 @@ export default function LegacyDormApp() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    if (lastAutoReadTabRef.current === activeTab) return;
-    lastAutoReadTabRef.current = activeTab;
-    if (activeTab === 'chat') {
-      autoReadByTypeMutation.mutate('chat');
-      return;
-    }
-    if (activeTab === 'wallet') {
-      autoReadByTypeMutation.mutate('bill');
-      return;
-    }
-    if (activeTab === 'duty') {
-      autoReadByTypeMutation.mutate('duty');
-      return;
-    }
-    if (activeTab === 'settings') {
-      autoReadByTypeMutation.mutate('settings');
-      autoReadByTypeMutation.mutate('dorm');
-      autoReadByTypeMutation.mutate('leader');
-    }
-  }, [activeTab, autoReadByTypeMutation]);
-
-  useEffect(
-    () => () => {
-      if (profileSaveTimerRef.current) {
-        clearTimeout(profileSaveTimerRef.current);
-      }
-      if (dormSaveTimerRef.current) {
-        clearTimeout(dormSaveTimerRef.current);
-      }
-      if (botSaveTimerRef.current) {
-        clearTimeout(botSaveTimerRef.current);
-      }
-      if (botSettingsSaveTimerRef.current) {
-        clearTimeout(botSettingsSaveTimerRef.current);
-      }
-      if (memberDescriptionsSaveTimerRef.current) {
-        clearTimeout(memberDescriptionsSaveTimerRef.current);
-      }
-      if (avatarSaveTimerRef.current) {
-        clearTimeout(avatarSaveTimerRef.current);
-      }
-      if (botAvatarSaveTimerRef.current) {
-        clearTimeout(botAvatarSaveTimerRef.current);
-      }
-    },
-    [],
-  );
+  useTabAutoRead({
+    activeTab,
+    lastAutoReadTabRef,
+    mutate: (type) => autoReadByTypeMutation.mutate(type),
+  });
 
   useEffect(() => {
     setActiveTab(mapPathToTab(pathname || '/'));
   }, [pathname]);
+
+  useEffect(() => {
+    lastActiveTabRef.current = activeTab;
+  }, [activeTab]);
 
   const navigateToTab = useCallback(
     (tab: ActiveTab) => {
@@ -1388,47 +768,43 @@ export default function LegacyDormApp() {
     [pathname, router],
   );
 
-  const onNoticeListScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    if (
-      el.scrollHeight - el.scrollTop - el.clientHeight < 80 &&
-      notificationsQuery.hasNextPage &&
-      !notificationsQuery.isFetchingNextPage
-    ) {
-      notificationsQuery.fetchNextPage();
-    }
-  }, [notificationsQuery]);
+  const onNoticeListScroll = useInfiniteScrollTrigger({
+    hasNextPage: Boolean(notificationsQuery.hasNextPage),
+    isFetchingNextPage: notificationsQuery.isFetchingNextPage,
+    fetchNextPage: () => notificationsQuery.fetchNextPage(),
+    threshold: 80,
+  });
 
-  const onBillUnpaidListScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80 && billsQuery.hasNextPage && !billsQuery.isFetchingNextPage) {
-      billsQuery.fetchNextPage();
-    }
-  }, [billsQuery]);
+  const onBillUnpaidListScroll = useInfiniteScrollTrigger({
+    hasNextPage: Boolean(billsQuery.hasNextPage),
+    isFetchingNextPage: billsQuery.isFetchingNextPage,
+    fetchNextPage: () => billsQuery.fetchNextPage(),
+    threshold: 80,
+  });
 
-  const onBillPaidListScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80 && billsQuery.hasNextPage && !billsQuery.isFetchingNextPage) {
-      billsQuery.fetchNextPage();
-    }
-  }, [billsQuery]);
+  const onBillPaidListScroll = useInfiniteScrollTrigger({
+    hasNextPage: Boolean(billsQuery.hasNextPage),
+    isFetchingNextPage: billsQuery.isFetchingNextPage,
+    fetchNextPage: () => billsQuery.fetchNextPage(),
+    threshold: 80,
+  });
 
-  const onPendingDutyScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80 && dutyAllQuery.hasNextPage && !dutyAllQuery.isFetchingNextPage) {
-      dutyAllQuery.fetchNextPage();
-    }
-  }, [dutyAllQuery]);
+  const onPendingDutyScroll = useInfiniteScrollTrigger({
+    hasNextPage: Boolean(dutyAllQuery.hasNextPage),
+    isFetchingNextPage: dutyAllQuery.isFetchingNextPage,
+    fetchNextPage: () => dutyAllQuery.fetchNextPage(),
+    threshold: 80,
+  });
 
-  const onDoneDutyScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    if (!showAllDoneDuty) {
-      setShowAllDoneDuty(true);
-    }
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80 && dutyAllQuery.hasNextPage && !dutyAllQuery.isFetchingNextPage) {
-      dutyAllQuery.fetchNextPage();
-    }
-  }, [dutyAllQuery, showAllDoneDuty]);
+  const onDoneDutyScroll = useInfiniteScrollTrigger({
+    hasNextPage: Boolean(dutyAllQuery.hasNextPage),
+    isFetchingNextPage: dutyAllQuery.isFetchingNextPage,
+    fetchNextPage: () => dutyAllQuery.fetchNextPage(),
+    threshold: 80,
+    beforeFetch: () => {
+      if (!showAllDoneDuty) setShowAllDoneDuty(true);
+    },
+  });
 
   const dormName = me?.dormName || t.dormTitle;
   const meId = me?.id ?? null;
@@ -1445,22 +821,17 @@ export default function LegacyDormApp() {
   }, [activeTab, resetChatToLatest]);
   const pText = useMemo(() => buildPanelText(me?.language), [me?.language]);
 
-  const billPieData = useMemo(
-    () => (billStatsQuery.data?.pieData || []).map((item) => ({ label: categoryLabel(me?.language || 'zh-CN', item.label), value: item.value })),
-    [billStatsQuery.data?.pieData, me?.language],
-  );
-  const billLineData = useMemo(() => billStatsQuery.data?.lineData || [], [billStatsQuery.data?.lineData]);
-  const billCategoryLineSeries = useMemo(
+  const { billPieData, billLineData, billCategoryLineSeries } = useMemo(
     () =>
-      (billStatsQuery.data?.categoryLineSeries || []).map((line) => ({
-        name: categoryLabel(me?.language || 'zh-CN', line.name),
-        points: line.points,
-      })),
-    [billStatsQuery.data?.categoryLineSeries, me?.language],
+      mapBillChartViewModel(me?.language, {
+        pieData: billStatsQuery.data?.pieData,
+        lineData: billStatsQuery.data?.lineData,
+        categoryLineSeries: billStatsQuery.data?.categoryLineSeries,
+      }),
+    [billStatsQuery.data?.categoryLineSeries, billStatsQuery.data?.lineData, billStatsQuery.data?.pieData, me?.language],
   );
 
-  const pendingDutyList = useMemo(() => dutyListRows.filter((item) => !item.completed), [dutyListRows]);
-  const doneDutyList = useMemo(() => dutyListRows.filter((item) => item.completed), [dutyListRows]);
+  const { pending: pendingDutyList, done: doneDutyList } = useMemo(() => splitDutyLists(dutyListRows), [dutyListRows]);
   const visiblePendingDutyList = pendingDutyList;
   const effectiveDoneLimit = showAllDoneDuty ? doneDutyList.length : 5;
   const doneDutyPreview = useMemo(() => doneDutyList.slice(0, effectiveDoneLimit), [doneDutyList, effectiveDoneLimit]);
@@ -1473,69 +844,47 @@ export default function LegacyDormApp() {
 
   const groupedPaidBills = useMemo(() => groupBillsByMonth(billListRows, true), [billListRows]);
 
-  const groupedPendingDuties = useMemo(() => {
-    const map = new Map<string, DutyItem[]>();
-    visiblePendingDutyList.forEach((item) => {
-      const key = weekStartLabel(item.date);
-      map.set(key, [...(map.get(key) || []), item]);
-    });
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [visiblePendingDutyList]);
+  const groupedPendingDuties = useMemo(() => groupDutiesByWeek(visiblePendingDutyList), [visiblePendingDutyList]);
 
-  const groupedDoneDuties = useMemo(() => {
-    const map = new Map<string, DutyItem[]>();
-    doneDutyPreview.forEach((item) => {
-      const key = weekStartLabel(item.date);
-      map.set(key, [...(map.get(key) || []), item]);
-    });
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [doneDutyPreview]);
+  const groupedDoneDuties = useMemo(() => groupDutiesByWeek(doneDutyPreview), [doneDutyPreview]);
 
-  const dutyPieData = useMemo(() => {
-    const doneLabel = me?.language === 'en' ? 'Completed' : me?.language === 'fr' ? 'Termine' : me?.language === 'zh-TW' ? '已完成' : '已完成';
-    const pendingLabel = me?.language === 'en' ? 'Pending' : me?.language === 'fr' ? 'En attente' : me?.language === 'zh-TW' ? '未完成' : '未完成';
-    return (dutyStatsQuery.data?.pieData || []).map((item) => ({
-      label: item.label === 'completed' ? doneLabel : pendingLabel,
-      value: item.value,
-    }));
-  }, [dutyStatsQuery.data?.pieData, me?.language]);
+  const { dutyPieData, dutyLineData, dutyByMemberPieData, dutyMemberLineSeries } = useMemo(
+    () =>
+      mapDutyChartViewModel(me?.language, {
+        pieData: dutyStatsQuery.data?.pieData,
+        memberPieData: dutyStatsQuery.data?.memberPieData,
+        lineData: dutyStatsQuery.data?.lineData,
+        memberLineSeries: dutyStatsQuery.data?.memberLineSeries,
+      }),
+    [dutyStatsQuery.data?.lineData, dutyStatsQuery.data?.memberLineSeries, dutyStatsQuery.data?.memberPieData, dutyStatsQuery.data?.pieData, me?.language],
+  );
 
-  const dutyLineData = useMemo(() => dutyStatsQuery.data?.lineData || [], [dutyStatsQuery.data?.lineData]);
-  const dutyByMemberPieData = useMemo(() => dutyStatsQuery.data?.memberPieData || [], [dutyStatsQuery.data?.memberPieData]);
-  const dutyMemberLineSeries = useMemo(() => dutyStatsQuery.data?.memberLineSeries || [], [dutyStatsQuery.data?.memberLineSeries]);
-
-  useEffect(() => {
-    if (activeTab !== 'wallet') return;
-    if (!billsQuery.hasNextPage || billsQuery.isFetchingNextPage) return;
-    if (unpaidBillCount >= BILL_AUTO_FILL_UNPAID && groupedPaidBills.length >= BILL_AUTO_FILL_TOTAL_GROUPS) return;
-    billsQuery.fetchNextPage();
-  }, [activeTab, billsQuery, groupedPaidBills.length, unpaidBillCount]);
-
-  useEffect(() => {
-    if (activeTab !== 'wallet') return;
-    if (!billsQuery.hasNextPage || billsQuery.isFetchingNextPage) return;
-    const unpaidList = billUnpaidListRef.current;
-    const paidList = billPaidListRef.current;
-    const unpaidNotScrollable = unpaidList ? unpaidList.scrollHeight <= unpaidList.clientHeight + 8 : false;
-    const paidNotScrollable = paidList ? paidList.scrollHeight <= paidList.clientHeight + 8 : false;
-    if ((unpaidNotScrollable || paidNotScrollable) && billsRows.length > 0) {
+  useTabPrefetch({
+    activeTab,
+    billsHasNextPage: Boolean(billsQuery.hasNextPage),
+    billsIsFetchingNextPage: billsQuery.isFetchingNextPage,
+    fetchNextBills: () => {
       billsQuery.fetchNextPage();
-    }
-  }, [activeTab, billsQuery, billsRows.length, groupedPaidBills.length, unpaidBillCount]);
-
-  useEffect(() => {
-    if (activeTab !== 'duty') return;
-    if (groupedPendingDuties.length + groupedDoneDuties.length > 0) return;
-    if (!dutyAllQuery.hasNextPage || dutyAllQuery.isFetchingNextPage) return;
-    dutyAllQuery.fetchNextPage();
-  }, [activeTab, dutyAllQuery, groupedDoneDuties.length, groupedPendingDuties.length]);
-
-  useEffect(() => {
-    if (activeTab !== 'notifications') return;
-    if (notificationRows.length > 0) return;
-    if (!notificationsQuery.hasNextPage || notificationsQuery.isFetchingNextPage) return;
-    notificationsQuery.fetchNextPage();
-  }, [activeTab, notificationRows.length, notificationsQuery]);
+    },
+    billsRowCount: billsRows.length,
+    unpaidBillCount,
+    paidBillGroupCount: groupedPaidBills.length,
+    dutyHasNextPage: Boolean(dutyAllQuery.hasNextPage),
+    dutyIsFetchingNextPage: dutyAllQuery.isFetchingNextPage,
+    fetchNextDuty: () => {
+      dutyAllQuery.fetchNextPage();
+    },
+    pendingDutyGroupCount: groupedPendingDuties.length,
+    doneDutyGroupCount: groupedDoneDuties.length,
+    notificationRowCount: notificationRows.length,
+    noticeHasNextPage: Boolean(notificationsQuery.hasNextPage),
+    noticeIsFetchingNextPage: notificationsQuery.isFetchingNextPage,
+    fetchNextNotices: () => {
+      notificationsQuery.fetchNextPage();
+    },
+    unpaidListRef: billUnpaidListRef,
+    paidListRef: billPaidListRef,
+  });
 
   return (
     <div className={`min-h-screen app-shell ${themeClass}`}>
