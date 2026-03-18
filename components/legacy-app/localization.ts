@@ -40,34 +40,48 @@ const SOURCE_TO_KEY: Record<string, string> = {
 };
 
 export function categoryLabel(lang: LanguageCode, category: string): string {
+  const c = (category || '').trim();
+  const code =
+    c === 'electricity' || c === '电费' ? 'electricity' :
+    c === 'water' || c === '水费' ? 'water' :
+    c === 'internet' || c === '网费' ? 'internet' :
+    c === 'supplies' || c === '日用品' ? 'supplies' :
+    c === 'other' || c === '其他' ? 'other' :
+    c === BILL_CATEGORY_CUSTOM ? BILL_CATEGORY_CUSTOM : c;
+
   if (lang === 'en') {
-    if (category === '电费') return 'Electricity';
-    if (category === '水费') return 'Water';
-    if (category === '网费') return 'Internet';
-    if (category === '日用品') return 'Daily Supplies';
-    if (category === '其他') return 'Other';
-    if (category === BILL_CATEGORY_CUSTOM) return 'Custom';
+    if (code === 'electricity') return 'Electricity';
+    if (code === 'water') return 'Water';
+    if (code === 'internet') return 'Internet';
+    if (code === 'supplies') return 'Daily Supplies';
+    if (code === 'other') return 'Other';
+    if (code === BILL_CATEGORY_CUSTOM) return 'Custom';
     return category;
   }
   if (lang === 'fr') {
-    if (category === '电费') return 'Electricite';
-    if (category === '水费') return 'Eau';
-    if (category === '网费') return 'Internet';
-    if (category === '日用品') return 'Articles courants';
-    if (category === '其他') return 'Autre';
-    if (category === BILL_CATEGORY_CUSTOM) return 'Personnalisee';
+    if (code === 'electricity') return 'Electricite';
+    if (code === 'water') return 'Eau';
+    if (code === 'internet') return 'Internet';
+    if (code === 'supplies') return 'Articles courants';
+    if (code === 'other') return 'Autre';
+    if (code === BILL_CATEGORY_CUSTOM) return 'Personnalisee';
     return category;
   }
   if (lang === 'zh-TW') {
-    if (category === '电费') return '電費';
-    if (category === '水费') return '水費';
-    if (category === '网费') return '網費';
-    if (category === '日用品') return '日用品';
-    if (category === '其他') return '其他';
-    if (category === BILL_CATEGORY_CUSTOM) return '自訂';
+    if (code === 'electricity') return '電費';
+    if (code === 'water') return '水費';
+    if (code === 'internet') return '網費';
+    if (code === 'supplies') return '日用品';
+    if (code === 'other') return '其他';
+    if (code === BILL_CATEGORY_CUSTOM) return '自訂';
     return category;
   }
-  return category === BILL_CATEGORY_CUSTOM ? '自定义' : category;
+  if (code === 'electricity') return '电费';
+  if (code === 'water') return '水费';
+  if (code === 'internet') return '网费';
+  if (code === 'supplies') return '日用品';
+  if (code === 'other') return '其他';
+  return code === BILL_CATEGORY_CUSTOM ? '自定义' : category;
 }
 
 function localizeStructuredMessage(lang: LanguageCode, text: string): string | null {
