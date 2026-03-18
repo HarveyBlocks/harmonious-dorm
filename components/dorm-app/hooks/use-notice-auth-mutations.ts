@@ -3,7 +3,8 @@ import { useMutation, type QueryClient } from '@tanstack/react-query';
 import type { Socket } from 'socket.io-client';
 
 import { apiRequest } from '@/lib/client-api';
-import type { NotificationFilter } from '@/components/legacy-app/types';
+import type { NotificationFilter } from '@/components/dorm-app/types';
+import React from "react";
 
 type NoticeType = 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader';
 
@@ -116,3 +117,4 @@ export function useNoticeAuthMutations(options: {
     deleteAccountMutation,
   };
 }
+

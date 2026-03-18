@@ -3,10 +3,10 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import { apiRequest } from '@/lib/client-api';
 import type { BillSummary, CursorPage, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
-import { BILL_PAGE_LIMIT, CHAT_PAGE_LIMIT } from '@/components/legacy-app/constants';
-import type { ChartPoint, LineGranularity, LineSeries, NotificationFilter, PeriodType } from '@/components/legacy-app/types';
+import { BILL_PAGE_LIMIT, CHAT_PAGE_LIMIT } from '@/components/dorm-app/constants';
+import type { ChartPoint, LineGranularity, LineSeries, NotificationFilter, PeriodType } from '@/components/dorm-app/types';
 
-export function useLegacyQueries(options: {
+export function useQueries(options: {
   notificationFilter: NotificationFilter;
   billPeriodType: PeriodType;
   billYear: string;
@@ -139,3 +139,4 @@ export function useLegacyQueries(options: {
     dutyStatsQuery,
   };
 }
+

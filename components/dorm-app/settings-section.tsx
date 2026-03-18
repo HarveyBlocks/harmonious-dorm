@@ -1,5 +1,6 @@
 
 import { FoldIcon } from './fold-icon';
+import React from "react";
 
 export function SettingsSection({
   title,

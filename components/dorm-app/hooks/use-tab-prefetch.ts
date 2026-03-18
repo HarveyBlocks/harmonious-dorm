@@ -1,11 +1,11 @@
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 import {
   BILL_AUTO_FILL_TOTAL_GROUPS,
   BILL_AUTO_FILL_UNPAID,
-} from '@/components/legacy-app/constants';
-import type { ActiveTab } from '@/components/legacy-app/types';
+} from '@/components/dorm-app/constants';
+import type { ActiveTab } from '@/components/dorm-app/types';
 
 export function useTabPrefetch(options: {
   activeTab: ActiveTab;
@@ -81,3 +81,4 @@ export function useTabPrefetch(options: {
     fetchNextNotices();
   }, [activeTab, fetchNextNotices, noticeHasNextPage, noticeIsFetchingNextPage, notificationRowCount]);
 }
+

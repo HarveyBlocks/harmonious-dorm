@@ -10,6 +10,7 @@ import { LineChartCard, PieChartCard } from '../charts';
 import { categoryLabel } from '../localization';
 import { formatPaidInfo } from '../helpers';
 import type { LineGranularity, PeriodType } from '../types';
+import React from "react";
 
 export function WalletTab(props: {
   t: any;

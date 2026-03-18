@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 import type { LanguageCode } from '@/lib/i18n';
 import type { DormState, MePayload } from '@/lib/types';

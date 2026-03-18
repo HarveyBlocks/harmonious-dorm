@@ -3,6 +3,7 @@ import { useMutation, type QueryClient } from '@tanstack/react-query';
 
 import { apiRequest } from '@/lib/client-api';
 import type { LanguageCode } from '@/lib/i18n';
+import React from "react";
 
 type ErrorText = {
   dormNameRequired: string;

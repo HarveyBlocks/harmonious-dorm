@@ -1,7 +1,7 @@
 import type { Server as IOServer } from 'socket.io';
 
 declare global {
-    let __io: IOServer | undefined;
+  var __io: IOServer | undefined;
 }
 
 function roomOfDorm(dormId: number): string {
@@ -9,11 +9,11 @@ function roomOfDorm(dormId: number): string {
 }
 
 export function setSocketServer(io: IOServer) {
-  global.__io = io;
+  globalThis.__io = io;
 }
 
 export function emitToDorm(dormId: number, event: string, payload: unknown) {
-  global.__io?.to(roomOfDorm(dormId)).emit(event, payload);
+  globalThis.__io?.to(roomOfDorm(dormId)).emit(event, payload);
 }
 
 export function getDormRoom(dormId: number): string {

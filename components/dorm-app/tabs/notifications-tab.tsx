@@ -5,6 +5,7 @@ import type { LanguageCode } from '@/lib/i18n';
 
 import { localizeServerText } from '../localization';
 import type { NotificationFilter } from '../types';
+import React from "react";
 
 type NoticeItem = {
   id: number;

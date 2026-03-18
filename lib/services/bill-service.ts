@@ -8,7 +8,7 @@ import { ensureSessionUser } from './helpers';
 import { pushDormNotification } from './notification-service';
 import { emitToDorm } from '@/lib/socket-server';
 
-async function syncLegacyBillParticipantAmounts(dormId: number): Promise<void> {
+async function syncBillParticipantAmounts(dormId: number): Promise<void> {
   const bills = await prisma.bill.findMany({
     where: { dormId },
     include: { participants: true },
@@ -129,7 +129,7 @@ export async function listBills(
   options?: { limit?: number; cursor?: number },
 ): Promise<CursorPage<BillSummary>> {
   await ensureSessionUser(session);
-  await syncLegacyBillParticipantAmounts(session.dormId);
+  await syncBillParticipantAmounts(session.dormId);
 
   const limit = Math.max(1, Math.min(options?.limit ?? 20, 100));
   const cursor = options?.cursor && Number.isInteger(options.cursor) && options.cursor > 0 ? options.cursor : undefined;

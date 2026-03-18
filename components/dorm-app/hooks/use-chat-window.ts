@@ -1,5 +1,5 @@
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 
 import { apiRequest } from '@/lib/client-api';
 import type { NotificationPayload } from '@/lib/types';

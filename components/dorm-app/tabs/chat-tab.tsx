@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send } from 'lucide-react';
 import { motion } from 'motion/react';
+import React from "react";
 
 export function ChatTab(props: {
   t: any;

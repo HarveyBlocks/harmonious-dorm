@@ -1,7 +1,7 @@
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
-import type { ActiveTab } from '@/components/legacy-app/types';
+import type { ActiveTab } from '@/components/dorm-app/types';
 
 type NoticeType = 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader';
 
@@ -34,3 +34,4 @@ export function useTabAutoRead(options: {
     }
   }, [activeTab, lastAutoReadTabRef, mutate]);
 }
+

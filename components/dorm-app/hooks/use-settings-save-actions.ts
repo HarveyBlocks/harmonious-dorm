@@ -1,5 +1,5 @@
 
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 
 import { LIMITS } from '@/lib/limits';
 

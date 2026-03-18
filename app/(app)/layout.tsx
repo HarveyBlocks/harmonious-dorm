@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 
 import { getValidatedServerSession } from '@/lib/auth';
-import LegacyDormApp from '@/components/legacy-dorm-app';
+import DormApp from '@/components/dorm-app';
+import React from "react";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getValidatedServerSession();
@@ -10,5 +11,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   void children;
-  return <LegacyDormApp />;
+  return <DormApp />;
 }
+

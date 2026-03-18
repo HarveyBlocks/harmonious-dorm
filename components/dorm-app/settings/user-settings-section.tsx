@@ -6,6 +6,7 @@ import { LIMITS } from '@/lib/limits';
 
 import { resolveAvatar } from '../helpers';
 import { SettingsSection } from '../settings-section';
+import React from "react";
 
 export function UserSettingsSection(props: {
   t: any;

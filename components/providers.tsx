@@ -1,7 +1,7 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { ClientApiError } from '@/lib/client-api';
 import { ToastProvider } from '@/components/toast-provider';

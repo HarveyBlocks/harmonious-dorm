@@ -3,6 +3,7 @@ import { LIMITS } from '@/lib/limits';
 
 import { autoResizeTextarea, resetTextareaHeight, resolveAvatar } from '../helpers';
 import { SettingsSection } from '../settings-section';
+import React from "react";
 
 export function MemberSettingsSection(props: {
   t: any;

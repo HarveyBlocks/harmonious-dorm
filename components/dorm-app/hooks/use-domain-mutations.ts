@@ -5,8 +5,8 @@ import { apiRequest } from '@/lib/client-api';
 import { LIMITS } from '@/lib/limits';
 import { allocateAmounts } from '@/lib/share-allocation';
 import type { DormState } from '@/lib/types';
-import { BILL_CATEGORY_CUSTOM } from '@/components/legacy-app/constants';
-import { dispatchToast } from '@/components/legacy-app/helpers';
+import { BILL_CATEGORY_CUSTOM } from '@/components/dorm-app/constants';
+import { dispatchToast } from '@/components/dorm-app/helpers';
 
 type ErrorText = {
   chooseMember: string;
@@ -187,3 +187,4 @@ export function useDomainMutations(options: {
     sendChatMutation,
   };
 }
+

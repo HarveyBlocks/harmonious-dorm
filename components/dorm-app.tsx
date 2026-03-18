@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,52 +15,50 @@ import {
   mapPathToTab,
   mapTabToPath,
   mergeChatMessages,
-  parseStatusSystemMessage,
-  resolveAvatar,
   settingsFoldLabel,
   todayText,
-} from '@/components/legacy-app/helpers';
-import { localizeServerText } from '@/components/legacy-app/localization';
-import { NoticePopup } from '@/components/legacy-app/notice-popup';
-import { useChatInput } from '@/components/legacy-app/hooks/use-chat-input';
-import { useChatWindow } from '@/components/legacy-app/hooks/use-chat-window';
-import { useDormSocket } from '@/components/legacy-app/hooks/use-dorm-socket';
-import { useInfiniteScrollTrigger } from '@/components/legacy-app/hooks/use-infinite-scroll-trigger';
-import { useLegacyQueries } from '@/components/legacy-app/hooks/use-legacy-queries';
-import { useMeSyncState } from '@/components/legacy-app/hooks/use-me-sync-state';
-import { useDomainMutations } from '@/components/legacy-app/hooks/use-domain-mutations';
-import { useNoticeAuthMutations } from '@/components/legacy-app/hooks/use-notice-auth-mutations';
-import { useNotificationSelection } from '@/components/legacy-app/hooks/use-notification-selection';
-import { useSettingsAutoSave } from '@/components/legacy-app/hooks/use-settings-auto-save';
-import { useSettingsMutations } from '@/components/legacy-app/hooks/use-settings-mutations';
-import { useSettingsSaveActions } from '@/components/legacy-app/hooks/use-settings-save-actions';
-import { useTabAutoRead } from '@/components/legacy-app/hooks/use-tab-auto-read';
-import { useTabPrefetch } from '@/components/legacy-app/hooks/use-tab-prefetch';
+} from '@/components/dorm-app/helpers';
+import { NoticePopup } from '@/components/dorm-app/notice-popup';
+import { useChatInput } from '@/components/dorm-app/hooks/use-chat-input';
+import { useChatLayoutSync } from '@/components/dorm-app/hooks/use-chat-layout-sync';
+import { useChatWindow } from '@/components/dorm-app/hooks/use-chat-window';
+import { useDormSocket } from '@/components/dorm-app/hooks/use-dorm-socket';
+import { useInfiniteScrollTrigger } from '@/components/dorm-app/hooks/use-infinite-scroll-trigger';
+import { useQueries } from '@/components/dorm-app/hooks/use-queries';
+import { useViewModels } from '@/components/dorm-app/hooks/use-view-models';
+import { useMeSyncState } from '@/components/dorm-app/hooks/use-me-sync-state';
+import { useDomainMutations } from '@/components/dorm-app/hooks/use-domain-mutations';
+import { useNoticeAuthMutations } from '@/components/dorm-app/hooks/use-notice-auth-mutations';
+import { useNotificationSelection } from '@/components/dorm-app/hooks/use-notification-selection';
+import { useSettingsAutoSave } from '@/components/dorm-app/hooks/use-settings-auto-save';
+import { useSettingsMutations } from '@/components/dorm-app/hooks/use-settings-mutations';
+import { useSettingsSaveActions } from '@/components/dorm-app/hooks/use-settings-save-actions';
+import { useTabAutoRead } from '@/components/dorm-app/hooks/use-tab-auto-read';
+import { useTabPrefetch } from '@/components/dorm-app/hooks/use-tab-prefetch';
 import {
   BotSettingsSection,
   DormSettingsSection,
   MemberSettingsSection,
   SecuritySettingsSection,
   UserSettingsSection,
-} from '@/components/legacy-app/settings';
-import { SideNav } from '@/components/legacy-app/side-nav';
-import { ChatTab, DashboardTab, DutyTab, NotificationsTab, WalletTab } from '@/components/legacy-app/tabs';
-import { TopHeader } from '@/components/legacy-app/top-header';
-import { buildErrorText, buildPanelText, buildSettingsText, calcMonthTotal, calcPreviewAmounts, groupBillsByMonth, groupDutiesByWeek, mapBillChartViewModel, mapDutyChartViewModel, splitDutyLists } from '@/components/legacy-app/view-models';
+} from '@/components/dorm-app/settings';
+import { SideNav } from '@/components/dorm-app/side-nav';
+import { ChatTab, DashboardTab, DutyTab, NotificationsTab, WalletTab } from '@/components/dorm-app/tabs';
+import { TopHeader } from '@/components/dorm-app/top-header';
+import { buildErrorText, buildPanelText, buildSettingsText } from '@/components/dorm-app/view-models';
 import type {
   ActiveTab,
   ChatMessage,
   LineGranularity,
   NotificationFilter,
   PeriodType,
-  RenderedChatMessage,
   SettingsSectionKey,
-} from '@/components/legacy-app/types';
+} from '@/components/dorm-app/types';
 
 
 
 
-export default function LegacyDormApp() {
+export default function DormApp() {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
@@ -166,7 +164,7 @@ export default function LegacyDormApp() {
     chatAnchorQuery,
     billStatsQuery,
     dutyStatsQuery,
-  } = useLegacyQueries({
+  } = useQueries({
     notificationFilter,
     billPeriodType,
     billYear,
@@ -178,64 +176,6 @@ export default function LegacyDormApp() {
     dutyLineGranularity,
   });
 
-
-  useLayoutEffect(() => {
-    if (activeTab !== 'chat' || !chatScrollRef.current || liveMessages.length === 0) return;
-    const container = chatScrollRef.current;
-    if (chatPrependStateRef.current.pending) {
-      const { prevHeight, prevTop } = chatPrependStateRef.current;
-      const nextHeight = container.scrollHeight;
-      const nextTop = Math.max(0, nextHeight - prevHeight + prevTop);
-      container.scrollTop = nextTop;
-      chatPrependStateRef.current.pending = false;
-      return;
-    }
-    if (chatForceBottomOnNextLayoutRef.current) {
-      container.scrollTop = container.scrollHeight;
-      chatForceBottomOnNextLayoutRef.current = false;
-      chatAtBottomRef.current = true;
-      if (pendingNewChatIdsRef.current.size > 0) {
-        pendingNewChatIdsRef.current.clear();
-        setNewChatHintCount(0);
-      }
-      return;
-    }
-    if (!chatAutoScrolledRef.current) {
-      container.scrollTop = container.scrollHeight;
-      chatAutoScrolledRef.current = true;
-      chatAtBottomRef.current = true;
-      return;
-    }
-    const nearBottom = container.scrollHeight - (container.scrollTop + container.clientHeight) < 140;
-    if (nearBottom) {
-      container.scrollTop = container.scrollHeight;
-      chatAtBottomRef.current = true;
-      if (pendingNewChatIdsRef.current.size > 0) {
-        pendingNewChatIdsRef.current.clear();
-        setNewChatHintCount(0);
-      }
-      return;
-    }
-    chatAtBottomRef.current = false;
-    const pending = pendingNewChatIdsRef.current;
-    if (pending.size > 0) {
-      const viewportBottom = container.scrollTop + container.clientHeight;
-      const seenIds: number[] = [];
-      pending.forEach((id) => {
-        const node = chatMessageRefs.current[id];
-        if (!node) return;
-        if (node.offsetTop <= viewportBottom - 8) {
-          seenIds.push(id);
-        }
-      });
-      if (seenIds.length > 0) {
-        for (const id of seenIds) {
-          pending.delete(id);
-        }
-        setNewChatHintCount(pending.size);
-      }
-    }
-  }, [activeTab, liveMessages.length]);
 
   useMeSyncState({
     me: meQuery.data,
@@ -307,45 +247,44 @@ export default function LegacyDormApp() {
   } = useMemo(() => buildSettingsText(me?.language), [me?.language]);
   const eText = useMemo(() => buildErrorText(me?.language, t), [me?.language, t]);
 
-  const displayUsers = useMemo(() => {
-    const statusMap = new Map((statusQuery.data || []).map((item) => [item.userId, item.state as DormState]));
-    return (me?.members || []).map((member) => ({
-      id: member.id,
-      name: member.name,
-      avatar: resolveAvatar(member.avatarPath, member.id),
-      role: member.isLeader ? 'leader' : 'member',
-      state: statusMap.get(member.id) || 'out',
-      status: member.isLeader ? 'online' : 'busy',
-    }));
-  }, [me, statusQuery.data]);
-  const memberAvatarMap = useMemo(() => {
-    const map = new Map<number, string>();
-    (me?.members || []).forEach((member) => {
-      map.set(member.id, resolveAvatar(member.avatarPath, member.id));
-    });
-    return map;
-  }, [me?.members]);
-
-  const themeClass = useMemo(() => {
-    let classes = selectedState === 'sleep' ? 'dark-mode' : '';
-    if (selectedState === 'study') classes += ' study-mode';
-    if (selectedState === 'game') classes += ' party-mode';
-    return classes;
-  }, [selectedState]);
-  const billsRows = useMemo(() => billsQuery.data?.pages.flatMap((page) => page.items) || [], [billsQuery.data?.pages]);
-  const dutyRows = useMemo(() => dutyAllQuery.data?.pages.flatMap((page) => page.items) || [], [dutyAllQuery.data?.pages]);
-  const billListRows = useMemo(
-    () => [...billsRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [billsRows],
-  );
-  const dutyListRows = useMemo(
-    () => [...dutyRows].sort((a, b) => (a.date === b.date ? b.dutyId - a.dutyId : b.date.localeCompare(a.date))),
-    [dutyRows],
-  );
-  const notificationRows = useMemo(
-    () => notificationsQuery.data?.pages.flatMap((page) => page.items) || [],
-    [notificationsQuery.data?.pages],
-  );
+  const {
+    displayUsers,
+    themeClass,
+    billsRows,
+    notificationRows,
+    unreadNoticeCount,
+    renderedLiveMessages,
+    monthTotal,
+    previewAmounts,
+    billPieData,
+    billLineData,
+    billCategoryLineSeries,
+    doneDutyList,
+    groupedUnpaidBills,
+    unpaidBillCount,
+    groupedPaidBills,
+    groupedPendingDuties,
+    groupedDoneDuties,
+    dutyPieData,
+    dutyLineData,
+    dutyByMemberPieData,
+    dutyMemberLineSeries,
+  } = useViewModels({
+    me,
+    statusRows: statusQuery.data,
+    selectedState,
+    billsPages: billsQuery.data?.pages,
+    dutyPages: dutyAllQuery.data?.pages,
+    notificationPages: notificationsQuery.data?.pages,
+    notificationsUnreadItems: notificationsUnreadQuery.data?.items,
+    liveMessages,
+    billStats: billStatsQuery.data,
+    dutyStats: dutyStatsQuery.data,
+    billTotal,
+    participants,
+    participantWeights,
+    showAllDoneDuty,
+  });
   const {
     menuOpen: notificationMenuOpen,
     setMenuOpen: setNotificationMenuOpen,
@@ -359,26 +298,6 @@ export default function LegacyDormApp() {
     filterKey: notificationFilter,
     totalRowCount: notificationRows.length,
   });
-  const renderedLiveMessages = useMemo<RenderedChatMessage[]>(() => {
-    const lang = me?.language || 'zh-CN';
-    return liveMessages.map((msg) => {
-      const isStatusMessage = Boolean(parseStatusSystemMessage(msg.content));
-      const isBotMessage = Boolean(me?.botId && msg.userId === me.botId);
-      return {
-        ...msg,
-        isStatusMessage,
-        isBotMessage,
-        localizedContent: localizeServerText(lang, msg.content),
-        avatar: isBotMessage ? resolveAvatar(me?.botAvatarPath, msg.userId) : memberAvatarMap.get(msg.userId) || resolveAvatar(null, msg.userId),
-      };
-    });
-  }, [liveMessages, me?.botAvatarPath, me?.botId, me?.language, memberAvatarMap]);
-
-  const monthTotal = useMemo(() => calcMonthTotal(billsRows), [billsRows]);
-  const previewAmounts = useMemo(
-    () => calcPreviewAmounts(billTotal, participants, participantWeights),
-    [billTotal, participants, participantWeights],
-  );
   const {
     assignMutation,
     toggleDutyMutation,
@@ -464,6 +383,19 @@ export default function LegacyDormApp() {
     pendingNewChatIdsRef,
     chatAtBottomRef,
     syncSeenNewChatHint,
+    setNewChatHintCount,
+  });
+
+  useChatLayoutSync({
+    activeTab,
+    liveMessageCount: liveMessages.length,
+    chatScrollRef,
+    chatPrependStateRef,
+    chatForceBottomOnNextLayoutRef,
+    chatAutoScrolledRef,
+    chatAtBottomRef,
+    pendingNewChatIdsRef,
+    chatMessageRefs,
     setNewChatHintCount,
   });
 
@@ -705,54 +637,12 @@ export default function LegacyDormApp() {
   const meId = me?.id ?? null;
   const notificationAllRows = notificationRows;
   const notificationVisibleRows = notificationAllRows;
-  const unreadNoticeCount = useMemo(
-    () => (notificationsUnreadQuery.data?.items || []).reduce((sum, item) => sum + (item.unreadCount || 0), 0),
-    [notificationsUnreadQuery.data?.items],
-  );
   useEffect(() => {
     if (activeTab !== 'chat') {
       resetChatToLatest();
     }
   }, [activeTab, resetChatToLatest]);
   const pText = useMemo(() => buildPanelText(me?.language), [me?.language]);
-
-  const { billPieData, billLineData, billCategoryLineSeries } = useMemo(
-    () =>
-      mapBillChartViewModel(me?.language, {
-        pieData: billStatsQuery.data?.pieData,
-        lineData: billStatsQuery.data?.lineData,
-        categoryLineSeries: billStatsQuery.data?.categoryLineSeries,
-      }),
-    [billStatsQuery.data?.categoryLineSeries, billStatsQuery.data?.lineData, billStatsQuery.data?.pieData, me?.language],
-  );
-
-  const { pending: pendingDutyList, done: doneDutyList } = useMemo(() => splitDutyLists(dutyListRows), [dutyListRows]);
-  const visiblePendingDutyList = pendingDutyList;
-  const effectiveDoneLimit = showAllDoneDuty ? doneDutyList.length : 5;
-  const doneDutyPreview = useMemo(() => doneDutyList.slice(0, effectiveDoneLimit), [doneDutyList, effectiveDoneLimit]);
-
-  const groupedUnpaidBills = useMemo(() => groupBillsByMonth(billListRows, false), [billListRows]);
-  const unpaidBillCount = useMemo(
-    () => groupedUnpaidBills.reduce((sum, [, items]) => sum + items.length, 0),
-    [groupedUnpaidBills],
-  );
-
-  const groupedPaidBills = useMemo(() => groupBillsByMonth(billListRows, true), [billListRows]);
-
-  const groupedPendingDuties = useMemo(() => groupDutiesByWeek(visiblePendingDutyList), [visiblePendingDutyList]);
-
-  const groupedDoneDuties = useMemo(() => groupDutiesByWeek(doneDutyPreview), [doneDutyPreview]);
-
-  const { dutyPieData, dutyLineData, dutyByMemberPieData, dutyMemberLineSeries } = useMemo(
-    () =>
-      mapDutyChartViewModel(me?.language, {
-        pieData: dutyStatsQuery.data?.pieData,
-        memberPieData: dutyStatsQuery.data?.memberPieData,
-        lineData: dutyStatsQuery.data?.lineData,
-        memberLineSeries: dutyStatsQuery.data?.memberLineSeries,
-      }),
-    [dutyStatsQuery.data?.lineData, dutyStatsQuery.data?.memberLineSeries, dutyStatsQuery.data?.memberPieData, dutyStatsQuery.data?.pieData, me?.language],
-  );
 
   useTabPrefetch({
     activeTab,
@@ -1075,3 +965,4 @@ export default function LegacyDormApp() {
     </div>
   );
 }
+

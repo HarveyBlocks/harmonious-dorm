@@ -1,5 +1,5 @@
 
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { autoResizeTextarea } from '../helpers';
 import type { ActiveTab } from '../types';

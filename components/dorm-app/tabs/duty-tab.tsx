@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 
 import { LineChartCard, PieChartCard } from '../charts';
 import type { LineGranularity, PeriodType } from '../types';
+import React from "react";
 
 export function DutyTab(props: {
   t: any;
