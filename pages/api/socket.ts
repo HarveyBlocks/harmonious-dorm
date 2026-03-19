@@ -13,8 +13,8 @@ export function ensureSocketServer(res: NextApiResponseWithIO): IOServer {
     });
 
     io.on('connection', (socket) => {
-      socket.on('join', (dormId: number) => {
-        if (typeof dormId === 'number') {
+      socket.on('join', (dormId: unknown) => {
+        if (typeof dormId === 'number' && Number.isFinite(dormId)) {
           socket.join(getDormRoom(dormId));
         }
       });

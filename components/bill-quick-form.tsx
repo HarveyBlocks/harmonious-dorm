@@ -1,4 +1,4 @@
-﻿import { LIMITS } from '@/lib/limits';
+import { LIMITS } from '@/lib/limits';
 
 interface BillFormTexts {
   quickBill: string;
@@ -16,7 +16,6 @@ interface QuickBillFormProps {
   billUseWeights: boolean;
   splitEqualLabel: string;
   splitWeightLabel: string;
-  billWeightLabel: string;
   members: Array<{ id: number; name: string }>;
   participants: number[];
   participantWeights: Record<number, string>;
@@ -41,7 +40,6 @@ export function QuickBillForm(props: QuickBillFormProps) {
     billUseWeights,
     splitEqualLabel,
     splitWeightLabel,
-    billWeightLabel,
     members,
     participants,
     participantWeights,

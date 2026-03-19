@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const { PrismaClient } = require('@prisma/client');
 
+/** @type {import('@prisma/client').PrismaClient} */
 const prisma = new PrismaClient();
 
 function randInt(min, max) {

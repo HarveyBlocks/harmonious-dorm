@@ -34,15 +34,23 @@ export function readSessionToken(token: string | undefined): SessionUser | null 
   }
 
   try {
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as SessionUser;
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as unknown;
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+    const data = payload as Record<string, unknown>;
     if (
-      typeof payload.userId !== 'number' ||
-      typeof payload.dormId !== 'number' ||
-      typeof payload.isLeader !== 'boolean'
+      typeof data.userId !== 'number' ||
+      typeof data.dormId !== 'number' ||
+      typeof data.isLeader !== 'boolean'
     ) {
       return null;
     }
-    return payload;
+    return {
+      userId: data.userId,
+      dormId: data.dormId,
+      isLeader: data.isLeader,
+    };
   } catch {
     return null;
   }

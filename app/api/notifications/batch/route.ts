@@ -24,7 +24,8 @@ export async function POST(request: Request) {
     if (!['all', 'unread', 'read'].includes(body.status)) {
       throw new ApiError(400, 'status 参数错误');
     }
-    if (typeof body.selectAll !== 'boolean') {
+    const selectAll = (body as { selectAll?: unknown }).selectAll;
+    if (typeof selectAll !== 'boolean') {
       throw new ApiError(400, 'selectAll 参数错误');
     }
     if (body.types !== undefined) {
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       userId: session.userId,
       action: body.action,
       status: body.status,
-      selectAll: body.selectAll,
+      selectAll,
       ids: body.ids || [],
       types: body.types || [],
     });

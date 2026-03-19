@@ -6,6 +6,10 @@ import React, { useState } from 'react';
 import { ClientApiError } from '@/lib/client-api';
 import { ToastProvider } from '@/components/toast-provider';
 
+function isClientApiError(error: unknown): error is ClientApiError {
+  return error instanceof ClientApiError;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -14,7 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             refetchOnWindowFocus: false,
             retry: (failureCount, error) => {
-              if (error instanceof ClientApiError && error.status >= 400 && error.status < 500) {
+              if (isClientApiError(error) && error.status >= 400 && error.status < 500) {
                 return false;
               }
               return failureCount < 1;

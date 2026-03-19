@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const { PrismaClient } = require('@prisma/client');
 
+/** @type {import('@prisma/client').PrismaClient} */
 const prisma = new PrismaClient();
 const START_DATE = new Date('2023-03-14T00:00:00.000Z');
 const END_DATE = new Date('2026-03-14T00:00:00.000Z');

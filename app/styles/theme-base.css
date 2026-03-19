@@ -102,7 +102,6 @@ select option {
 /* Remove native number steppers globally */
 input[type='number'] {
   appearance: textfield;
-  -moz-appearance: textfield;
 }
 
 input[type='number']::-webkit-outer-spin-button,
