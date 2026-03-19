@@ -8,7 +8,7 @@ import { updateNameSchema } from '@/lib/validators';
 
 export async function GET() {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const me = await getMe(session);
     return NextResponse.json(me);
   });
@@ -16,7 +16,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const body = updateNameSchema.parse(
       await parseJson<{ name?: string; language?: 'zh-CN' | 'zh-TW' | 'fr' | 'en' }>(request),
     );
@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE() {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     await deleteMyAccount(session);
     const response = NextResponse.json({ success: true });
     response.cookies.set({
@@ -38,3 +38,4 @@ export async function DELETE() {
     return response;
   });
 }
+

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { DormState, DutyItem, MePayload } from '@/lib/types';
+import type { BillSummary, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
 import { localizeServerText } from '@/components/dorm-hub/i18n-adapter';
 import type { ChartPoint, ChatMessage, LineSeries, RenderedChatMessage } from '@/components/dorm-hub/ui-types';
 import { parseStatusSystemMessage, resolveAvatar } from '@/components/dorm-hub/ui-helpers';
@@ -31,9 +31,9 @@ export function useDormViewModels(options: {
   me: MePayload | undefined;
   statusRows: Array<{ userId: number; state: DormState }> | undefined;
   selectedState: DormState;
-  billsPages: Array<{ items: any[] }> | undefined;
+  billsPages: Array<{ items: BillSummary[] }> | undefined;
   dutyPages: Array<{ items: DutyItem[] }> | undefined;
-  notificationPages: Array<{ items: any[] }> | undefined;
+  notificationPages: Array<{ items: NotificationPayload[] }> | undefined;
   notificationsUnreadItems: Array<{ unreadCount?: number }> | undefined;
   liveMessages: ChatMessage[];
   billStats: BillStats | undefined;
@@ -87,7 +87,7 @@ export function useDormViewModels(options: {
     return classes;
   }, [selectedState]);
 
-  const billsRows = useMemo(() => billsPages?.flatMap((page) => page.items) || [], [billsPages]);
+  const billsRows = useMemo<BillSummary[]>(() => billsPages?.flatMap((page) => page.items) || [], [billsPages]);
   const dutyRows = useMemo(() => dutyPages?.flatMap((page) => page.items) || [], [dutyPages]);
   const billListRows = useMemo(
     () => [...billsRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -97,9 +97,9 @@ export function useDormViewModels(options: {
     () => [...dutyRows].sort((a, b) => (a.date === b.date ? b.dutyId - a.dutyId : b.date.localeCompare(a.date))),
     [dutyRows],
   );
-  const notificationRows = useMemo(() => notificationPages?.flatMap((page) => page.items) || [], [notificationPages]);
+  const notificationRows = useMemo<NotificationPayload[]>(() => notificationPages?.flatMap((page) => page.items) || [], [notificationPages]);
   const unreadNoticeCount = useMemo(
-    () => (notificationsUnreadItems || []).reduce((sum, item) => sum + (item.unreadCount || 0), 0),
+    () => (notificationsUnreadItems || []).reduce((sum: number, item: { unreadCount?: number }) => sum + (item.unreadCount || 0), 0),
     [notificationsUnreadItems],
   );
 
@@ -135,7 +135,10 @@ export function useDormViewModels(options: {
   const effectiveDoneLimit = showAllDoneDuty ? doneDutyList.length : 5;
   const doneDutyPreview = useMemo(() => doneDutyList.slice(0, effectiveDoneLimit), [doneDutyList, effectiveDoneLimit]);
   const groupedUnpaidBills = useMemo(() => groupBillsByMonth(billListRows, false), [billListRows]);
-  const unpaidBillCount = useMemo(() => groupedUnpaidBills.reduce((sum, [, items]) => sum + items.length, 0), [groupedUnpaidBills]);
+  const unpaidBillCount = useMemo(
+    () => groupedUnpaidBills.reduce((sum: number, [, items]: [string, BillSummary[]]) => sum + items.length, 0),
+    [groupedUnpaidBills],
+  );
   const groupedPaidBills = useMemo(() => groupBillsByMonth(billListRows, true), [billListRows]);
   const groupedPendingDuties = useMemo(() => groupDutiesByWeek(pendingDutyList), [pendingDutyList]);
   const groupedDoneDuties = useMemo(() => groupDutiesByWeek(doneDutyPreview), [doneDutyPreview]);

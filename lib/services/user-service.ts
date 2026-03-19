@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { LIMITS } from '@/lib/limits';
 import type { MePayload, SessionUser } from '@/lib/types';
 
@@ -102,7 +103,7 @@ export async function updateMemberDescriptions(
   items: Array<{ userId: number; description: string }>,
 ): Promise<{ success: true }> {
   const me = await ensureSessionUser(session);
-  const dedup = new Map<number, string>();
+  const uniqueDescriptions = new Map<number, string>();
   for (const item of items || []) {
     const userId = Number(item.userId);
     if (!Number.isInteger(userId) || userId <= 0) continue;
@@ -110,23 +111,23 @@ export async function updateMemberDescriptions(
     if (normalizedDescription.length > LIMITS.MEMBER_DESCRIPTION) {
       throw new ApiError(400, `成员描述不能超过 ${LIMITS.MEMBER_DESCRIPTION} 字`);
     }
-    dedup.set(userId, normalizedDescription);
+    uniqueDescriptions.set(userId, normalizedDescription);
   }
 
-  if (dedup.size === 0) {
+  if (uniqueDescriptions.size === 0) {
     return { success: true };
   }
 
   const targets = await prisma.user.findMany({
     where: {
       dormId: session.dormId,
-      id: { in: [...dedup.keys()] },
+      id: { in: [...uniqueDescriptions.keys()] },
       NOT: { email: { endsWith: '@harmonious.bot' } },
     },
     select: { id: true },
   });
   const allowedIds = new Set(targets.map((item) => item.id));
-  const validItems = [...dedup.entries()]
+  const validItems = [...uniqueDescriptions.entries()]
     .filter(([userId]) => allowedIds.has(userId))
     .map(([userId, description]) => ({ userId, description }));
 
@@ -146,8 +147,8 @@ export async function updateMemberDescriptions(
       await pushDormNotification({
         dormId: session.dormId,
         type: 'settings',
-        title: '个人描述已更新',
-        content: item.description || '你的个人描述已被舍长更新',
+        title: encodeMessageToken('notice.profileDescriptionUpdated'),
+        content: item.description || encodeMessageToken('notice.profileDescriptionUpdatedByLeader'),
         targetPath: '/settings',
         groupKey: `profile-desc-${item.userId}`,
         recipientUserIds: [item.userId],
@@ -219,3 +220,4 @@ export async function deleteMyAccount(session: SessionUser): Promise<{ success: 
 
   return { success: true };
 }
+

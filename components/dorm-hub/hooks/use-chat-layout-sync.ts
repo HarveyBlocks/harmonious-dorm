@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
+import { consumeSeenPendingChats } from '@/components/dorm-hub/hooks/chat-pending-seen';
 import type { ActiveTab } from '@/components/dorm-hub/ui-types';
 
 export function useChatLayoutSync(options: {
@@ -65,22 +66,13 @@ export function useChatLayoutSync(options: {
       return;
     }
     chatAtBottomRef.current = false;
-    const pending = pendingNewChatIdsRef.current;
-    if (pending.size === 0) return;
-    const viewportBottom = container.scrollTop + container.clientHeight;
-    const seenIds: number[] = [];
-    pending.forEach((id) => {
-      const node = chatMessageRefs.current[id];
-      if (!node) return;
-      if (node.offsetTop <= viewportBottom - 8) {
-        seenIds.push(id);
-      }
+    const { remaining, changed } = consumeSeenPendingChats({
+      pendingIdsRef: pendingNewChatIdsRef,
+      messageRefs: chatMessageRefs,
+      viewportBottom: container.scrollTop + container.clientHeight,
     });
-    if (seenIds.length === 0) return;
-    for (const id of seenIds) {
-      pending.delete(id);
-    }
-    setNewChatHintCount(pending.size);
+    if (!changed) return;
+    setNewChatHintCount(remaining);
   }, [
     activeTab,
     chatAtBottomRef,

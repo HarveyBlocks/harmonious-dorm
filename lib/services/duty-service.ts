@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import { LIMITS } from '@/lib/limits';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
 import type { CursorPage, DutyItem, SessionUser } from '@/lib/types';
 
 import { ensureSessionUser, weekRange } from './helpers';
@@ -131,8 +132,8 @@ export async function assignDuty(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'duty',
-    title: '值日安排已发布',
-    content: `已安排 ${input.date} 的值日任务：${task}`,
+    title: encodeMessageToken('notice.dutyPublished'),
+    content: encodeMessageToken('notice.dutyAssignedContent', { date: input.date, task }),
     targetPath: '/',
     groupKey: `duty-assign-${input.date}-${input.userId}-${task}`,
     actorUserId: session.userId,
@@ -187,8 +188,8 @@ export async function completeDuty(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'duty',
-    title: input.completed === false ? '值日状态已恢复' : '值日任务已完成',
-    content: input.completed === false ? '有成员将值日恢复为未完成' : '有成员完成了值日任务',
+    title: encodeMessageToken(input.completed === false ? 'notice.dutyRestored' : 'notice.dutyCompleted'),
+    content: encodeMessageToken(input.completed === false ? 'notice.memberReopenedDuty' : 'notice.memberCompletedDuty'),
     targetPath: '/',
     groupKey: `duty-complete-${duty.id}`,
     actorUserId: session.userId,

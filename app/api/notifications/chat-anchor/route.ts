@@ -5,8 +5,9 @@ import { getOldestUnreadChatNotificationTime } from '@/lib/services/notification
 
 export async function GET() {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const oldestUnreadChatNotificationTime = await getOldestUnreadChatNotificationTime(session.dormId, session.userId);
     return NextResponse.json({ oldestUnreadChatNotificationTime });
   });
 }
+

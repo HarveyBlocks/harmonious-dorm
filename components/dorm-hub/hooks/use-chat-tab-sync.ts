@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
+import { consumeSeenPendingChats } from '@/components/dorm-hub/hooks/chat-pending-seen';
 import { isChatNearBottom } from '@/components/dorm-hub/ui-helpers';
 import type { ActiveTab } from '@/components/dorm-hub/ui-types';
 
@@ -38,22 +39,13 @@ export function useChatTabSync(options: {
         setNewChatHintCount(0);
         return;
       }
-      const pending = pendingNewChatIdsRef.current;
-      if (pending.size === 0) return;
-      const viewportBottom = container.scrollTop + container.clientHeight;
-      const seenIds: number[] = [];
-      pending.forEach((id) => {
-        const node = chatMessageRefs.current[id];
-        if (!node) return;
-        if (node.offsetTop <= viewportBottom - 8) {
-          seenIds.push(id);
-        }
+      const { remaining, changed } = consumeSeenPendingChats({
+        pendingIdsRef: pendingNewChatIdsRef,
+        messageRefs: chatMessageRefs,
+        viewportBottom: container.scrollTop + container.clientHeight,
       });
-      if (seenIds.length === 0) return;
-      for (const id of seenIds) {
-        pending.delete(id);
-      }
-      setNewChatHintCount(pending.size);
+      if (!changed) return;
+      setNewChatHintCount(remaining);
     });
   }, [
     activeTab,

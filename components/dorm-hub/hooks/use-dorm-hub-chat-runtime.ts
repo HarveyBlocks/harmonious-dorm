@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
+import { consumeSeenPendingChats } from '@/components/dorm-hub/hooks/chat-pending-seen';
 import { mergeChatMessages } from '@/components/dorm-hub/ui-helpers';
 import { useChatLayoutSync } from '@/components/dorm-hub/hooks/use-chat-layout-sync';
 import { useChatWindow } from '@/components/dorm-hub/hooks/use-chat-window';
@@ -51,18 +52,13 @@ export function useDormHubChatRuntime(options: {
   const syncSeenNewChatHint = useCallback(() => {
     const container = chatScrollRef.current;
     if (!container) return;
-    const pending = pendingNewChatIdsRef.current;
-    if (pending.size === 0) return;
-    const viewportBottom = container.scrollTop + container.clientHeight;
-    const seenIds: number[] = [];
-    pending.forEach((id) => {
-      const node = chatMessageRefs.current[id];
-      if (!node) return;
-      if (node.offsetTop <= viewportBottom - 8) seenIds.push(id);
+    const { remaining, changed } = consumeSeenPendingChats({
+      pendingIdsRef: pendingNewChatIdsRef,
+      messageRefs: chatMessageRefs,
+      viewportBottom: container.scrollTop + container.clientHeight,
     });
-    if (!seenIds.length) return;
-    for (const id of seenIds) pending.delete(id);
-    setNewChatHintCount(pending.size);
+    if (!changed) return;
+    setNewChatHintCount(remaining);
   }, [chatMessageRefs, chatScrollRef, pendingNewChatIdsRef, setNewChatHintCount]);
 
   const chatWindow = useChatWindow({

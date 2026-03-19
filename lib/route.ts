@@ -6,8 +6,8 @@ import { handleApiError } from '@/lib/http';
 import { logInfo } from '@/lib/logger';
 import type { SessionUser } from '@/lib/types';
 
-export function requireSessionOrThrow(): SessionUser {
-  const session = getServerSession();
+export async function requireSessionOrThrow(): Promise<SessionUser> {
+  const session = await getServerSession();
   if (!session) {
     throw new ApiError(401, '请先登录');
   }

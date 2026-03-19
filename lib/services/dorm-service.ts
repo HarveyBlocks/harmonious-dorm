@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
 import type { SessionUser } from '@/lib/types';
 
 import { ensureSessionUser } from './helpers';
@@ -19,8 +20,8 @@ export async function updateDormName(session: SessionUser, name: string) {
   await pushDormNotification({
     dormId: session.dormId,
     type: 'dorm',
-    title: '宿舍信息已更新',
-    content: `宿舍名称已改为 ${dorm.name}`,
+    title: encodeMessageToken('notice.dormInfoUpdated'),
+    content: encodeMessageToken('notice.dormNameChanged', { name: dorm.name }),
     targetPath: '/settings',
     groupKey: 'dorm-name',
     actorUserId: session.userId,
@@ -54,8 +55,8 @@ export async function transferLeader(session: SessionUser, targetUserId: number)
   await pushDormNotification({
     dormId: session.dormId,
     type: 'leader',
-    title: '舍长权限已移交',
-    content: `${user.name} 已将舍长权限移交给 ${target.name}`,
+    title: encodeMessageToken('notice.leaderRightsTransferred'),
+    content: encodeMessageToken('notice.leaderTransferContent', { from: user.name, to: target.name }),
     targetPath: '/settings',
     groupKey: 'leader-transfer',
     actorUserId: session.userId,

@@ -10,8 +10,8 @@ Rule: no "single-point fix and stop". We only close when all critical items are 
 
 ## Core Feature Matrix (Manual)
 
-- [ ] Auth flow: login fail -> redirect login, no loop; register/login field rules
-- [ ] Navigation routing: URL maps to tab; direct URL opens right view; unauth redirects to login
+- [ ] Auth flow: sign-in failure -> redirect to login page, no loop; register and sign-in field rules
+- [ ] Navigation routing: URL maps to tab; direct URL opens right view; unauthorized redirects to login
 - [ ] Chat: pagination, anchor jump, unread counter bubble, auto-scroll behavior
 - [ ] Notifications: list pagination, menu actions, single/multi select, mark read/delete, jump target
 - [ ] Bills: unpaid/paid split render, pagination, publish/edit/pay flow, weighted split preview

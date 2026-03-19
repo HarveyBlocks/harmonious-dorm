@@ -5,8 +5,9 @@ import { markAllNotificationsRead } from '@/lib/services/notification-service';
 
 export async function PUT() {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     await markAllNotificationsRead(session.dormId, session.userId);
     return NextResponse.json({ success: true });
   });
 }
+

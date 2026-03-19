@@ -7,7 +7,7 @@ import { updateDormSchema } from '@/lib/validators';
 
 export async function PUT(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const body = updateDormSchema.parse(await parseJson<{ name: string }>(request));
     const dorm = await updateDormName(session, body.name);
     return NextResponse.json({ id: dorm.id, name: dorm.name, inviteCode: dorm.inviteCode });

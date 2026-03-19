@@ -2,6 +2,7 @@
 import { ApiError } from '@/lib/errors';
 import { allocateAmounts, normalizeWeights, validateWeights } from '@/lib/share-allocation';
 import { normalizeBillCategory } from '@/lib/domain-codes';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
 import type { BillSummary, CursorPage, SessionUser } from '@/lib/types';
 
 import { ensureSessionUser } from './helpers';
@@ -109,8 +110,11 @@ export async function createBill(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'bill',
-    title: '新账单已发布',
-    content: `${input.description || '未命名账单'} · ¥${input.total.toFixed(2)}`,
+    title: encodeMessageToken('notice.newBillPublished'),
+    content: encodeMessageToken('notice.billSummary', {
+      name: input.description || '',
+      amount: input.total.toFixed(2),
+    }),
     targetPath: '/',
     groupKey: 'bill-created',
     actorUserId: session.userId,
@@ -237,8 +241,8 @@ export async function markBillPaid(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'bill',
-    title: paid ? '账单支付状态更新' : '账单支付已撤销',
-    content: paid ? '有成员标记了已支付' : '有成员撤销了已支付',
+    title: encodeMessageToken(paid ? 'notice.billPaymentStatusUpdated' : 'notice.billPaymentReverted'),
+    content: encodeMessageToken(paid ? 'notice.memberMarkedPaid' : 'notice.memberRevertedPaid'),
     targetPath: '/',
     groupKey: `bill-pay-${billId}`,
     actorUserId: session.userId,
@@ -259,8 +263,8 @@ export async function markBillPaid(
       await pushDormNotification({
         dormId: session.dormId,
         type: 'bill',
-        title: '账单已全部支付',
-        content: '该账单所有参与成员已完成支付',
+        title: encodeMessageToken('notice.billFullyPaid'),
+        content: encodeMessageToken('notice.billAllParticipantsPaid'),
         targetPath: '/',
         groupKey: `bill-all-paid-${billId}`,
         actorUserId: session.userId,

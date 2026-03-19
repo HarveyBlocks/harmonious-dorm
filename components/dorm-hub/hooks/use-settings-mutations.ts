@@ -4,7 +4,6 @@ import type { MutableRefObject } from 'react';
 
 import { apiRequest } from '@/lib/client-api';
 import type { LanguageCode } from '@/lib/i18n';
-import React from "react";
 
 type ErrorText = {
   dormNameRequired: string;

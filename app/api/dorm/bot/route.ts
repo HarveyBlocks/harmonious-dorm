@@ -6,10 +6,11 @@ import { updateDormBotName } from '@/lib/services';
 
 export async function PUT(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const body = await parseJson<{ name: string }>(request);
     const result = await updateDormBotName(session, body.name || '');
     return NextResponse.json(result);
   });
 }
+
 

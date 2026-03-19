@@ -6,7 +6,7 @@ import { listNotifications } from '@/lib/services/notification-service';
 
 export async function GET(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const { searchParams } = new URL(request.url);
     const status = (searchParams.get('status') || 'all') as 'all' | 'unread' | 'read';
     if (!['all', 'unread', 'read'].includes(status)) {
@@ -22,3 +22,4 @@ export async function GET(request: Request) {
     return NextResponse.json(rows);
   });
 }
+

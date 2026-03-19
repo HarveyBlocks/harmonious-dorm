@@ -162,27 +162,27 @@ export function DormHubLayout(props: any) {
             <NotificationsTab
               t={p.t}
               language={p.me?.language || 'zh-CN'}
-              selectedNoticeCount={p.selectedNoticeCount}
-              notificationMenuOpen={p.notificationMenuOpen}
-              onToggleMenu={() => p.setNotificationMenuOpen((prev: boolean) => !prev)}
-              onCloseMenu={() => p.setNotificationMenuOpen(false)}
-              onSelectAll={p.setNoticeSelectAll}
+              selectedNoticeCount={p.selectedCount}
+              notificationMenuOpen={p.menuOpen}
+              onToggleMenu={() => p.setMenuOpen((prev: boolean) => !prev)}
+              onCloseMenu={() => p.setMenuOpen(false)}
+              onSelectAll={p.selectAllRows}
               onMarkSelectedRead={() => {
                 p.readSelectedNoticeMutation.mutate(p.selectionPayload, {
                   onSuccess: () => {
-                    p.clearNoticeSelection();
+                    p.clearSelection();
                   },
                 });
               }}
               onDeleteSelected={() => {
                 p.deleteSelectedNoticeMutation.mutate(p.selectionPayload, {
                   onSuccess: () => {
-                    p.clearNoticeSelection();
+                    p.clearSelection();
                   },
                 });
               }}
-              markSelectedDisabled={p.selectedNoticeCount === 0 || p.readSelectedNoticeMutation.isPending}
-              deleteSelectedDisabled={p.selectedNoticeCount === 0 || p.deleteSelectedNoticeMutation.isPending}
+              markSelectedDisabled={p.selectedCount === 0 || p.readSelectedNoticeMutation.isPending}
+              deleteSelectedDisabled={p.selectedCount === 0 || p.deleteSelectedNoticeMutation.isPending}
               notificationFilter={p.notificationFilter}
               onFilterChange={p.setNotificationFilter}
               notificationListRef={p.notificationListRef}
@@ -201,8 +201,8 @@ export function DormHubLayout(props: any) {
                   }
                 }
               }}
-              onToggleSelect={p.toggleNoticeSelect}
-              isChecked={p.isNoticeChecked}
+              onToggleSelect={p.toggleSelect}
+              isChecked={p.isChecked}
             />
           )}
 

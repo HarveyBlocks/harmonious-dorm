@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useEffect, useMemo, useState } from 'react';
 
 type ToastType = 'error' | 'success' | 'info';
 
@@ -10,25 +10,23 @@ type ToastItem = {
   message: string;
 };
 
+const TOAST_CLASS_MAP: Record<ToastType, string> = {
+  error: 'app-toast app-toast-error',
+  success: 'app-toast app-toast-success',
+  info: 'app-toast app-toast-info',
+};
+
 type ToastContextValue = {
   pushToast: (type: ToastType, message: string) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) {
-    throw new Error('useToast must be used within ToastProvider');
-  }
-  return ctx;
-}
-
 function ToastContainer({ items }: { items: ToastItem[] }) {
   return (
     <div className="app-toast-container" aria-live="polite" aria-atomic="true">
       {items.map((item) => (
-        <div key={item.id} className={`app-toast app-toast-${item.type}`}>
+        <div key={item.id} className={TOAST_CLASS_MAP[item.type]}>
           <span>{item.message}</span>
         </div>
       ))}

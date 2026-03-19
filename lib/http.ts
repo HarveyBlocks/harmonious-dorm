@@ -7,8 +7,8 @@ import { translateBackendMessage, type LanguageCode } from '@/lib/i18n';
 import { logError, logInfo, logWarn } from '@/lib/logger';
 import { sessionCookieConfig } from '@/lib/session';
 
-function resolveLang(): LanguageCode {
-  const h = headers();
+async function resolveLang(): Promise<LanguageCode> {
+  const h = await headers();
   const candidate = (h.get('x-app-lang') || '').trim();
   if (candidate === 'zh-CN' || candidate === 'zh-TW' || candidate === 'fr' || candidate === 'en') {
     return candidate;
@@ -24,8 +24,8 @@ export async function parseJson<T>(request: Request): Promise<T> {
   }
 }
 
-export function handleApiError(error: unknown) {
-  const lang = resolveLang();
+export async function handleApiError(error: unknown): Promise<NextResponse> {
+  const lang = await resolveLang();
 
   if (error instanceof ApiError) {
     logWarn('api_error', { status: error.status, message: error.message });

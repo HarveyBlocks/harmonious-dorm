@@ -1,4 +1,4 @@
-﻿@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) and (max-width: 1023px) {
   .nav-icon {
     @apply w-7 h-7;
   }

@@ -14,7 +14,7 @@ interface Params {
 
 export async function POST(request: Request, { params }: Params) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const billId = Number(params.id);
     if (!Number.isInteger(billId) || billId <= 0) {
       throw new ApiError(400, '账单 ID 无效');

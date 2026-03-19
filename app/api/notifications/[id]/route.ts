@@ -10,7 +10,7 @@ interface Params {
 
 export async function DELETE(_request: Request, { params }: Params) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const id = Number(params.id);
     if (!Number.isInteger(id) || id <= 0) {
       throw new ApiError(400, '通知 ID 无效');

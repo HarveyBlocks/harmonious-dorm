@@ -6,7 +6,7 @@ import { getChatWindowAround, listNewerChatMessages, listOlderChatMessages } fro
 
 export async function GET(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') || 'around';
 
@@ -54,4 +54,5 @@ export async function GET(request: Request) {
     throw new ApiError(400, '请求参数校验失败');
   });
 }
+
 

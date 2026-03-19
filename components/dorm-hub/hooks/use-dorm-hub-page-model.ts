@@ -23,7 +23,6 @@ import { useTabRouting } from '@/components/dorm-hub/hooks/use-tab-routing';
 import { useTabScrollHandlers } from '@/components/dorm-hub/hooks/use-tab-scroll-handlers';
 import { useDormHubChatRuntime } from '@/components/dorm-hub/hooks/use-dorm-hub-chat-runtime';
 import { useDormHubLifecycleEffects } from '@/components/dorm-hub/hooks/use-dorm-hub-lifecycle-effects';
-import { buildDormHubLifecycleOptions } from '@/components/dorm-hub/hooks/build-dorm-hub-lifecycle-options';
 import { createDormHubLayoutProps } from '@/components/dorm-hub/hooks/create-dorm-hub-layout-props';
 import type { ChatMessage, SettingsCardKey } from '@/components/dorm-hub/ui-types';
 
@@ -238,26 +237,84 @@ export function useDormHubPageModel() {
     setShowAllDoneDuty: state.setShowAllDoneDuty,
   });
 
-  useDormHubLifecycleEffects(
-    buildDormHubLifecycleOptions({
-      state,
-      me,
-      refs,
-      queries,
+  useDormHubLifecycleEffects({
+    activeTab: state.activeTab,
+    socketOptions: {
+      dormId: queries.meQuery.data?.dormId,
+      meId: queries.meQuery.data?.id,
       queryClient,
+      socketRef: refs.socketRef,
+      lastActiveTabRef: refs.lastActiveTabRef,
+      chatAtBottomRef: refs.chatAtBottomRef,
+      chatForceBottomOnNextLayoutRef: refs.chatForceBottomOnNextLayoutRef,
+      pendingNewChatIdsRef: refs.pendingNewChatIdsRef,
       setLiveMessages,
-      chatRuntime,
-      settingsSaveActions,
-      view,
-      noticeAuthMutations,
-    }),
-  );
+      setNewChatHintCount: state.setNewChatHintCount,
+      setChatNewerCursor: chatRuntime.setChatNewerCursor,
+      setChatHasNewer: chatRuntime.setChatHasNewer,
+      setNoticePopup: state.setNoticePopup,
+      autoReadByTypeMutation: noticeAuthMutations.autoReadByTypeMutation,
+    },
+    settingsAutoSaveOptions: {
+      activeTab: state.activeTab,
+      isLeader: Boolean(me?.isLeader),
+      hasMe: Boolean(me),
+      botOtherEditing: state.botOtherEditing,
+      botOtherTextareaRef: refs.botOtherTextareaRef,
+      name: state.name,
+      language: state.language,
+      dormNameInput: state.dormNameInput,
+      botNameInput: state.botNameInput,
+      botOtherContent: state.botOtherContent,
+      botSettingsInput: state.botSettingsInput,
+      memberDescriptionsInput: state.memberDescriptionsInput,
+      avatarFile: state.avatarFile,
+      botAvatarFile: state.botAvatarFile,
+      ...settingsSaveActions,
+    },
+    chatTabSyncOptions: {
+      activeTab: state.activeTab,
+      chatScrollRef: refs.chatScrollRef,
+      chatMessageRefs: refs.chatMessageRefs,
+      chatAutoScrolledRef: refs.chatAutoScrolledRef,
+      chatAtBottomRef: refs.chatAtBottomRef,
+      pendingNewChatIdsRef: refs.pendingNewChatIdsRef,
+      setNewChatHintCount: state.setNewChatHintCount,
+      resetChatToLatest: chatRuntime.resetChatToLatest,
+    },
+    tabAutoReadOptions: {
+      activeTab: state.activeTab,
+      lastAutoReadTabRef: refs.lastAutoReadTabRef,
+      mutate: (type: any) => noticeAuthMutations.autoReadByTypeMutation.mutate(type),
+    },
+    tabPrefetchOptions: {
+      billsHasNextPage: Boolean(queries.billsQuery.hasNextPage),
+      billsIsFetchingNextPage: queries.billsQuery.isFetchingNextPage,
+      fetchNextBills: () => queries.billsQuery.fetchNextPage(),
+      billsRowCount: view.billsRows.length,
+      unpaidBillCount: view.unpaidBillCount,
+      paidBillGroupCount: view.groupedPaidBills.length,
+      dutyHasNextPage: Boolean(queries.dutyAllQuery.hasNextPage),
+      dutyIsFetchingNextPage: queries.dutyAllQuery.isFetchingNextPage,
+      fetchNextDuty: () => queries.dutyAllQuery.fetchNextPage(),
+      pendingDutyGroupCount: view.groupedPendingDuties.length,
+      doneDutyGroupCount: view.groupedDoneDuties.length,
+      notificationRowCount: view.notificationRows.length,
+      noticeHasNextPage: Boolean(queries.notificationsQuery.hasNextPage),
+      noticeIsFetchingNextPage: queries.notificationsQuery.isFetchingNextPage,
+      fetchNextNotices: () => queries.notificationsQuery.fetchNextPage(),
+      unpaidListRef: refs.billUnpaidListRef,
+      paidListRef: refs.billPaidListRef,
+    },
+  });
 
   const copyInviteCode = async () => {
     const code = me?.inviteCode;
     if (!code || typeof window === 'undefined') return;
     try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
       await navigator.clipboard.writeText(code);
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { type: 'success', message: t.inviteCodeCopied } }));
     } catch {

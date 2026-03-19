@@ -12,7 +12,7 @@ const STATE_LABEL_MAP: Record<LanguageCode, Record<DormState, string>> = {
 
 const SETTINGS_FOLD_LABEL_MAP: Record<LanguageCode, { folded: string; expanded: string }> = {
   en: { folded: 'Expand', expanded: 'Collapse' },
-  fr: { folded: 'Developper', expanded: 'Reduire' },
+  fr: { folded: 'D\u00e9velopper', expanded: 'R\u00e9duire' },
   'zh-TW': { folded: '展開', expanded: '收合' },
   'zh-CN': { folded: '展开', expanded: '收起' },
 };
@@ -22,13 +22,6 @@ const PAID_INFO_PREFIX_MAP: Record<LanguageCode, string> = {
   fr: 'Payé',
   'zh-TW': '已付',
   'zh-CN': '已付',
-};
-
-const UNNAMED_BILL_MAP: Record<LanguageCode, string> = {
-  en: 'Untitled bill',
-  fr: 'Facture sans titre',
-  'zh-TW': '未命名帳單',
-  'zh-CN': '未命名账单',
 };
 
 function fakeAvatar(id: number): string {
@@ -46,10 +39,6 @@ export function todayText(): string {
   const m = `${now.getMonth() + 1}`.padStart(2, '0');
   const d = `${now.getDate()}`.padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-export function currentQuarter(): number {
-  return Math.floor(new Date().getMonth() / 3) + 1;
 }
 
 export function monthHeader(iso: string): string {
@@ -116,19 +105,9 @@ export function isChatNearBottom(container: HTMLDivElement): boolean {
   return container.scrollHeight - (container.scrollTop + container.clientHeight) <= 80;
 }
 
-export function isThisMonth(isoDate: string): boolean {
-  const d = new Date(isoDate);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-}
-
 export function formatPaidInfo(lang: LanguageCode, paid: number, total: number): string {
   const prefix = PAID_INFO_PREFIX_MAP[lang] || PAID_INFO_PREFIX_MAP['zh-CN'];
   return `${prefix} ${paid}/${total}`;
-}
-
-export function unnamedBill(lang: LanguageCode): string {
-  return UNNAMED_BILL_MAP[lang] || UNNAMED_BILL_MAP['zh-CN'];
 }
 
 export function stateLabel(lang: LanguageCode, state: DormState): string {
@@ -137,9 +116,15 @@ export function stateLabel(lang: LanguageCode, state: DormState): string {
 }
 
 export function parseStatusSystemMessage(text: string): { userName: string; state: DormState } | null {
-  const hit = text.match(/^__status_change__:(.+?):(out|study|sleep|game)$/);
-  if (!hit) return null;
-  return { userName: hit[1], state: hit[2] as DormState };
+  const prefix = '__status_change__:';
+  if (!text.startsWith(prefix)) return null;
+  const payload = text.slice(prefix.length);
+  const splitAt = payload.lastIndexOf(':');
+  if (splitAt <= 0 || splitAt >= payload.length - 1) return null;
+  const userName = payload.slice(0, splitAt);
+  const stateRaw = payload.slice(splitAt + 1);
+  if (stateRaw !== 'out' && stateRaw !== 'study' && stateRaw !== 'sleep' && stateRaw !== 'game') return null;
+  return { userName, state: stateRaw };
 }
 
 export function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {

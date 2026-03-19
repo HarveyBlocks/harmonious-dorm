@@ -10,7 +10,7 @@ interface Params {
 
 export async function DELETE(_request: Request, { params }: Params) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const dutyId = Number(params.id);
     if (!Number.isInteger(dutyId) || dutyId <= 0) {
       throw new ApiError(400, '值日 ID 无效');

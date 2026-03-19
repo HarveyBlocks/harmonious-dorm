@@ -7,7 +7,7 @@ import { completeDutySchema } from '@/lib/validators';
 
 export async function POST(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const body = completeDutySchema.parse(
       await parseJson<{ dutyId: number; imageUrl?: string | null; completed?: boolean }>(request),
     );
@@ -15,3 +15,4 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   });
 }
+

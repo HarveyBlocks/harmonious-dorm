@@ -8,7 +8,7 @@ import { updateMyAvatar } from '@/lib/services';
 
 export async function POST(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const form = await request.formData();
     const file = form.get('avatar');
 

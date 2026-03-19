@@ -1,32 +1,20 @@
-/* eslint-disable no-console */
+﻿/* eslint-disable no-console */
 const { PrismaClient } = require('@prisma/client');
 
-/** @type {import('@prisma/client').PrismaClient} */
+/** @type {any} */
 const prisma = new PrismaClient();
 const START_DATE = new Date('2023-03-14T00:00:00.000Z');
 const END_DATE = new Date('2026-03-14T00:00:00.000Z');
 const DORM_COUNT = 20;
 const DORM_SIZES = [2, 3, 4, ...Array.from({ length: 11 }).map(() => 5), ...Array.from({ length: 6 }).map(() => 6)];
-const STATUS_STATES = ['学习', '睡觉', '游戏', '外出'];
-const BILL_CATEGORIES = ['电费', '水费', '网费', '日用品', '其他'];
+const STATUS_STATES = ['study', 'sleep', 'game', 'out'];
+const BILL_CATEGORIES = ['electricity', 'water', 'internet', 'supplies', 'other'];
 const NAME_POOL = ['张伟', '王芳', '李娜', '刘洋', '陈晨', '杨帆', '黄涛', '赵敏', '周杰', '吴迪', '郑爽', '孙悦'];
 
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function randomFrom(arr) {
-  return arr[randInt(0, arr.length - 1)];
-}
-
-function randomDateBetween(start, end) {
-  const t = start.getTime() + Math.random() * (end.getTime() - start.getTime());
-  return new Date(t);
-}
-
-function fmtDate(d) {
-  return `${d.getUTCFullYear()}-${`${d.getUTCMonth() + 1}`.padStart(2, '0')}-${`${d.getUTCDate()}`.padStart(2, '0')}`;
-}
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randomFrom(arr) { return arr[randInt(0, arr.length - 1)]; }
+function randomDateBetween(start, end) { const t = start.getTime() + Math.random() * (end.getTime() - start.getTime()); return new Date(t); }
+function fmtDate(d) { return `${d.getUTCFullYear()}-${`${d.getUTCMonth() + 1}`.padStart(2, '0')}-${`${d.getUTCDate()}`.padStart(2, '0')}`; }
 
 async function resetDb() {
   await prisma.billParticipant.deleteMany();
@@ -46,12 +34,7 @@ async function seed() {
   console.log('create dorms...');
   const dorms = [];
   for (let i = 0; i < DORM_COUNT; i += 1) {
-    const dorm = await prisma.dorm.create({
-      data: {
-        name: `宿舍-${`${i + 1}`.padStart(2, '0')}`,
-        inviteCode: `D${`${i + 1}`.padStart(4, '0')}`,
-      },
-    });
+    const dorm = await prisma.dorm.create({ data: { name: `宿舍-${`${i + 1}`.padStart(2, '0')}`, inviteCode: `D${`${i + 1}`.padStart(4, '0')}` } });
     dorms.push(dorm);
   }
 
@@ -74,9 +57,7 @@ async function seed() {
     }
   }
 
-  const users = await prisma.user.findMany({
-    orderBy: { id: 'asc' },
-  });
+  const users = await prisma.user.findMany({ orderBy: { id: 'asc' } });
   const usersByDorm = new Map();
   for (const user of users) {
     const list = usersByDorm.get(user.dormId) || [];
@@ -85,13 +66,7 @@ async function seed() {
   }
 
   console.log('create status...');
-  await prisma.status.createMany({
-    data: users.map((u) => ({
-      userId: u.id,
-      state: randomFrom(STATUS_STATES),
-      updatedAt: randomDateBetween(START_DATE, END_DATE),
-    })),
-  });
+  await prisma.status.createMany({ data: users.map((u) => ({ userId: u.id, state: randomFrom(STATUS_STATES), updatedAt: randomDateBetween(START_DATE, END_DATE) })) });
 
   console.log('create duties...');
   const duties = [];
@@ -105,22 +80,13 @@ async function seed() {
         date.setUTCDate(cursor.getUTCDate() + day);
         if (date > END_DATE) continue;
         const member = members[(weekIdx + day) % members.length];
-        duties.push({
-          dormId: dorm.id,
-          userId: member.id,
-          date: fmtDate(date),
-          completed: Math.random() > 0.35,
-          imageUrl: null,
-          createdAt: date,
-        });
+        duties.push({ dormId: dorm.id, userId: member.id, date: fmtDate(date), completed: Math.random() > 0.35, imageUrl: null, createdAt: date });
       }
       cursor.setUTCDate(cursor.getUTCDate() + 7);
       weekIdx += 1;
     }
   }
-  for (let i = 0; i < duties.length; i += 1000) {
-    await prisma.duty.createMany({ data: duties.slice(i, i + 1000) });
-  }
+  for (let i = 0; i < duties.length; i += 1000) await prisma.duty.createMany({ data: duties.slice(i, i + 1000) });
 
   console.log('create bills + bill participants...');
   for (const dorm of dorms) {
@@ -146,13 +112,7 @@ async function seed() {
           });
           const size = randInt(Math.min(2, members.length), members.length);
           const shuffled = [...members].sort(() => Math.random() - 0.5).slice(0, size);
-          await prisma.billParticipant.createMany({
-            data: shuffled.map((u) => ({
-              billId: bill.id,
-              userId: u.id,
-              paid: Math.random() > 0.25,
-            })),
-          });
+          await prisma.billParticipant.createMany({ data: shuffled.map((u) => ({ billId: bill.id, userId: u.id, paid: Math.random() > 0.25 })) });
         }
       }
     }
@@ -164,17 +124,10 @@ async function seed() {
     const members = usersByDorm.get(dorm.id);
     for (let i = 0; i < 400; i += 1) {
       const user = randomFrom(members);
-      chats.push({
-        dormId: dorm.id,
-        userId: user.id,
-        content: `消息-${dorm.id}-${i + 1}`,
-        createdAt: randomDateBetween(START_DATE, END_DATE),
-      });
+      chats.push({ dormId: dorm.id, userId: user.id, content: `消息-${dorm.id}-${i + 1}`, createdAt: randomDateBetween(START_DATE, END_DATE) });
     }
   }
-  for (let i = 0; i < chats.length; i += 1000) {
-    await prisma.chatMessage.createMany({ data: chats.slice(i, i + 1000) });
-  }
+  for (let i = 0; i < chats.length; i += 1000) await prisma.chatMessage.createMany({ data: chats.slice(i, i + 1000) });
 
   console.log('create notifications...');
   const notifications = [];
@@ -197,9 +150,7 @@ async function seed() {
       });
     }
   }
-  for (let i = 0; i < notifications.length; i += 1000) {
-    await prisma.notification.createMany({ data: notifications.slice(i, i + 1000) });
-  }
+  for (let i = 0; i < notifications.length; i += 1000) await prisma.notification.createMany({ data: notifications.slice(i, i + 1000) });
 
   const dormCount = await prisma.dorm.count();
   const userCount = await prisma.user.count();
@@ -209,13 +160,4 @@ async function seed() {
   console.log({ dormCount, userCount, dutyCount, billCount, chatCount });
 }
 
-seed()
-  .then(async () => {
-    await prisma.$disconnect();
-    console.log('seed finished.');
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+seed().then(async () => { await prisma.$disconnect(); console.log('seed finished.'); }).catch(async (error) => { console.error(error); await prisma.$disconnect(); process.exit(1); });

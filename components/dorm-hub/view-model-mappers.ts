@@ -91,31 +91,27 @@ function pick(lang: LanguageCode | undefined, map: LangMap): string {
   return map[lang || DEFAULT_LANG] || map[DEFAULT_LANG];
 }
 
-function perLang(value: string): LangMap {
-  return { 'zh-CN': value, 'zh-TW': value, fr: value, en: value };
-}
-
 const PANEL_TEXT_MAP: Record<keyof PanelText, LangMap> = {
   month: { 'zh-CN': '月份', 'zh-TW': '月份', fr: 'Mois', en: 'Month' },
   quarter: { 'zh-CN': '季度', 'zh-TW': '季度', fr: 'Trimestre', en: 'Quarter' },
-  year: { 'zh-CN': '年份', 'zh-TW': '年份', fr: 'Annee', en: 'Year' },
+  year: { 'zh-CN': '年份', 'zh-TW': '年份', fr: 'Ann\u00e9e', en: 'Year' },
   byMonth: { 'zh-CN': '按月', 'zh-TW': '按月', fr: 'Par mois', en: 'By month' },
   byDay: { 'zh-CN': '按日', 'zh-TW': '按日', fr: 'Par jour', en: 'By day' },
-  billPie: { 'zh-CN': '分类占比', 'zh-TW': '分類占比', fr: 'Part des categories', en: 'Category Share' },
+  billPie: { 'zh-CN': '分类占比', 'zh-TW': '分類占比', fr: 'Part des cat\u00e9gories', en: 'Category Share' },
   billLine: { 'zh-CN': '金额趋势', 'zh-TW': '金額趨勢', fr: 'Tendance des montants', en: 'Amount Trend' },
-  billLineByCategory: { 'zh-CN': '分类金额趋势', 'zh-TW': '分類金額趨勢', fr: 'Tendance par categorie', en: 'Category Amount Trend' },
+  billLineByCategory: { 'zh-CN': '分类金额趋势', 'zh-TW': '分類金額趨勢', fr: 'Tendance par cat\u00e9gorie', en: 'Category Amount Trend' },
   unpaidBills: { 'zh-CN': '待支付账单', 'zh-TW': '待支付帳單', fr: 'Factures a payer', en: 'Pending Payment Bills' },
   paidBills: { 'zh-CN': '已支付账单', 'zh-TW': '已支付帳單', fr: 'Factures payees', en: 'Paid Bills' },
   dutyPie: { 'zh-CN': '任务状态占比', 'zh-TW': '任務狀態占比', fr: 'Part des statuts de tache', en: 'Task Status Share' },
-  dutyByMemberPie: { 'zh-CN': '完成人占比', 'zh-TW': '完成者占比', fr: 'Taches terminees par membre', en: 'Completed By Member' },
+  dutyByMemberPie: { 'zh-CN': '完成人占比', 'zh-TW': '完成者占比', fr: 'T\u00e2ches termin\u00e9es par membre', en: 'Completed By Member' },
   dutyLine: { 'zh-CN': '任务趋势', 'zh-TW': '任務趨勢', fr: 'Tendance des taches', en: 'Task Trend' },
   dutyLineByMember: { 'zh-CN': '成员完成趋势', 'zh-TW': '成員完成趨勢', fr: 'Tendance de completion par membre', en: 'Member Completion Trend' },
-  doneList: { 'zh-CN': '完成列表', 'zh-TW': '完成列表', fr: 'Liste terminee', en: 'Completed List' },
+  doneList: { 'zh-CN': '完成列表', 'zh-TW': '完成列表', fr: 'Liste termin\u00e9e', en: 'Completed List' },
   showMore: { 'zh-CN': '显示全部', 'zh-TW': '顯示全部', fr: 'Tout afficher', en: 'Show all' },
   showLess: { 'zh-CN': '收起', 'zh-TW': '收起', fr: 'Replier', en: 'Collapse' },
   pendingTasks: { 'zh-CN': '待完成任务', 'zh-TW': '待完成任務', fr: 'Taches en attente', en: 'Pending Tasks' },
   popupNewNotice: { 'zh-CN': '新通知', 'zh-TW': '新通知', fr: 'Nouvelle notification', en: 'New notification' },
-  splitEqual: { 'zh-CN': '平均分摊', 'zh-TW': '平均分攤', fr: 'Partage egal', en: 'Split equally' },
+  splitEqual: { 'zh-CN': '平均分摊', 'zh-TW': '平均分攤', fr: 'Partage \u00e9gal', en: 'Split equally' },
   splitWeight: { 'zh-CN': '按权重分摊', 'zh-TW': '按權重分攤', fr: 'Partage par poids', en: 'Split by weight' },
   billWeight: { 'zh-CN': '权重', 'zh-TW': '權重', fr: 'Poids', en: 'Weight' },
   dutyTaskPlaceholder: { 'zh-CN': '值日任务（例如：拖地）', 'zh-TW': '值日任務（例如：拖地）', fr: 'Tache (ex: laver le sol)', en: 'Duty task (e.g. mop floor)' },

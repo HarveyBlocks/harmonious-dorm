@@ -7,7 +7,7 @@ import { transferLeaderSchema } from '@/lib/validators';
 
 export async function POST(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const body = transferLeaderSchema.parse(await parseJson<{ targetUserId: number }>(request));
     const result = await transferLeader(session, body.targetUserId);
     return NextResponse.json(result);

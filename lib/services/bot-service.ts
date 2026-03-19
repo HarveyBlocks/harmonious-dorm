@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { LIMITS } from '@/lib/limits';
 import type { SessionUser } from '@/lib/types';
 
@@ -63,8 +64,8 @@ export async function updateDormBotName(session: SessionUser, name: string): Pro
   await pushDormNotification({
     dormId: session.dormId,
     type: 'settings',
-    title: '宿舍机器人名称已更新',
-    content: `机器人名称已改为 ${updated.name}`,
+    title: encodeMessageToken('notice.botNameUpdated'),
+    content: encodeMessageToken('notice.botNameChanged', { name: updated.name }),
     targetPath: '/settings',
     groupKey: 'bot-name',
     recipientUserIds: recipients.map((item) => item.id),
@@ -125,11 +126,11 @@ export async function updateDormBotSettings(
     }
   }
 
-  const dedup = new Set<string>();
+  const uniqueKeys = new Set<string>();
   const finalSettings: Array<{ key: string; value: string }> = [];
   for (const item of normalized) {
-    if (dedup.has(item.key)) continue;
-    dedup.add(item.key);
+    if (uniqueKeys.has(item.key)) continue;
+    uniqueKeys.add(item.key);
     finalSettings.push(item);
   }
 
@@ -142,3 +143,4 @@ export async function updateDormBotSettings(
 
   return { settings: finalSettings, otherContent: normalizedOtherContent };
 }
+

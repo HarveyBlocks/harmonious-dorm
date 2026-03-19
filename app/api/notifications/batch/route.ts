@@ -13,25 +13,26 @@ interface BatchBody {
   types?: string[];
 }
 
+function isBatchBody(input: unknown): input is BatchBody {
+  if (!input || typeof input !== 'object') return false;
+  const body = input as Partial<BatchBody>;
+  if (body.action !== 'delete' && body.action !== 'read') return false;
+  if (body.status !== 'all' && body.status !== 'unread' && body.status !== 'read') return false;
+  if (typeof body.selectAll !== 'boolean') return false;
+  if (body.ids !== undefined && (!Array.isArray(body.ids) || body.ids.some((id) => !Number.isInteger(id) || id <= 0))) return false;
+  const hasInvalidTypes =
+    body.types !== undefined &&
+    (!Array.isArray(body.types) || body.types.some((type) => typeof type !== 'string' || type.trim().length === 0));
+  return !hasInvalidTypes;
+}
+
 export async function POST(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
-    const body = await parseJson<BatchBody>(request);
+    const session = await requireSessionOrThrow();
+    const body = await parseJson<unknown>(request);
 
-    if (!body || (body.action !== 'delete' && body.action !== 'read')) {
-      throw new ApiError(400, '批量操作 action 无效');
-    }
-    if (!['all', 'unread', 'read'].includes(body.status)) {
-      throw new ApiError(400, 'status 参数错误');
-    }
-    const selectAll = (body as { selectAll?: unknown }).selectAll;
-    if (typeof selectAll !== 'boolean') {
-      throw new ApiError(400, 'selectAll 参数错误');
-    }
-    if (body.types !== undefined) {
-      if (!Array.isArray(body.types) || body.types.some((item) => typeof item !== 'string' || !item.trim())) {
-        throw new ApiError(400, 'types 参数错误');
-      }
+    if (!isBatchBody(body)) {
+      throw new ApiError(400, '批量操作参数无效');
     }
 
     const result = await bulkOperateNotifications({
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       userId: session.userId,
       action: body.action,
       status: body.status,
-      selectAll,
+      selectAll: body.selectAll,
       ids: body.ids || [],
       types: body.types || [],
     });
@@ -47,3 +48,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, count: result.count });
   });
 }
+

@@ -5,7 +5,7 @@ import { listDuties } from '@/lib/services';
 
 export async function GET(request: Request) {
   return withApiGuard(async () => {
-    const session = requireSessionOrThrow();
+    const session = await requireSessionOrThrow();
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week') || undefined;
     const from = searchParams.get('from') || undefined;
@@ -24,3 +24,4 @@ export async function GET(request: Request) {
     return NextResponse.json(duties);
   });
 }
+
