@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { LIMITS } from '@/lib/limits';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import type { CursorPage, SessionUser } from '@/lib/types';
@@ -212,7 +213,7 @@ export async function sendChatMessage(session: SessionUser, content: string) {
   await pushDormNotification({
     dormId: session.dormId,
     type: 'chat',
-    title: encodeMessageToken('notice.chatFrom', { userName: user.name }),
+    title: encodeMessageToken(NoticeMessageKey.ChatFrom, { userName: user.name }),
     content: message.content.slice(0, 60),
     targetPath: '/chat',
     groupKey: 'chat',

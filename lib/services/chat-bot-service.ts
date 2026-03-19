@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import type { SessionUser } from '@/lib/types';
 
 import { emitToDorm } from '@/lib/socket-server';
@@ -91,8 +92,8 @@ ${membersMarkdown}`;
   await pushDormNotification({
     dormId: session.dormId,
     type: 'chat',
-    title: encodeMessageToken('notice.chatFrom', { userName: bot.name }),
-    content: encodeMessageToken('notice.botRepliedDormInfo'),
+    title: encodeMessageToken(NoticeMessageKey.ChatFrom, { userName: bot.name }),
+    content: encodeMessageToken(NoticeMessageKey.BotRepliedDormInfo),
     targetPath: '/chat',
     groupKey: 'chat',
     recipientUserIds: recipients.map((item) => item.id),

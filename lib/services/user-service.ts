@@ -3,6 +3,7 @@ import path from 'node:path';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { LIMITS } from '@/lib/limits';
 import type { MePayload, SessionUser } from '@/lib/types';
 
@@ -147,8 +148,8 @@ export async function updateMemberDescriptions(
       await pushDormNotification({
         dormId: session.dormId,
         type: 'settings',
-        title: encodeMessageToken('notice.profileDescriptionUpdated'),
-        content: item.description || encodeMessageToken('notice.profileDescriptionUpdatedByLeader'),
+        title: encodeMessageToken(NoticeMessageKey.ProfileDescriptionUpdated),
+        content: item.description || encodeMessageToken(NoticeMessageKey.ProfileDescriptionUpdatedByLeader),
         targetPath: '/settings',
         groupKey: `profile-desc-${item.userId}`,
         recipientUserIds: [item.userId],

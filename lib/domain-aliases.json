@@ -1,0 +1,15 @@
+{
+  "dormStates": [
+    { "code": "out", "aliases": ["out", "外出"] },
+    { "code": "study", "aliases": ["study", "学习"] },
+    { "code": "sleep", "aliases": ["sleep", "睡觉"] },
+    { "code": "game", "aliases": ["game", "游戏"] }
+  ],
+  "billCategories": [
+    { "code": "electricity", "aliases": ["electricity", "电费"] },
+    { "code": "water", "aliases": ["water", "水费"] },
+    { "code": "internet", "aliases": ["internet", "网费"] },
+    { "code": "supplies", "aliases": ["supplies", "日用品"] },
+    { "code": "other", "aliases": ["other", "其他", "自定义"] }
+  ]
+}

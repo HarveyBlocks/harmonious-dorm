@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 
 import type { BillSummary, DormState, DutyItem, MePayload, NotificationPayload } from '@/lib/types';
-import { localizeServerText } from '@/components/dorm-hub/i18n-adapter';
+import { isStatusSystemMessage, localizeServerText } from '@/components/dorm-hub/i18n-adapter';
 import type { ChartPoint, ChatMessage, LineSeries, RenderedChatMessage } from '@/components/dorm-hub/ui-types';
-import { parseStatusSystemMessage, resolveAvatar } from '@/components/dorm-hub/ui-helpers';
+import { resolveAvatar } from '@/components/dorm-hub/ui-helpers';
 import {
   calcMonthTotal,
   calcPreviewAmounts,
@@ -106,7 +106,7 @@ export function useDormViewModels(options: {
   const renderedLiveMessages = useMemo<RenderedChatMessage[]>(() => {
     const lang = me?.language || 'zh-CN';
     return liveMessages.map((msg) => {
-      const isStatusMessage = Boolean(parseStatusSystemMessage(msg.content));
+      const isStatusMessage = isStatusSystemMessage(msg.content);
       const isBotMessage = Boolean(me?.botId && msg.userId === me.botId);
       return {
         ...msg,

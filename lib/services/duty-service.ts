@@ -1,6 +1,7 @@
 ﻿import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { LIMITS } from '@/lib/limits';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import type { CursorPage, DutyItem, SessionUser } from '@/lib/types';
@@ -132,8 +133,8 @@ export async function assignDuty(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'duty',
-    title: encodeMessageToken('notice.dutyPublished'),
-    content: encodeMessageToken('notice.dutyAssignedContent', { date: input.date, task }),
+    title: encodeMessageToken(NoticeMessageKey.DutyPublished),
+    content: encodeMessageToken(NoticeMessageKey.DutyAssignedContent, { date: input.date, task }),
     targetPath: '/',
     groupKey: `duty-assign-${input.date}-${input.userId}-${task}`,
     actorUserId: session.userId,
@@ -188,8 +189,8 @@ export async function completeDuty(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'duty',
-    title: encodeMessageToken(input.completed === false ? 'notice.dutyRestored' : 'notice.dutyCompleted'),
-    content: encodeMessageToken(input.completed === false ? 'notice.memberReopenedDuty' : 'notice.memberCompletedDuty'),
+    title: encodeMessageToken(input.completed === false ? NoticeMessageKey.DutyRestored : NoticeMessageKey.DutyCompleted),
+    content: encodeMessageToken(input.completed === false ? NoticeMessageKey.MemberReopenedDuty : NoticeMessageKey.MemberCompletedDuty),
     targetPath: '/',
     groupKey: `duty-complete-${duty.id}`,
     actorUserId: session.userId,

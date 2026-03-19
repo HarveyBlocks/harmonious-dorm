@@ -115,18 +115,6 @@ export function stateLabel(lang: LanguageCode, state: DormState): string {
   return labels[state] || STATE_LABEL_MAP['zh-CN'][state];
 }
 
-export function parseStatusSystemMessage(text: string): { userName: string; state: DormState } | null {
-  const prefix = '__status_change__:';
-  if (!text.startsWith(prefix)) return null;
-  const payload = text.slice(prefix.length);
-  const splitAt = payload.lastIndexOf(':');
-  if (splitAt <= 0 || splitAt >= payload.length - 1) return null;
-  const userName = payload.slice(0, splitAt);
-  const stateRaw = payload.slice(splitAt + 1);
-  if (stateRaw !== 'out' && stateRaw !== 'study' && stateRaw !== 'sleep' && stateRaw !== 'game') return null;
-  return { userName, state: stateRaw };
-}
-
 export function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
   const map = new Map<number, ChatMessage>();
   base.forEach((item) => map.set(item.id, item));

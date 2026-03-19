@@ -1,4 +1,6 @@
-﻿import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/db';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import type { SessionUser } from '@/lib/types';
 import { normalizeDormState, type DormStateCode } from '@/lib/domain-codes';
 
@@ -48,7 +50,10 @@ export async function updateStatus(session: SessionUser, state: DormStateCode) {
     data: {
       dormId: session.dormId,
       userId: me.id,
-      content: `__status_change__:${me.name}:${normalizedState}`,
+      content: encodeMessageToken(NoticeMessageKey.ChatStatusChanged, {
+        userName: me.name,
+        state: normalizedState,
+      }),
     },
   });
   emitToDorm(session.dormId, 'chat:new', {
@@ -69,5 +74,3 @@ export async function updateStatus(session: SessionUser, state: DormStateCode) {
     updatedAt: status.updatedAt.toISOString(),
   };
 }
-
-

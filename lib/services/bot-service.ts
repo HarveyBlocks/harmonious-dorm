@@ -3,6 +3,7 @@ import path from 'node:path';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { LIMITS } from '@/lib/limits';
 import type { SessionUser } from '@/lib/types';
 
@@ -64,8 +65,8 @@ export async function updateDormBotName(session: SessionUser, name: string): Pro
   await pushDormNotification({
     dormId: session.dormId,
     type: 'settings',
-    title: encodeMessageToken('notice.botNameUpdated'),
-    content: encodeMessageToken('notice.botNameChanged', { name: updated.name }),
+    title: encodeMessageToken(NoticeMessageKey.BotNameUpdated),
+    content: encodeMessageToken(NoticeMessageKey.BotNameChanged, { name: updated.name }),
     targetPath: '/settings',
     groupKey: 'bot-name',
     recipientUserIds: recipients.map((item) => item.id),

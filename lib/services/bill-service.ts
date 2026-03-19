@@ -1,5 +1,6 @@
 ﻿import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { allocateAmounts, normalizeWeights, validateWeights } from '@/lib/share-allocation';
 import { normalizeBillCategory } from '@/lib/domain-codes';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
@@ -110,8 +111,8 @@ export async function createBill(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'bill',
-    title: encodeMessageToken('notice.newBillPublished'),
-    content: encodeMessageToken('notice.billSummary', {
+    title: encodeMessageToken(NoticeMessageKey.NewBillPublished),
+    content: encodeMessageToken(NoticeMessageKey.BillSummary, {
       name: input.description || '',
       amount: input.total.toFixed(2),
     }),
@@ -241,8 +242,8 @@ export async function markBillPaid(
   await pushDormNotification({
     dormId: session.dormId,
     type: 'bill',
-    title: encodeMessageToken(paid ? 'notice.billPaymentStatusUpdated' : 'notice.billPaymentReverted'),
-    content: encodeMessageToken(paid ? 'notice.memberMarkedPaid' : 'notice.memberRevertedPaid'),
+    title: encodeMessageToken(paid ? NoticeMessageKey.BillPaymentStatusUpdated : NoticeMessageKey.BillPaymentReverted),
+    content: encodeMessageToken(paid ? NoticeMessageKey.MemberMarkedPaid : NoticeMessageKey.MemberRevertedPaid),
     targetPath: '/',
     groupKey: `bill-pay-${billId}`,
     actorUserId: session.userId,
@@ -263,8 +264,8 @@ export async function markBillPaid(
       await pushDormNotification({
         dormId: session.dormId,
         type: 'bill',
-        title: encodeMessageToken('notice.billFullyPaid'),
-        content: encodeMessageToken('notice.billAllParticipantsPaid'),
+        title: encodeMessageToken(NoticeMessageKey.BillFullyPaid),
+        content: encodeMessageToken(NoticeMessageKey.BillAllParticipantsPaid),
         targetPath: '/',
         groupKey: `bill-all-paid-${billId}`,
         actorUserId: session.userId,
