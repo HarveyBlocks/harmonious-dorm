@@ -1,12 +1,11 @@
 
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Camera, CircleAlert, Plus, X } from 'lucide-react';
 import { LIMITS } from '@/lib/limits';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import { autoResizeTextarea, resetTextareaHeight, resolveAvatar } from '../ui-helpers';
 import { SettingsCard } from '../settings-card';
+import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
 
 export function BotSettingsCard(props: {
   me: any;
@@ -147,7 +146,7 @@ export function BotSettingsCard(props: {
             }} onInput={(event) => autoResizeTextarea(event.currentTarget)} onFocus={(event) => autoResizeTextarea(event.currentTarget)} onBlur={(event) => { resetTextareaHeight(event.currentTarget); p.setBotOtherEditing(false); }} />
           ) : (
             <div className={`w-full rounded-xl p-4 ${p.me?.isLeader ? 'cursor-text custom-field' : 'glass-card'} min-h-[112px]`} onClick={() => { if (!p.me?.isLeader) return; p.setBotOtherEditing(true); }}>
-              {p.botOtherContent.trim() ? <div className="bot-markdown text-[15px] leading-7"><ReactMarkdown remarkPlugins={[remarkGfm]}>{p.botOtherContent}</ReactMarkdown></div> : <p className="text-muted text-[14px]">{p.botOtherContentPlaceholder}</p>}
+              {p.botOtherContent.trim() ? <MarkdownRenderer content={p.botOtherContent} className="bot-markdown text-[15px] leading-7" /> : <p className="text-muted text-[14px]">{p.botOtherContentPlaceholder}</p>}
             </div>
           )}
         </div>

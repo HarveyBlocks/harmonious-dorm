@@ -19,6 +19,7 @@ export const AI_CHAT_CONFIG = {
   maxInputTokens: readPositiveInt(process.env.BOT_INPUT_MAX_TOKENS, 1500),
   maxOutputTokens: readPositiveInt(process.env.BOT_OUTPUT_MAX_TOKENS, 800),
   timeoutMs: readPositiveInt(process.env.BOT_API_TIMEOUT_MS, 45000),
+  echoStreamDelayMs: readPositiveInt(process.env.BOT_ECHO_STREAM_DELAY_MS, 40),
 } as const;
 
 export function isAiChatConfigured(): boolean {

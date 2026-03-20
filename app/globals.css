@@ -1,4 +1,5 @@
 ﻿@import "tailwindcss";
+@import "katex/dist/katex.min.css";
 @import "./styles/theme-base.css";
 @import "./styles/theme-components.css";
 @import "./styles/theme-dark.css";

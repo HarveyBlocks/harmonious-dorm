@@ -184,6 +184,24 @@
   animation: bot-stream-spin 0.7s linear infinite;
 }
 
+.echo-preview-markdown h3 {
+  margin-top: 0.2em;
+}
+
+.echo-preview-markdown ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.echo-preview-markdown li {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.echo-preview-markdown pre {
+  max-height: 280px;
+}
+
 @keyframes bot-stream-spin {
   from {
     transform: rotate(0deg);

@@ -17,6 +17,7 @@ export type ChatClientConfig = {
   apiKey: string;
   timeoutMs: number;
   maxOutputTokens: number;
+  echoStreamDelayMs?: number;
   env?: string;
 };
 
@@ -218,7 +219,8 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
   logRequestStarted(config, traceId, input, true, requestBody);
   if (config.env === 'echo') {
     const echoText = buildHttpRequestPreview(config, requestBody);
-    const chunks = chunkText(echoText, 96);
+    const chunks = splitEchoByToken(echoText);
+    const echoDelay = Math.max(1, Math.floor(config.echoStreamDelayMs ?? 40));
     for (const chunk of chunks) {
       if (firstChunkAt === null) {
         firstChunkAt = Date.now();
@@ -230,6 +232,9 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
         });
       }
       input.onDelta(chunk);
+      // Simulate real token cadence in echo mode for front-end streaming tests.
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(echoDelay);
     }
     logInfo('llm_stream_completed', {
       traceId,
@@ -369,20 +374,86 @@ function maskSensitiveHeaders(headers: Record<string, string>): Record<string, s
 
 function buildHttpRequestPreview(config: ChatClientConfig, body: Record<string, unknown>): string {
   const headers = maskSensitiveHeaders(buildRequestHeaders(config));
+  const headerLines = Object.entries(headers).map(([key, value]) => `- ${key}: ${value}`);
   return [
+    '### Echo HTTP Request',
+    '',
     `POST ${config.baseUrl}`,
+    '',
     'headers',
-    JSON.stringify(headers, null, 2),
-    'body - json',
-    JSON.stringify(body, null, 2),
+    ...headerLines,
+    '',
+    'body - readable',
+    ...buildReadableBodySection(body),
   ].join('\n');
 }
 
-function chunkText(text: string, size: number): string[] {
-  if (!text) return [];
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += size) {
-    chunks.push(text.slice(i, i + size));
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildReadableBodySection(body: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  collectReadableEntries(body, 'body', lines);
+  return lines.length > 0 ? lines : ['- (empty)'];
+}
+
+function collectReadableEntries(value: unknown, path: string, lines: string[]) {
+  if (value === null || value === undefined) {
+    lines.push(`- ${path}: null`);
+    return;
   }
-  return chunks;
+  if (typeof value === 'string') {
+    const rendered = decodeDisplayText(value);
+    if (rendered.includes('\n')) {
+      lines.push(`- ${path}:`);
+      lines.push('```text');
+      lines.push(rendered);
+      lines.push('```');
+      return;
+    }
+    lines.push(`- ${path}: ${rendered}`);
+    return;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    lines.push(`- ${path}: ${String(value)}`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      lines.push(`- ${path}: []`);
+      return;
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      collectReadableEntries(value[index], `${path}[${index}]`, lines);
+    }
+    return;
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      lines.push(`- ${path}: {}`);
+      return;
+    }
+    for (const [key, nested] of entries) {
+      collectReadableEntries(nested, `${path}.${key}`, lines);
+    }
+    return;
+  }
+  lines.push(`- ${path}: ${String(value)}`);
+}
+
+function decodeDisplayText(value: string): string {
+  return value
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\\\/g, '\\');
+}
+
+function splitEchoByToken(text: string): string[] {
+  if (!text) return [];
+  const parts = text.match(/(\s+|[^\s]+)/g);
+  if (!parts || parts.length === 0) return [text];
+  return parts;
 }

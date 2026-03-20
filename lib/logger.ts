@@ -104,18 +104,25 @@ function buildLogEntry(level: LogLevel, message: string, meta?: Record<string, u
 }
 
 function printConsoleLog(entry: ReturnType<typeof buildLogEntry>) {
-  const header = `[${entry.time}] ${entry.level.toUpperCase()} ${entry.message || '(empty message)'}`;
-  const prettyBody = JSON.stringify(entry, null, 2);
-  const rendered = `${header}\n${prettyBody}`;
+  const rawLine = JSON.stringify(entry);
+  const hasStack =
+    Boolean((entry as { error?: { stackTop?: unknown } }).error?.stackTop) ||
+    Boolean((entry as { error?: { cause?: { stackTop?: unknown } } }).error?.cause?.stackTop);
+  if (entry.level === 'error' && hasStack) {
+    const header = `[${entry.time}] ${entry.level.toUpperCase()} ${entry.message || '(empty message)'}`;
+    const prettyBody = JSON.stringify(entry, null, 2);
+    console.error(`${header}\n${prettyBody}`);
+    return;
+  }
   if (entry.level === 'error') {
-    console.error(rendered);
+    console.error(rawLine);
     return;
   }
   if (entry.level === 'warn') {
-    console.warn(rendered);
+    console.warn(rawLine);
     return;
   }
-  console.log(rendered);
+  console.log(rawLine);
 }
 
  function persistStructuredLog(entry: ReturnType<typeof buildLogEntry>) {

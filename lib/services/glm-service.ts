@@ -22,6 +22,7 @@ export async function streamGlmReply(input: {
       apiKey: AI_CHAT_CONFIG.apiKey || '',
       timeoutMs: AI_CHAT_CONFIG.timeoutMs,
       maxOutputTokens: AI_CHAT_CONFIG.maxOutputTokens,
+      echoStreamDelayMs: AI_CHAT_CONFIG.echoStreamDelayMs,
       env: AI_CHAT_CONFIG.env,
     },
     {
@@ -51,6 +52,7 @@ export async function requestGlmReply(input: {
       apiKey: AI_CHAT_CONFIG.apiKey || '',
       timeoutMs: AI_CHAT_CONFIG.timeoutMs,
       maxOutputTokens: AI_CHAT_CONFIG.maxOutputTokens,
+      echoStreamDelayMs: AI_CHAT_CONFIG.echoStreamDelayMs,
       env: AI_CHAT_CONFIG.env,
     },
     {

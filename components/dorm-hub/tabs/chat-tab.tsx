@@ -1,9 +1,8 @@
 
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Send } from 'lucide-react';
 import { motion } from 'motion/react';
 import React from "react";
+import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
 
 export function ChatTab(props: {
   t: any;
@@ -26,23 +25,22 @@ export function ChatTab(props: {
   onSendChat: () => void;
 }) {
   const p = props;
+  const isEchoPreview = (text: string) => text.startsWith('### Echo HTTP Request');
 
   return (
     <motion.div key="chat" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl relative">
-      <div className="p-6 border-b border-slate-200/20 flex items-center justify-between bg-white/10">
-        <h2 className="font-black text-lg">{p.dormName} {p.t.chatRoom}</h2>
-        {p.lastPositionChatId && p.unreadChatCount > 20 ? (
-          <button
-            type="button"
-            onClick={p.jumpToLastPosition}
-            className="px-3 py-2 rounded-xl glass-card text-xs font-bold"
-          >
-            {p.t.jumpToLastPosition}{p.unreadChatCount > 0 ? ` (${p.unreadChatCount})` : ''}
-          </button>
-        ) : null}
-      </div>
-
       <div ref={p.chatScrollRef} onScroll={p.onChatListScroll} className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-50/30">
+        {p.lastPositionChatId && p.unreadChatCount > 20 ? (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={p.jumpToLastPosition}
+              className="px-3 py-2 rounded-xl glass-card text-xs font-bold"
+            >
+              {p.t.jumpToLastPosition}{p.unreadChatCount > 0 ? ` (${p.unreadChatCount})` : ''}
+            </button>
+          </div>
+        ) : null}
         {p.renderedLiveMessages.map((msg) => (
           <div
             key={msg.id}
@@ -69,22 +67,11 @@ export function ChatTab(props: {
                   <p className={`text-xs text-muted mb-1 px-1 ${msg.userId === p.meId ? 'text-right' : 'text-left'}`}>{msg.userName}</p>
                   <div className={`w-full p-4 rounded-3xl shadow-sm ${msg.userId === p.meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}>
                     {msg.isBotMessage ? (
-                      <div className="bot-markdown text-sm leading-relaxed">
+                      <div className={`bot-markdown text-sm leading-relaxed ${isEchoPreview(msg.content) ? 'echo-preview-markdown' : ''}`}>
                         {msg.isStreaming ? (
                           <span className="bot-stream-spinner mb-2" aria-hidden="true" />
                         ) : null}
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            a: ({ children, href }) => (
-                              <a href={href} target="_blank" rel="noreferrer" className="underline font-bold">
-                                {children}
-                              </a>
-                            ),
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
+                        <MarkdownRenderer content={msg.content} />
                       </div>
                     ) : (
                       <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
@@ -112,18 +99,18 @@ export function ChatTab(props: {
         </button>
       ) : null}
 
-      <div className="p-4 bg-white/20 border-t border-slate-200/20">
-        <div className="flex gap-3">
+      <div className="p-3 bg-white/20 border-t border-slate-200/20">
+        <div className="flex gap-2">
           <textarea
             ref={p.chatInputRef}
             value={p.chatInput}
             onChange={(e) => p.onChatInputChange(e.target.value)}
             onKeyDown={p.onChatInputKeyDown}
-            rows={2}
-            className="flex-1 p-4 rounded-2xl glass-card custom-field outline-none focus:accent-border font-medium resize-none min-h-[58px] leading-6"
+            rows={1}
+            className="flex-1 p-3 rounded-xl glass-card custom-field outline-none focus:accent-border font-medium resize-none min-h-[44px] leading-5"
             placeholder={p.t.inputMessage}
           />
-          <button onClick={p.onSendChat} className="p-4 accent-bg rounded-2xl shadow-lg hover:scale-105 transition-transform"><Send className="w-6 h-6" /></button>
+          <button onClick={p.onSendChat} className="p-3 accent-bg rounded-xl shadow-lg hover:scale-105 transition-transform"><Send className="w-5 h-5" /></button>
         </div>
       </div>
     </motion.div>
