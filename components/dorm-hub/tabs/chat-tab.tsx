@@ -1,8 +1,8 @@
 
 import { BookMarked, Send } from 'lucide-react';
 import { motion } from 'motion/react';
-import React, { useEffect, useRef, useState } from "react";
-import { createPortal, flushSync } from 'react-dom';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from 'react-dom';
 import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
 
 export function ChatTab(props: {
@@ -28,8 +28,19 @@ export function ChatTab(props: {
 }) {
   const p = props;
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageId: number } | null>(null);
-  const [draft, setDraft] = useState('');
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendChatRef = useRef(p.onSendChat);
+  const maxInputLengthRef = useRef(p.maxInputLength);
+  const messageTooLongTextRef = useRef(p.messageTooLongText);
+
+  useEffect(() => {
+    sendChatRef.current = p.onSendChat;
+  }, [p.onSendChat]);
+
+  useEffect(() => {
+    maxInputLengthRef.current = p.maxInputLength;
+    messageTooLongTextRef.current = p.messageTooLongText;
+  }, [p.maxInputLength, p.messageTooLongText]);
 
   const clearLongPressTimer = () => {
     if (!longPressTimerRef.current) return;
@@ -43,18 +54,18 @@ export function ChatTab(props: {
     const margin = 8;
     const left = Math.min(Math.max(margin, x + 6), window.innerWidth - menuWidth - margin);
     const top = Math.min(Math.max(margin, y + 6), window.innerHeight - menuHeight - margin);
-    flushSync(() => setContextMenu({ x: left, y: top, messageId }));
+    setContextMenu({ x: left, y: top, messageId });
   };
 
-  const sendCurrentDraft = () => {
+  const onSubmitChat = useCallback((draft: string) => {
     const text = draft.trim();
-    if (text.length > p.maxInputLength) {
-      window.dispatchEvent(new CustomEvent('app:toast', { detail: { type: 'error', message: p.messageTooLongText } }));
-      return;
+    if (text.length > maxInputLengthRef.current) {
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: { type: 'error', message: messageTooLongTextRef.current } }));
+      return false;
     }
-    p.onSendChat(draft);
-    setDraft('');
-  };
+    sendChatRef.current(draft);
+    return true;
+  }, []);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -113,35 +124,19 @@ export function ChatTab(props: {
         </button>
       ) : null}
 
-          {contextMenu && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              key={`${contextMenu.messageId}-${contextMenu.x}-${contextMenu.y}`}
-              className="fixed z-[120] min-w-[220px] rounded-xl glass-card p-2 shadow-2xl transition-none"
-              style={{ left: contextMenu.x, top: contextMenu.y }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold"
-                onClick={() => {
-                  flushSync(() => setContextMenu(null));
-                  p.onToggleChatContextMessage(contextMenu.messageId);
-                }}
-              >
-                {p.isChatContextSelected(contextMenu.messageId) ? p.t.removeFromContext : p.t.addToContext}
-              </button>
-            </div>,
-            document.body,
-          )
-        : null}
+      <ChatContextMenu
+        contextMenu={contextMenu}
+        isSelected={p.isChatContextSelected}
+        addText={p.t.addToContext}
+        removeText={p.t.removeFromContext}
+        onClose={() => setContextMenu(null)}
+        onToggle={p.onToggleChatContextMessage}
+      />
 
       <ChatComposer
         chatInputRef={p.chatInputRef}
-        draft={draft}
-        setDraft={setDraft}
         placeholder={p.t.inputMessage}
-        onSend={sendCurrentDraft}
+        onSubmit={onSubmitChat}
       />
     </motion.div>
   );
@@ -228,34 +223,70 @@ const ChatMessagesPane = React.memo(function ChatMessagesPane(props: {
 
 const ChatComposer = React.memo(function ChatComposer(props: {
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
-  draft: string;
-  setDraft: (value: string) => void;
   placeholder: string;
-  onSend: () => void;
+  onSubmit: (text: string) => boolean;
 }) {
   const p = props;
+  const [draft, setDraft] = useState('');
+  const onSend = useCallback(() => {
+    const ok = p.onSubmit(draft);
+    if (ok) setDraft('');
+  }, [draft, p.onSubmit]);
   return (
     <div className="p-3 bg-white/20 border-t border-slate-200/20">
       <div className="flex gap-2">
         <textarea
           ref={p.chatInputRef}
-          value={p.draft}
-          onChange={(e) => p.setDraft(e.target.value)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
             if (event.key !== 'Enter') return;
             if (event.ctrlKey || event.metaKey) return;
             event.preventDefault();
-            p.onSend();
+            onSend();
           }}
           rows={1}
           className="flex-1 p-3 rounded-xl glass-card custom-field outline-none focus:accent-border font-medium text-lg resize-none min-h-[46px] leading-6"
           placeholder={p.placeholder}
         />
-        <button onClick={p.onSend} className="p-3 accent-bg rounded-xl shadow-lg hover:scale-105 transition-transform">
+        <button onClick={onSend} className="p-3 accent-bg rounded-xl shadow-lg hover:scale-105 transition-transform">
           <Send className="w-5 h-5" />
         </button>
       </div>
     </div>
+  );
+});
+
+const ChatContextMenu = React.memo(function ChatContextMenu(props: {
+  contextMenu: { x: number; y: number; messageId: number } | null;
+  isSelected: (messageId: number) => boolean;
+  addText: string;
+  removeText: string;
+  onClose: () => void;
+  onToggle: (messageId: number) => void;
+}) {
+  const p = props;
+  if (!p.contextMenu || typeof document === 'undefined') return null;
+  const menu = p.contextMenu;
+  return createPortal(
+    <div
+      key={`${menu.messageId}-${menu.x}-${menu.y}`}
+      className="fixed z-[120] min-w-[220px] rounded-xl glass-card p-2 shadow-2xl transition-none"
+      style={{ left: menu.x, top: menu.y }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold"
+        onClick={() => {
+          p.onClose();
+          p.onToggle(menu.messageId);
+        }}
+      >
+        {p.isSelected(menu.messageId) ? p.removeText : p.addText}
+      </button>
+    </div>,
+    document.body,
   );
 });

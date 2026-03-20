@@ -1,5 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+  output: 'standalone',
+  outputFileTracingRoot: __dirname,
+  outputFileTracingIncludes: {
+    '/*': [
+      './prisma/**',
+      './node_modules/.prisma/client/**',
+      './node_modules/@prisma/client/**',
+    ],
+  },
+  turbopack: {},
   webpack: (config, { dev }) => {
     if (dev) {
       const ignored = [

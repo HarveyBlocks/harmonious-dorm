@@ -18,6 +18,7 @@ import { pushDormNotification } from './notification-service';
 import { listDormUserDescriptions } from './user-description-service';
 
 type BotIdentity = { id: number; name: string };
+const STATUS_CHAT_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.ChatStatusChanged}"`;
 
 export async function replyByDormBotIfMentioned(
   session: SessionUser,
@@ -41,7 +42,17 @@ export async function replyByDormBotIfMentioned(
     include: {
       users: {
         orderBy: [{ isLeader: 'desc' }, { createdAt: 'asc' }],
-        select: { id: true, name: true, email: true, isLeader: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          isLeader: true,
+          status: {
+            select: {
+              state: true,
+            },
+          },
+        },
       },
     },
   });
@@ -49,7 +60,14 @@ export async function replyByDormBotIfMentioned(
   const allBotSettings = await listDormBotSettingsSafe(session.dormId);
   const descriptionMap = await listDormUserDescriptions(session.dormId);
 
-  const memberRows = dorm.users.filter((item) => !isBotEmail(item.email));
+  const memberRows = dorm.users
+    .filter((item) => !isBotEmail(item.email))
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      isLeader: item.isLeader,
+      state: item.status?.state || 'out',
+    }));
   let botOtherContent = '';
   let botMemoryWindow = BOT_MEMORY_WINDOW_DEFAULT;
   const botSettings = allBotSettings.filter((item) => {
@@ -73,6 +91,11 @@ export async function replyByDormBotIfMentioned(
     where: useExplicitContext
       ? {
           dormId: session.dormId,
+          NOT: {
+            content: {
+              startsWith: STATUS_CHAT_TOKEN_PREFIX,
+            },
+          },
           id: {
             in: cappedContextMessageIds,
             lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
@@ -80,6 +103,11 @@ export async function replyByDormBotIfMentioned(
         }
       : {
           dormId: session.dormId,
+          NOT: {
+            content: {
+              startsWith: STATUS_CHAT_TOKEN_PREFIX,
+            },
+          },
           id: {
             lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
           },
