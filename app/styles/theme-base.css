@@ -5,6 +5,10 @@
 }
 
 @layer base {
+  html {
+    font-size: calc(16px * var(--ui-scale));
+  }
+
   body {
     @apply antialiased transition-colors duration-500;
   }
@@ -19,6 +23,7 @@
 }
 
 :root {
+  --ui-scale: 0.67;
   --bg-main: #f8fafc;
   --text-main: #0f172a;
   --text-muted: #475569;
