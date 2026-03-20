@@ -68,6 +68,7 @@ export function useDormHubPageModel() {
   });
 
   useMeSyncState({
+    activeTab: state.activeTab,
     me: queries.meQuery.data,
     statusRows: queries.statusQuery.data,
     assignUserId: state.assignUserId,
@@ -77,15 +78,25 @@ export function useDormHubPageModel() {
     setLanguage: state.setLanguage,
     setDormNameInput: state.setDormNameInput,
     setBotNameInput: state.setBotNameInput,
+    setBotMemoryWindowInput: state.setBotMemoryWindowInput,
     setBotSettingsInput: state.setBotSettingsInput,
     setBotOtherContent: state.setBotOtherContent,
     setMemberDescriptionsInput: state.setMemberDescriptionsInput,
     lastSyncedProfileRef: refs.lastSyncedProfileRef,
     lastSyncedDormNameRef: refs.lastSyncedDormNameRef,
     lastSyncedBotNameRef: refs.lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef: refs.lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef: refs.lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef: refs.lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef: refs.lastSyncedMemberDescriptionsRef,
+    name: state.name,
+    language: state.language,
+    dormNameInput: state.dormNameInput,
+    botNameInput: state.botNameInput,
+    botMemoryWindowInput: state.botMemoryWindowInput,
+    botSettingsInput: state.botSettingsInput,
+    botOtherContent: state.botOtherContent,
+    memberDescriptionsInput: state.memberDescriptionsInput,
     targetLeaderId: state.targetLeaderId,
     setTargetLeaderId: state.setTargetLeaderId,
     setSelectedState: state.setSelectedState,
@@ -138,6 +149,7 @@ export function useDormHubPageModel() {
     setParticipantWeights: state.setParticipantWeights,
     chatInput: state.chatInput,
     setChatInput: state.setChatInput,
+    chatForceBottomOnNextLayoutRef: refs.chatForceBottomOnNextLayoutRef,
   });
 
   const chatInput = useChatInput({
@@ -146,7 +158,7 @@ export function useDormHubPageModel() {
     maxLength: LIMITS.CHAT_USER_CONTENT,
     tooLongMessage: eText.messageTooLong,
     tryApplyLimitedInput,
-    onSend: () => domainMutations.sendChatMutation.mutate(),
+    onSend: () => domainMutations.sendChat(),
   });
 
   const chatRuntime = useDormHubChatRuntime({
@@ -182,6 +194,7 @@ export function useDormHubPageModel() {
     lastSyncedProfileRef: refs.lastSyncedProfileRef,
     lastSyncedDormNameRef: refs.lastSyncedDormNameRef,
     lastSyncedBotNameRef: refs.lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef: refs.lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef: refs.lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef: refs.lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef: refs.lastSyncedMemberDescriptionsRef,
@@ -202,6 +215,8 @@ export function useDormHubPageModel() {
     setDormNameInput: state.setDormNameInput,
     botNameInput: state.botNameInput,
     setBotNameInput: state.setBotNameInput,
+    botMemoryWindowInput: state.botMemoryWindowInput,
+    setBotMemoryWindowInput: state.setBotMemoryWindowInput,
     botOtherContent: state.botOtherContent,
     botSettingsInput: state.botSettingsInput,
     memberDescriptionsInput: state.memberDescriptionsInput,
@@ -210,6 +225,7 @@ export function useDormHubPageModel() {
     lastSyncedProfileRef: refs.lastSyncedProfileRef,
     lastSyncedDormNameRef: refs.lastSyncedDormNameRef,
     lastSyncedBotNameRef: refs.lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef: refs.lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef: refs.lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef: refs.lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef: refs.lastSyncedMemberDescriptionsRef,
@@ -265,6 +281,7 @@ export function useDormHubPageModel() {
       language: state.language,
       dormNameInput: state.dormNameInput,
       botNameInput: state.botNameInput,
+      botMemoryWindowInput: state.botMemoryWindowInput,
       botOtherContent: state.botOtherContent,
       botSettingsInput: state.botSettingsInput,
       memberDescriptionsInput: state.memberDescriptionsInput,

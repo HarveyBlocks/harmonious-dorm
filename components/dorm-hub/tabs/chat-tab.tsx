@@ -65,26 +65,31 @@ export function ChatTab(props: {
                     alt=""
                   />
                 )}
-                <div className={`max-w-[70%] p-4 rounded-3xl shadow-sm ${msg.userId === p.meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}>
-                  <p className="text-xs text-muted mb-1">{msg.userName}</p>
-                  {msg.isBotMessage ? (
-                    <div className="bot-markdown text-sm leading-relaxed">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          a: ({ children, href }) => (
-                            <a href={href} target="_blank" rel="noreferrer" className="underline font-bold">
-                              {children}
-                            </a>
-                          ),
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
-                  )}
+                <div className={`max-w-[70%] ${msg.userId === p.meId ? 'items-end' : 'items-start'} flex flex-col`}>
+                  <p className={`text-xs text-muted mb-1 px-1 ${msg.userId === p.meId ? 'text-right' : 'text-left'}`}>{msg.userName}</p>
+                  <div className={`w-full p-4 rounded-3xl shadow-sm ${msg.userId === p.meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}>
+                    {msg.isBotMessage ? (
+                      <div className="bot-markdown text-sm leading-relaxed">
+                        {msg.isStreaming ? (
+                          <span className="bot-stream-spinner mb-2" aria-hidden="true" />
+                        ) : null}
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ children, href }) => (
+                              <a href={href} target="_blank" rel="noreferrer" className="underline font-bold">
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

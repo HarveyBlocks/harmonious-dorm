@@ -54,6 +54,7 @@ function useDormSyncedDraftRefs() {
   const lastSyncedProfileRef = useRef<{ name: string; language: LanguageCode } | null>(null);
   const lastSyncedDormNameRef = useRef<string>('');
   const lastSyncedBotNameRef = useRef<string>('');
+  const lastSyncedBotMemoryWindowRef = useRef<number>(10);
   const lastSyncedBotOtherContentRef = useRef<string>('');
   const lastSyncedBotSettingsRef = useRef<Array<{ key: string; value: string }>>([]);
   const lastSyncedMemberDescriptionsRef = useRef<Record<number, string>>({});
@@ -61,6 +62,7 @@ function useDormSyncedDraftRefs() {
     lastSyncedProfileRef,
     lastSyncedDormNameRef,
     lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef,

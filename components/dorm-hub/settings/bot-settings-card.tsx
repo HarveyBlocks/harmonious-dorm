@@ -1,7 +1,7 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Camera, Plus, X } from 'lucide-react';
+import { Camera, CircleAlert, Plus, X } from 'lucide-react';
 import { LIMITS } from '@/lib/limits';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
@@ -30,6 +30,13 @@ export function BotSettingsCard(props: {
   removeFieldLabel: string;
   botSettingKeyLabel: string;
   botSettingValueLabel: string;
+  botMemoryWindowLabel: string;
+  botMemoryWindowInput: string;
+  setBotMemoryWindowInput: (value: string) => void;
+  botMemoryWindowHintSimple: string;
+  botMemoryWindowHintHeavy: string;
+  botMemoryWindowHintTech: string;
+  botMemoryWindowHintHyper: string;
   botOtherContentLabel: string;
   botOtherEditing: boolean;
   setBotOtherEditing: (v: boolean) => void;
@@ -70,6 +77,59 @@ export function BotSettingsCard(props: {
               </div>
             ))}
             {p.botSettingsInput.length === 0 ? <p className="text-xs text-muted">{p.noFieldsYetText}</p> : null}
+          </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-200/20 space-y-3">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] text-muted font-bold">{p.botMemoryWindowLabel}</p>
+            <div className="relative group">
+              <button
+                type="button"
+                className="w-5 h-5 rounded-full border border-slate-300/40 text-muted flex items-center justify-center hover:text-[var(--text-main)] hover:border-slate-300/70 transition-colors"
+                aria-label="memory window hint"
+              >
+                <CircleAlert className="w-3.5 h-3.5" />
+              </button>
+              <div className="pointer-events-none absolute z-30 left-0 top-[calc(100%+8px)] w-[300px] rounded-xl border border-slate-200/40 bg-[color:var(--bg-main)] shadow-2xl p-3 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150">
+                <p className="text-[11px] font-bold text-muted mb-2">{p.botMemoryWindowLabel}</p>
+                <div className="space-y-1.5 text-xs leading-5">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 rounded-md bg-emerald-500/15 text-emerald-600 px-1.5 py-0.5 font-bold">5-10</span>
+                    <span>{p.botMemoryWindowHintSimple}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 rounded-md bg-sky-500/15 text-sky-600 px-1.5 py-0.5 font-bold">10-15</span>
+                    <span>{p.botMemoryWindowHintHeavy}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 rounded-md bg-amber-500/15 text-amber-700 px-1.5 py-0.5 font-bold">15-20</span>
+                    <span>{p.botMemoryWindowHintTech}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 rounded-md bg-fuchsia-500/15 text-fuchsia-700 px-1.5 py-0.5 font-bold">20-30</span>
+                    <span>{p.botMemoryWindowHintHyper}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="w-full max-w-[360px] rounded-xl custom-field px-4 py-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={35}
+                step={1}
+                value={Number(p.botMemoryWindowInput || '10')}
+                onChange={(e) => p.setBotMemoryWindowInput(e.target.value)}
+                disabled={!p.me?.isLeader}
+                className="flex-1 h-2 accent-[var(--accent)] cursor-pointer"
+              />
+              <span className="text-sm font-black px-2 py-0.5 rounded-lg bg-[var(--accent)]/15 text-[var(--accent)]">
+                {p.botMemoryWindowInput}
+              </span>
+            </div>
           </div>
         </div>
 

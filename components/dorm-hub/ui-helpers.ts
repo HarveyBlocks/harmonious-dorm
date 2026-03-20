@@ -118,6 +118,21 @@ export function stateLabel(lang: LanguageCode, state: DormState): string {
 export function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
   const map = new Map<number, ChatMessage>();
   base.forEach((item) => map.set(item.id, item));
-  incoming.forEach((item) => map.set(item.id, item));
-  return [...map.values()].sort((a, b) => a.id - b.id);
+  incoming.forEach((item) => {
+    const existed = map.get(item.id);
+    if (!existed) {
+      map.set(item.id, item);
+      return;
+    }
+    map.set(item.id, {
+      ...existed,
+      ...item,
+      displayOrder: item.displayOrder ?? existed.displayOrder,
+    });
+  });
+  return [...map.values()].sort((a, b) => {
+    const aOrder = a.displayOrder ?? a.id;
+    const bOrder = b.displayOrder ?? b.id;
+    return aOrder - bOrder;
+  });
 }

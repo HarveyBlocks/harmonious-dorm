@@ -3,10 +3,24 @@ import { useMutation, type QueryClient } from '@tanstack/react-query';
 import type { Socket } from 'socket.io-client';
 import type { MutableRefObject } from 'react';
 
-import { apiRequest } from '@/lib/client-api';
+import { apiRequest, markAppNavigating } from '@/lib/client-api';
 import type { NotificationFilter } from '@/components/dorm-hub/ui-types';
 
 type NoticeType = 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader';
+
+function preferredLangHeader(): string {
+  if (typeof window === 'undefined') return 'zh-CN';
+  return window.localStorage.getItem('app_lang') || 'zh-CN';
+}
+
+function disconnectSocketQuietly(socketRef: MutableRefObject<Socket | null>) {
+  try {
+    socketRef.current?.disconnect();
+  } catch {
+    // ignore intentional disconnect errors
+  }
+  socketRef.current = null;
+}
 
 export function useNoticeAuthMutations(options: {
   queryClient: QueryClient;
@@ -88,22 +102,35 @@ export function useNoticeAuthMutations(options: {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => apiRequest<{ success: true }>('/api/logout', { method: 'POST', body: JSON.stringify({}) }),
-    onSuccess: () => {
-      socketRef.current?.disconnect();
-      socketRef.current = null;
+    mutationFn: async () => {
+      if (typeof window === 'undefined') return;
+      markAppNavigating(true);
+      disconnectSocketQuietly(socketRef);
       queryClient.clear();
-      if (typeof window !== 'undefined') window.location.assign('/login');
+      void fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-app-lang': preferredLangHeader(),
+        },
+        body: JSON.stringify({}),
+      }).catch(() => {
+        // ignore: user is leaving this page intentionally
+      });
+      window.location.replace('/login');
     },
   });
 
   const deleteAccountMutation = useMutation({
     mutationFn: () => apiRequest<{ success: true }>('/api/users/me', { method: 'DELETE', body: JSON.stringify({}) }),
     onSuccess: () => {
-      socketRef.current?.disconnect();
-      socketRef.current = null;
+      markAppNavigating(true);
+      disconnectSocketQuietly(socketRef);
       queryClient.clear();
-      if (typeof window !== 'undefined') window.location.assign('/login');
+      if (typeof window !== 'undefined') window.location.replace('/login');
     },
   });
 

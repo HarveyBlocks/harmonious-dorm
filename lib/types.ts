@@ -55,6 +55,7 @@ export interface MePayload {
   botAvatarPath: string | null;
   botSettings: Array<{ key: string; value: string }>;
   botOtherContent: string;
+  botMemoryWindow: number;
   language: 'zh-CN' | 'zh-TW' | 'fr' | 'en';
   dormId: number;
   dormName: string;

@@ -3,6 +3,10 @@ import React, { useCallback } from 'react';
 
 import { LIMITS } from '@/lib/limits';
 
+const BOT_MEMORY_WINDOW_MIN = 1;
+const BOT_MEMORY_WINDOW_MAX = 35;
+const BOT_MEMORY_WINDOW_DEFAULT = 10;
+
 export function useSettingsSaveActions(options: {
   me: any;
   name: string;
@@ -12,6 +16,8 @@ export function useSettingsSaveActions(options: {
   setDormNameInput: (v: string) => void;
   botNameInput: string;
   setBotNameInput: (v: string) => void;
+  botMemoryWindowInput: string;
+  setBotMemoryWindowInput: (v: string) => void;
   botOtherContent: string;
   botSettingsInput: Array<{ key: string; value: string }>;
   memberDescriptionsInput: Record<number, string>;
@@ -20,13 +26,14 @@ export function useSettingsSaveActions(options: {
   lastSyncedProfileRef: React.MutableRefObject<{ name: string; language: any } | null>;
   lastSyncedDormNameRef: React.MutableRefObject<string>;
   lastSyncedBotNameRef: React.MutableRefObject<string>;
+  lastSyncedBotMemoryWindowRef: React.MutableRefObject<number>;
   lastSyncedBotOtherContentRef: React.MutableRefObject<string>;
   lastSyncedBotSettingsRef: React.MutableRefObject<Array<{ key: string; value: string }>>;
   lastSyncedMemberDescriptionsRef: React.MutableRefObject<Record<number, string>>;
   updateProfileMutation: { isPending: boolean; mutate: (payload: { name: string; language: any }) => void };
   updateDormMutation: { isPending: boolean; mutate: (name: string) => void };
   updateBotMutation: { isPending: boolean; mutate: (name: string) => void };
-  updateBotSettingsMutation: { isPending: boolean; mutate: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string }) => void };
+  updateBotSettingsMutation: { isPending: boolean; mutate: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }) => void };
   updateDescriptionsMutation: { isPending: boolean; mutate: (payload: Array<{ userId: number; description: string }>) => void };
   uploadAvatarMutation: { isPending: boolean; mutate: (file: File) => void };
   uploadBotAvatarMutation: { isPending: boolean; mutate: (file: File) => void };
@@ -40,6 +47,8 @@ export function useSettingsSaveActions(options: {
     setDormNameInput,
     botNameInput,
     setBotNameInput,
+    botMemoryWindowInput,
+    setBotMemoryWindowInput,
     botOtherContent,
     botSettingsInput,
     memberDescriptionsInput,
@@ -48,6 +57,7 @@ export function useSettingsSaveActions(options: {
     lastSyncedProfileRef,
     lastSyncedDormNameRef,
     lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef,
@@ -95,20 +105,30 @@ export function useSettingsSaveActions(options: {
     if (!me?.isLeader || updateBotSettingsMutation.isPending) return;
     const otherContent = botOtherContent.trim();
     if (otherContent.length > LIMITS.BOT_OTHER_CONTENT) return;
+    const parsedMemoryWindow = Number(botMemoryWindowInput || BOT_MEMORY_WINDOW_DEFAULT);
+    const normalizedMemoryWindow = Number.isFinite(parsedMemoryWindow) ? Math.floor(parsedMemoryWindow) : BOT_MEMORY_WINDOW_DEFAULT;
+    const clampedMemoryWindow = Math.max(BOT_MEMORY_WINDOW_MIN, Math.min(BOT_MEMORY_WINDOW_MAX, normalizedMemoryWindow));
+    if (String(clampedMemoryWindow) !== botMemoryWindowInput) {
+      setBotMemoryWindowInput(String(clampedMemoryWindow));
+    }
     const normalized = botSettingsInput
       .map((item) => ({ key: item.key.trim(), value: item.value }))
       .filter((item) => item.key.length > 0);
     const old = JSON.stringify(lastSyncedBotSettingsRef.current);
     const next = JSON.stringify(normalized);
     const syncedOtherContent = lastSyncedBotOtherContentRef.current;
-    if (old === next && otherContent === syncedOtherContent) return;
-    updateBotSettingsMutation.mutate({ settings: normalized, otherContent });
+    const syncedMemoryWindow = lastSyncedBotMemoryWindowRef.current || BOT_MEMORY_WINDOW_DEFAULT;
+    if (old === next && otherContent === syncedOtherContent && clampedMemoryWindow === syncedMemoryWindow) return;
+    updateBotSettingsMutation.mutate({ settings: normalized, otherContent, memoryWindow: clampedMemoryWindow });
   }, [
+    botMemoryWindowInput,
     botOtherContent,
     botSettingsInput,
+    lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
     me?.isLeader,
+    setBotMemoryWindowInput,
     updateBotSettingsMutation,
   ]);
 

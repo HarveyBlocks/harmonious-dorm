@@ -28,7 +28,18 @@ export async function handleApiError(error: unknown): Promise<NextResponse> {
   const lang = await resolveLang();
 
   if (error instanceof ApiError) {
-    logWarn('api_error', { status: error.status, message: error.message });
+    const meta = {
+      status: error.status,
+      message: error.message,
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.report ? { report: error.report } : {}),
+      controlled: error.controlled,
+    };
+    if (error.controlled) {
+      logWarn('api_error', meta);
+    } else {
+      logError('api_error', error, meta);
+    }
     const response = NextResponse.json({ message: translateBackendMessage(lang, error.message) }, { status: error.status });
     if (error.status === 401) {
       response.cookies.set({
@@ -52,9 +63,9 @@ export async function handleApiError(error: unknown): Promise<NextResponse> {
       return NextResponse.json({ message: translateBackendMessage(lang, '动态接口') }, { status: 500 });
     }
     logError('unexpected_api_error', error);
-    return NextResponse.json({ message: translateBackendMessage(lang, '服务器内部错误') }, { status: 500 });
+    return NextResponse.json({ message: translateBackendMessage(lang, '请求处理失败') }, { status: 500 });
   }
 
   logError('unknown_api_error', error);
-  return NextResponse.json({ message: translateBackendMessage(lang, '服务器内部错误') }, { status: 500 });
+  return NextResponse.json({ message: translateBackendMessage(lang, '请求处理失败') }, { status: 500 });
 }

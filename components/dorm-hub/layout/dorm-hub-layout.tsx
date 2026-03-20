@@ -108,7 +108,7 @@ export function DormHubLayout(props: any) {
               chatInput={p.chatInput}
               onChatInputChange={p.onChatInputChange}
               onChatInputKeyDown={p.onChatInputKeyDown}
-              onSendChat={() => p.sendChatMutation.mutate()}
+              onSendChat={p.sendChat}
             />
           )}
 
@@ -278,6 +278,13 @@ export function DormHubLayout(props: any) {
                 removeFieldLabel={p.removeFieldLabel}
                 botSettingKeyLabel={p.botSettingKeyLabel}
                 botSettingValueLabel={p.botSettingValueLabel}
+                botMemoryWindowLabel={p.botMemoryWindowLabel}
+                botMemoryWindowInput={p.botMemoryWindowInput}
+                setBotMemoryWindowInput={p.setBotMemoryWindowInput}
+                botMemoryWindowHintSimple={p.botMemoryWindowHintSimple}
+                botMemoryWindowHintHeavy={p.botMemoryWindowHintHeavy}
+                botMemoryWindowHintTech={p.botMemoryWindowHintTech}
+                botMemoryWindowHintHyper={p.botMemoryWindowHintHyper}
                 botOtherContentLabel={p.botOtherContentLabel}
                 botOtherEditing={p.botOtherEditing}
                 setBotOtherEditing={p.setBotOtherEditing}

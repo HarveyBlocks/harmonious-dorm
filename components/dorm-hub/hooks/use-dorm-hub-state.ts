@@ -13,10 +13,10 @@ function useDormTabState(pathname: string | null) {
   const [noticePopup, setNoticePopup] = useState<{ title: string; content: string } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<SettingsCardKey, boolean>>({
     user: false,
-    dorm: false,
-    member: false,
-    bot: false,
-    security: false,
+    dorm: true,
+    member: true,
+    bot: true,
+    security: true,
   });
   return {
     activeTab,
@@ -106,6 +106,7 @@ function useDormSettingsDraftState() {
   const [language, setLanguage] = useState<LanguageCode>('zh-CN');
   const [dormNameInput, setDormNameInput] = useState('');
   const [botNameInput, setBotNameInput] = useState('');
+  const [botMemoryWindowInput, setBotMemoryWindowInput] = useState('10');
   const [botSettingsInput, setBotSettingsInput] = useState<Array<{ key: string; value: string }>>([]);
   const [botOtherContent, setBotOtherContent] = useState('');
   const [botOtherEditing, setBotOtherEditing] = useState(false);
@@ -122,6 +123,8 @@ function useDormSettingsDraftState() {
     setDormNameInput,
     botNameInput,
     setBotNameInput,
+    botMemoryWindowInput,
+    setBotMemoryWindowInput,
     botSettingsInput,
     setBotSettingsInput,
     botOtherContent,

@@ -1,4 +1,4 @@
-
+import type { MutableRefObject } from 'react';
 import { useMutation, type QueryClient } from '@tanstack/react-query';
 
 import { apiRequest } from '@/lib/client-api';
@@ -46,6 +46,7 @@ export function useDormMutations(options: {
   setParticipantWeights: (value: Record<number, string>) => void;
   chatInput: string;
   setChatInput: (value: string) => void;
+  chatForceBottomOnNextLayoutRef: MutableRefObject<boolean>;
 }) {
   const {
     queryClient,
@@ -66,6 +67,7 @@ export function useDormMutations(options: {
     setParticipantWeights,
     chatInput,
     setChatInput,
+    chatForceBottomOnNextLayoutRef,
   } = options;
 
   const assignMutation = useMutation({
@@ -162,20 +164,28 @@ export function useDormMutations(options: {
   });
 
   const sendChatMutation = useMutation({
-    mutationFn: () => {
-      const trimmed = chatInput.trim();
-      if (!trimmed) throw new Error(eText.messageRequired);
-      if (trimmed.length > LIMITS.CHAT_USER_CONTENT) {
-        dispatchToast('error', eText.messageTooLong);
-        throw new Error(eText.messageTooLong);
-      }
+    mutationFn: (content: string) => {
       return apiRequest('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ content: trimmed }),
+        body: JSON.stringify({ content }),
       });
     },
-    onSuccess: () => setChatInput(''),
   });
+
+  const sendChat = () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed) {
+      dispatchToast('error', eText.messageRequired);
+      return;
+    }
+    if (trimmed.length > LIMITS.CHAT_USER_CONTENT) {
+      dispatchToast('error', eText.messageTooLong);
+      return;
+    }
+    chatForceBottomOnNextLayoutRef.current = true;
+    setChatInput('');
+    sendChatMutation.mutate(trimmed);
+  };
 
   return {
     assignMutation,
@@ -185,5 +195,6 @@ export function useDormMutations(options: {
     togglePaidMutation,
     updateStatusMutation,
     sendChatMutation,
+    sendChat,
   };
 }

@@ -58,6 +58,7 @@ export async function updateStatus(session: SessionUser, state: DormStateCode) {
   });
   emitToDorm(session.dormId, 'chat:new', {
     id: chat.id,
+    displayOrder: chat.id,
     userId: me.id,
     userName: me.name,
     content: chat.content,

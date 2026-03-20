@@ -8,11 +8,18 @@ import { LIMITS } from '@/lib/limits';
 import type { MePayload, SessionUser } from '@/lib/types';
 
 import { ensureDormBotUser, isBotEmail } from './bot-service';
-import { BOT_OTHER_CONTENT_KEY, listDormBotSettingsSafe } from './bot-settings-service';
+import {
+  BOT_MEMORY_WINDOW_DEFAULT,
+  BOT_MEMORY_WINDOW_KEY,
+  BOT_OTHER_CONTENT_KEY,
+  listDormBotSettingsSafe,
+  normalizeBotMemoryWindow,
+} from './bot-settings-service';
 import { ensureSessionUser, normalizeName } from './helpers';
 import { saveImageToPublic } from './media-service';
 import { pushDormNotification } from './notification-service';
 import { listDormUserDescriptions, upsertUserDescriptions } from './user-description-service';
+import { emitToDorm } from '@/lib/socket-server';
 
 export async function getMe(session: SessionUser): Promise<MePayload> {
   await ensureSessionUser(session);
@@ -42,9 +49,14 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
   const descriptionMap = await listDormUserDescriptions(me.dormId);
 
   let botOtherContent = '';
+  let botMemoryWindow = BOT_MEMORY_WINDOW_DEFAULT;
   const botSettings = rawBotSettings.filter((item) => {
     if (item.key === BOT_OTHER_CONTENT_KEY) {
       botOtherContent = item.value || '';
+      return false;
+    }
+    if (item.key === BOT_MEMORY_WINDOW_KEY) {
+      botMemoryWindow = normalizeBotMemoryWindow(item.value);
       return false;
     }
     return true;
@@ -60,6 +72,7 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
     botAvatarPath: bot.avatarPath,
     botSettings,
     botOtherContent,
+    botMemoryWindow,
     language: (me.language as 'zh-CN' | 'zh-TW' | 'fr' | 'en') || 'zh-CN',
     dormId: me.dormId,
     dormName: me.dorm.name,
@@ -95,6 +108,7 @@ export async function updateMyName(
       ...(language ? { language } : {}),
     },
   });
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'profile' });
 
   return getMe(session);
 }
@@ -141,6 +155,7 @@ export async function updateMemberDescriptions(
   }
 
   await upsertUserDescriptions(validItems);
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'member-descriptions' });
 
   if (me.isLeader) {
     const leaderTargets = validItems.filter((item) => item.userId !== me.id);
@@ -175,6 +190,7 @@ export async function updateMyAvatar(
     where: { id: me.id },
     data: { avatarPath: relativePath },
   });
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'avatar' });
 
   return { avatarPath: relativePath };
 }

@@ -8,9 +8,18 @@ import { LIMITS } from '@/lib/limits';
 import type { SessionUser } from '@/lib/types';
 
 import { ensureSessionUser, normalizeName } from './helpers';
-import { BOT_OTHER_CONTENT_KEY, replaceDormBotSettingsSafe } from './bot-settings-service';
+import {
+  BOT_MEMORY_WINDOW_DEFAULT,
+  BOT_MEMORY_WINDOW_KEY,
+  BOT_OTHER_CONTENT_KEY,
+  BOT_MEMORY_WINDOW_MIN,
+  BOT_MEMORY_WINDOW_MAX,
+  normalizeBotMemoryWindow,
+  replaceDormBotSettingsSafe,
+} from './bot-settings-service';
 import { saveImageToPublic } from './media-service';
 import { pushDormNotification } from './notification-service';
+import { emitToDorm } from '@/lib/socket-server';
 
 export const BOT_EMAIL_DOMAIN = process.env.BOT_EMAIL_DOMAIN || 'harmonious.bot';
 
@@ -71,6 +80,7 @@ export async function updateDormBotName(session: SessionUser, name: string): Pro
     groupKey: 'bot-name',
     recipientUserIds: recipients.map((item) => item.id),
   });
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'bot-name' });
 
   return updated;
 }
@@ -90,6 +100,7 @@ export async function updateDormBotAvatar(session: SessionUser, file: File): Pro
     where: { id: bot.id },
     data: { avatarPath: relativePath },
   });
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'bot-avatar' });
   return { avatarPath: relativePath };
 }
 
@@ -97,7 +108,8 @@ export async function updateDormBotSettings(
   session: SessionUser,
   settings: Array<{ key: string; value: string }>,
   otherContent?: string,
-): Promise<{ settings: Array<{ key: string; value: string }>; otherContent: string }> {
+  memoryWindow?: number,
+): Promise<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }> {
   const me = await ensureSessionUser(session);
   if (!me.isLeader) {
     throw new ApiError(403, '只有舍长可以设置机器人');
@@ -105,6 +117,11 @@ export async function updateDormBotSettings(
   const normalizedOtherContent = (otherContent || '').trim();
   if (normalizedOtherContent.length > LIMITS.BOT_OTHER_CONTENT) {
     throw new ApiError(400, `机器人其他内容不能超过 ${LIMITS.BOT_OTHER_CONTENT} 字`);
+  }
+  const rawMemoryWindow = memoryWindow ?? BOT_MEMORY_WINDOW_DEFAULT;
+  const normalizedMemoryWindow = normalizeBotMemoryWindow(rawMemoryWindow);
+  if (!Number.isInteger(Number(rawMemoryWindow)) || Number(rawMemoryWindow) < BOT_MEMORY_WINDOW_MIN || Number(rawMemoryWindow) > BOT_MEMORY_WINDOW_MAX) {
+    throw new ApiError(400, `短期记忆长度必须在 ${BOT_MEMORY_WINDOW_MIN}-${BOT_MEMORY_WINDOW_MAX}`);
   }
 
   const normalized = settings
@@ -136,12 +153,14 @@ export async function updateDormBotSettings(
   }
 
   const toSave = [...finalSettings];
+  toSave.push({ key: BOT_MEMORY_WINDOW_KEY, value: String(normalizedMemoryWindow) });
   if (normalizedOtherContent.length > 0) {
     toSave.push({ key: BOT_OTHER_CONTENT_KEY, value: normalizedOtherContent });
   }
 
   await replaceDormBotSettingsSafe(session.dormId, toSave);
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'bot-settings' });
 
-  return { settings: finalSettings, otherContent: normalizedOtherContent };
+  return { settings: finalSettings, otherContent: normalizedOtherContent, memoryWindow: normalizedMemoryWindow };
 }
 

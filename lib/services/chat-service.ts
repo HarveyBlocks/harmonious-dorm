@@ -3,14 +3,23 @@ import { ApiError } from '@/lib/errors';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { LIMITS } from '@/lib/limits';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
+import { logError } from '@/lib/logger';
 import type { CursorPage, SessionUser } from '@/lib/types';
 
 import { emitToDorm } from '@/lib/socket-server';
-import { replyByDormBotIfMentioned } from './chat-bot-service';
+import { enqueueDormBotTaskIfMentioned } from './chat-bot-queue';
 import { ensureSessionUser } from './helpers';
 import { pushDormNotification } from './notification-service';
 
 type ChatListItem = { id: number; userId: number; userName: string; content: string; createdAt: string };
+
+function runInBackground(task: () => Promise<void>, errorMessage: string, meta?: Record<string, unknown>) {
+  setTimeout(() => {
+    void task().catch((error) => {
+      logError(errorMessage, error, meta);
+    });
+  }, 0);
+}
 
 function toChatListItems(
   rows: Array<{
@@ -202,6 +211,7 @@ export async function sendChatMessage(session: SessionUser, content: string) {
 
   const payload = {
     id: message.id,
+    displayOrder: message.id,
     userId: user.id,
     userName: user.name,
     content: message.content,
@@ -210,17 +220,35 @@ export async function sendChatMessage(session: SessionUser, content: string) {
 
   emitToDorm(session.dormId, 'chat:new', payload);
 
-  await pushDormNotification({
-    dormId: session.dormId,
-    type: 'chat',
-    title: encodeMessageToken(NoticeMessageKey.ChatFrom, { userName: user.name }),
-    content: message.content.slice(0, 60),
-    targetPath: '/chat',
-    groupKey: 'chat',
-    actorUserId: session.userId,
-  });
+  runInBackground(
+    async () => {
+      await pushDormNotification({
+        dormId: session.dormId,
+        type: 'chat',
+        title: encodeMessageToken(NoticeMessageKey.ChatFrom, { userName: user.name }),
+        content: message.content.slice(0, 60),
+        targetPath: '/chat',
+        groupKey: 'chat',
+        actorUserId: session.userId,
+      });
+    },
+    'chat_push_notification_failed',
+    { dormId: session.dormId, userId: session.userId, messageId: message.id },
+  );
 
-  await replyByDormBotIfMentioned(session, message.content);
+  runInBackground(
+    async () => {
+      await enqueueDormBotTaskIfMentioned({
+        dormId: session.dormId,
+        session,
+        content: message.content,
+        anchorMessageId: message.id,
+        source: 'chat',
+      });
+    },
+    'chat_bot_enqueue_failed',
+    { dormId: session.dormId, userId: session.userId, messageId: message.id },
+  );
 
   return payload;
 }

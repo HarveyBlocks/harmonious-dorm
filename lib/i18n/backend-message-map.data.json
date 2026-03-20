@@ -11,6 +11,36 @@
     "fr": "Erreur interne du serveur",
     "en": "Internal server error"
   },
+  "请求处理失败": {
+    "zh-CN": "请求处理失败",
+    "zh-TW": "請求處理失敗",
+    "fr": "Échec du traitement de la requête",
+    "en": "Request processing failed"
+  },
+  "AI service rate limited": {
+    "zh-CN": "AI 服务触发限流，请稍后重试",
+    "zh-TW": "AI 服務觸發限流，請稍後重試",
+    "fr": "Service AI limité, veuillez réessayer plus tard",
+    "en": "AI service rate limited, please retry later"
+  },
+  "AI service request failed": {
+    "zh-CN": "AI 服务请求失败",
+    "zh-TW": "AI 服務請求失敗",
+    "fr": "Échec de la requête du service AI",
+    "en": "AI service request failed"
+  },
+  "AI service timeout": {
+    "zh-CN": "AI 服务超时，请稍后重试",
+    "zh-TW": "AI 服務超時，請稍後重試",
+    "fr": "Délai d’attente du service AI dépassé, réessayez plus tard",
+    "en": "AI service timeout, please retry later"
+  },
+  "短期记忆长度必须在 1-35": {
+    "zh-CN": "短期记忆长度必须在 1-35",
+    "zh-TW": "短期記憶長度必須在 1-35",
+    "fr": "La mémoire courte doit être comprise entre 1 et 35",
+    "en": "Short-term memory window must be between 1 and 35"
+  },
   "请先登录": {
     "zh-CN": "请先登录",
     "zh-TW": "請先登入",

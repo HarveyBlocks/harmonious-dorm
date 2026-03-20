@@ -8,8 +8,7 @@ type NextApiResponseWithIO = NextApiResponse & { socket: any };
 export function ensureSocketServer(res: NextApiResponseWithIO): IOServer {
   if (!res.socket.server.io) {
     const io = new IOServer(res.socket.server as any, {
-      path: '/api/socket',
-      addTrailingSlash: false,
+      path: '/api/ws/',
     });
 
     io.on('connection', (socket) => {

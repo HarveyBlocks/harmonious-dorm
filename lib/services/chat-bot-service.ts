@@ -5,14 +5,35 @@ import type { SessionUser } from '@/lib/types';
 
 import { emitToDorm } from '@/lib/socket-server';
 import { ensureDormBotUser, isBotEmail } from './bot-service';
-import { BOT_OTHER_CONTENT_KEY, listDormBotSettingsSafe } from './bot-settings-service';
+import { buildDormBotPrompt } from './chat-bot-prompt';
+import {
+  BOT_MEMORY_WINDOW_DEFAULT,
+  BOT_MEMORY_WINDOW_KEY,
+  BOT_OTHER_CONTENT_KEY,
+  listDormBotSettingsSafe,
+  normalizeBotMemoryWindow,
+} from './bot-settings-service';
+import { streamGlmReply } from './glm-service';
 import { pushDormNotification } from './notification-service';
 import { listDormUserDescriptions } from './user-description-service';
 
-export async function replyByDormBotIfMentioned(session: SessionUser, content: string): Promise<void> {
-  const bot = await ensureDormBotUser(session.dormId);
+type BotIdentity = { id: number; name: string };
+
+export async function replyByDormBotIfMentioned(
+  session: SessionUser,
+  content: string,
+  anchorMessageId?: number,
+  options?: {
+    force?: boolean;
+    emitStart?: boolean;
+    streamId?: number;
+    streamOrder?: number;
+    botIdentity?: BotIdentity;
+  },
+): Promise<void> {
+  const bot = options?.botIdentity || await ensureDormBotUser(session.dormId);
   const mentionToken = `@${bot.name}`;
-  if (!content.includes(mentionToken)) return;
+  if (!options?.force && !content.includes(mentionToken)) return;
 
   const dorm = await prisma.dorm.findFirst({
     where: { id: session.dormId },
@@ -28,44 +49,100 @@ export async function replyByDormBotIfMentioned(session: SessionUser, content: s
   const descriptionMap = await listDormUserDescriptions(session.dormId);
 
   const memberRows = dorm.users.filter((item) => !isBotEmail(item.email));
-  const membersMarkdown =
-    memberRows.length === 0
-      ? '1. 无'
-      : memberRows
-          .map((item, index) => {
-            const desc = descriptionMap.get(item.id) || '无';
-            return `${index + 1}. ${item.name}${item.isLeader ? '（舍长）' : ''}\n   - 描述：${desc}`;
-          })
-          .join('\n');
-  let botOtherContent = '无';
+  let botOtherContent = '';
+  let botMemoryWindow = BOT_MEMORY_WINDOW_DEFAULT;
   const botSettings = allBotSettings.filter((item) => {
     if (item.key === BOT_OTHER_CONTENT_KEY) {
-      botOtherContent = item.value || '无';
+      botOtherContent = item.value || '';
+      return false;
+    }
+    if (item.key === BOT_MEMORY_WINDOW_KEY) {
+      botMemoryWindow = normalizeBotMemoryWindow(item.value);
       return false;
     }
     return true;
   });
-  const settingsMarkdown =
-    botSettings.length === 0
-      ? '1. 无'
-      : botSettings.map((item, index) => `${index + 1}. **${item.key}**: ${item.value}`).join('\n');
-  const botReply = `## 你好，我是 ${bot.name}
-
-### 机器人设定
-${settingsMarkdown}
-
-### 机器人的其他内容
-${botOtherContent}
-
-### 宿舍成员
-${membersMarkdown}`;
-
-  const botMessage = await prisma.chatMessage.create({
-    data: {
+  const recentMessagesRows = await prisma.chatMessage.findMany({
+    where: {
       dormId: session.dormId,
-      userId: bot.id,
-      content: botReply,
+      id: {
+        lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
+      },
     },
+    include: {
+      user: {
+        select: { id: true, name: true },
+      },
+    },
+    orderBy: { id: 'desc' },
+    take: botMemoryWindow,
+  });
+  const recentMessages = recentMessagesRows
+    .reverse()
+    .map((item) => ({ userId: item.user.id, userName: item.user.name, content: item.content }));
+
+  const sender = dorm.users.find((item) => item.id === session.userId);
+  const prompt = buildDormBotPrompt({
+    botName: bot.name,
+    dormName: dorm.name,
+    memberRows,
+    descriptionMap,
+    settings: botSettings,
+    memoryWindow: botMemoryWindow,
+    recentMessages,
+    otherContent: botOtherContent,
+    userContent: content,
+    senderUserId: session.userId,
+    senderUserName: sender?.name || 'unknown-user',
+    botUserId: bot.id,
+  });
+
+  let streamId = options?.streamId;
+  let streamOrder = options?.streamOrder;
+  let streamCreatedAt = new Date();
+  if (!streamId || streamId <= 0) {
+    const placeholder = await prisma.chatMessage.create({
+      data: {
+        dormId: session.dormId,
+        userId: bot.id,
+        content: '',
+      },
+      select: { id: true, createdAt: true },
+    });
+    streamId = placeholder.id;
+    streamOrder = placeholder.id;
+    streamCreatedAt = placeholder.createdAt;
+  }
+  const finalStreamOrder = streamOrder ?? streamId;
+  if (options?.emitStart !== false) {
+    emitToDorm(session.dormId, 'chat:stream:start', {
+      streamId,
+      message: {
+        id: streamId,
+        displayOrder: finalStreamOrder,
+        userId: bot.id,
+        userName: bot.name,
+        content: '',
+        createdAt: streamCreatedAt.toISOString(),
+        isStreaming: true,
+      },
+    });
+  }
+
+  const botReply = await streamGlmReply({
+    systemPrompt: prompt.systemPrompt,
+    userPrompt: prompt.userPrompt,
+    onDelta: (delta) => {
+      emitToDorm(session.dormId, 'chat:stream:chunk', {
+        streamId,
+        delta,
+      });
+    },
+  });
+
+  const botMessage = await prisma.chatMessage.update({
+    where: { id: streamId },
+    data: { content: botReply.trim() || 'Bot returned empty response.' },
     include: {
       user: {
         select: { id: true, name: true },
@@ -73,12 +150,16 @@ ${membersMarkdown}`;
     },
   });
 
-  emitToDorm(session.dormId, 'chat:new', {
-    id: botMessage.id,
-    userId: botMessage.userId,
-    userName: botMessage.user.name,
-    content: botMessage.content,
-    createdAt: botMessage.createdAt.toISOString(),
+  emitToDorm(session.dormId, 'chat:stream:commit', {
+    streamId,
+    message: {
+      id: botMessage.id,
+      displayOrder: botMessage.id,
+      userId: botMessage.userId,
+      userName: botMessage.user.name,
+      content: botMessage.content,
+      createdAt: botMessage.createdAt.toISOString(),
+    },
   });
 
   const recipients = await prisma.user.findMany({

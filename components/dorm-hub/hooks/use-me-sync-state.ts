@@ -3,8 +3,29 @@ import React, { useEffect } from 'react';
 
 import type { LanguageCode } from '@/lib/i18n';
 import type { DormState, MePayload } from '@/lib/types';
+import type { ActiveTab } from '@/components/dorm-hub/ui-types';
+
+function sameSettingsItems(a: Array<{ key: string; value: string }>, b: Array<{ key: string; value: string }>): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i]?.key !== b[i]?.key) return false;
+    if (a[i]?.value !== b[i]?.value) return false;
+  }
+  return true;
+}
+
+function sameDescriptionMap(a: Record<number, string>, b: Record<number, string>): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if ((a[Number(key)] || '') !== (b[Number(key)] || '')) return false;
+  }
+  return true;
+}
 
 export function useMeSyncState(options: {
+  activeTab: ActiveTab;
   me: MePayload | undefined;
   statusRows: Array<{ userId: number; state: DormState }> | undefined;
   assignUserId: number | null;
@@ -14,20 +35,31 @@ export function useMeSyncState(options: {
   setLanguage: (value: LanguageCode) => void;
   setDormNameInput: (value: string) => void;
   setBotNameInput: (value: string) => void;
+  setBotMemoryWindowInput: (value: string) => void;
   setBotSettingsInput: (value: Array<{ key: string; value: string }>) => void;
   setBotOtherContent: (value: string) => void;
   setMemberDescriptionsInput: (value: Record<number, string>) => void;
   lastSyncedProfileRef: React.MutableRefObject<{ name: string; language: LanguageCode } | null>;
   lastSyncedDormNameRef: React.MutableRefObject<string>;
   lastSyncedBotNameRef: React.MutableRefObject<string>;
+  lastSyncedBotMemoryWindowRef: React.MutableRefObject<number>;
   lastSyncedBotOtherContentRef: React.MutableRefObject<string>;
   lastSyncedBotSettingsRef: React.MutableRefObject<Array<{ key: string; value: string }>>;
   lastSyncedMemberDescriptionsRef: React.MutableRefObject<Record<number, string>>;
+  name: string;
+  language: LanguageCode;
+  dormNameInput: string;
+  botNameInput: string;
+  botMemoryWindowInput: string;
+  botSettingsInput: Array<{ key: string; value: string }>;
+  botOtherContent: string;
+  memberDescriptionsInput: Record<number, string>;
   targetLeaderId: number | null;
   setTargetLeaderId: (value: number | null) => void;
   setSelectedState: (value: DormState) => void;
 }) {
   const {
+    activeTab,
     me,
     statusRows,
     assignUserId,
@@ -37,15 +69,25 @@ export function useMeSyncState(options: {
     setLanguage,
     setDormNameInput,
     setBotNameInput,
+    setBotMemoryWindowInput,
     setBotSettingsInput,
     setBotOtherContent,
     setMemberDescriptionsInput,
     lastSyncedProfileRef,
     lastSyncedDormNameRef,
     lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef,
+    name,
+    language,
+    dormNameInput,
+    botNameInput,
+    botMemoryWindowInput,
+    botSettingsInput,
+    botOtherContent,
+    memberDescriptionsInput,
     targetLeaderId,
     setTargetLeaderId,
     setSelectedState,
@@ -60,34 +102,81 @@ export function useMeSyncState(options: {
 
   useEffect(() => {
     if (!me) return;
-    setName(me.name);
-    setLanguage(me.language);
-    setDormNameInput(me.dormName);
-    setBotNameInput(me.botName || '');
-    setBotSettingsInput(me.botSettings || []);
-    setBotOtherContent(me.botOtherContent || '');
-    setMemberDescriptionsInput(Object.fromEntries((me.members || []).map((member) => [member.id, member.description || ''])));
+    const incomingDescriptions = Object.fromEntries((me.members || []).map((member) => [member.id, member.description || '']));
+    const editingSettings = activeTab === 'settings';
+
+    const profileDirty = name.trim() !== (lastSyncedProfileRef.current?.name || '').trim() || language !== (lastSyncedProfileRef.current?.language || language);
+    const dormDirty = dormNameInput.trim() !== lastSyncedDormNameRef.current.trim();
+    const botNameDirty = botNameInput.trim() !== lastSyncedBotNameRef.current.trim();
+    const botMemoryDirty = Number(botMemoryWindowInput || 0) !== Number(lastSyncedBotMemoryWindowRef.current || 0);
+    const botOtherDirty = botOtherContent !== lastSyncedBotOtherContentRef.current;
+    const botSettingsDirty = !sameSettingsItems(botSettingsInput || [], lastSyncedBotSettingsRef.current || []);
+    const memberDescDirty = !sameDescriptionMap(memberDescriptionsInput || {}, lastSyncedMemberDescriptionsRef.current || {});
+
+    if (!editingSettings || !profileDirty) {
+      if (name !== me.name) setName(me.name);
+      if (language !== me.language) setLanguage(me.language);
+    }
+    if (!editingSettings || !dormDirty) {
+      if (dormNameInput !== me.dormName) setDormNameInput(me.dormName);
+    }
+    if (!editingSettings || !botNameDirty) {
+      const incomingBotName = me.botName || '';
+      if (botNameInput !== incomingBotName) setBotNameInput(incomingBotName);
+    }
+    if (!editingSettings || !botMemoryDirty) {
+      const incomingMemory = String(me.botMemoryWindow || 10);
+      if (botMemoryWindowInput !== incomingMemory) setBotMemoryWindowInput(incomingMemory);
+    }
+    if (!editingSettings || !botSettingsDirty) {
+      const incomingBotSettings = me.botSettings || [];
+      if (!sameSettingsItems(botSettingsInput || [], incomingBotSettings)) {
+        setBotSettingsInput(incomingBotSettings);
+      }
+    }
+    if (!editingSettings || !botOtherDirty) {
+      const incomingOther = me.botOtherContent || '';
+      if (botOtherContent !== incomingOther) setBotOtherContent(incomingOther);
+    }
+    if (!editingSettings || !memberDescDirty) {
+      if (!sameDescriptionMap(memberDescriptionsInput || {}, incomingDescriptions)) {
+        setMemberDescriptionsInput(incomingDescriptions);
+      }
+    }
+
     lastSyncedProfileRef.current = { name: me.name.trim(), language: me.language };
     lastSyncedDormNameRef.current = me.dormName.trim();
     lastSyncedBotNameRef.current = (me.botName || '').trim();
+    lastSyncedBotMemoryWindowRef.current = me.botMemoryWindow || 10;
     lastSyncedBotOtherContentRef.current = me.botOtherContent || '';
     lastSyncedBotSettingsRef.current = me.botSettings || [];
-    lastSyncedMemberDescriptionsRef.current = Object.fromEntries((me.members || []).map((member) => [member.id, member.description || '']));
+    lastSyncedMemberDescriptionsRef.current = incomingDescriptions;
     if (!targetLeaderId) {
       const candidate = me.members.find((item) => !item.isLeader);
       setTargetLeaderId(candidate?.id || null);
     }
   }, [
     lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
     lastSyncedDormNameRef,
     lastSyncedMemberDescriptionsRef,
     lastSyncedProfileRef,
     me,
+    activeTab,
+    name,
+    language,
+    dormNameInput,
+    botNameInput,
+    botMemoryWindowInput,
+    botSettingsInput,
+    botOtherContent,
+    memberDescriptionsInput,
     setBotNameInput,
     setBotOtherContent,
     setBotSettingsInput,
+    setBotMemoryWindowInput,
     setDormNameInput,
     setLanguage,
     setMemberDescriptionsInput,

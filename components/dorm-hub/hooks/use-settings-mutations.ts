@@ -20,6 +20,7 @@ export function useSettingsMutations(options: {
   lastSyncedProfileRef: MutableRefObject<{ name: string; language: LanguageCode } | null>;
   lastSyncedDormNameRef: MutableRefObject<string>;
   lastSyncedBotNameRef: MutableRefObject<string>;
+  lastSyncedBotMemoryWindowRef: MutableRefObject<number>;
   lastSyncedBotOtherContentRef: MutableRefObject<string>;
   lastSyncedBotSettingsRef: MutableRefObject<Array<{ key: string; value: string }>>;
   lastSyncedMemberDescriptionsRef: MutableRefObject<Record<number, string>>;
@@ -33,6 +34,7 @@ export function useSettingsMutations(options: {
     lastSyncedProfileRef,
     lastSyncedDormNameRef,
     lastSyncedBotNameRef,
+    lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
     lastSyncedMemberDescriptionsRef,
@@ -72,8 +74,8 @@ export function useSettingsMutations(options: {
   });
 
   const updateBotSettingsMutation = useMutation({
-    mutationFn: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string }) =>
-      apiRequest<{ settings: Array<{ key: string; value: string }>; otherContent: string }>('/api/dorm/bot/settings', {
+    mutationFn: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }) =>
+      apiRequest<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }>('/api/dorm/bot/settings', {
         method: 'PUT',
         body: JSON.stringify(payload),
       }),
@@ -82,6 +84,7 @@ export function useSettingsMutations(options: {
         .map((item) => ({ key: item.key.trim(), value: item.value }))
         .filter((item) => item.key.length > 0);
       lastSyncedBotOtherContentRef.current = payload.otherContent.trim();
+      lastSyncedBotMemoryWindowRef.current = payload.memoryWindow;
       void queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });

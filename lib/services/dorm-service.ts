@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
+import { emitToDorm } from '@/lib/socket-server';
 import type { SessionUser } from '@/lib/types';
 
 import { ensureSessionUser } from './helpers';
@@ -27,6 +28,7 @@ export async function updateDormName(session: SessionUser, name: string) {
     groupKey: 'dorm-name',
     actorUserId: session.userId,
   });
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'dorm-name' });
 
   return dorm;
 }
@@ -62,6 +64,7 @@ export async function transferLeader(session: SessionUser, targetUserId: number)
     groupKey: 'leader-transfer',
     actorUserId: session.userId,
   });
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'leader-transfer' });
 
   return { success: true };
 }

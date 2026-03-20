@@ -10,12 +10,22 @@ export class ClientApiError extends Error {
   }
 }
 
+function isNavigationInProgress(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (window as Window & { __APP_NAVIGATING__?: boolean }).__APP_NAVIGATING__ === true;
+}
+
+export function markAppNavigating(flag = true) {
+  if (typeof window === 'undefined') return;
+  (window as Window & { __APP_NAVIGATING__?: boolean }).__APP_NAVIGATING__ = flag;
+}
+
 export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response;
   const preferredLang = (
     typeof window !== 'undefined' ? window.localStorage.getItem('app_lang') || 'zh-CN' : 'zh-CN'
   ) as LanguageCode;
-  const langPack = getUiText(preferredLang); 
+  const langPack = getUiText(preferredLang);
 
   try {
     response = await fetch(url, {
@@ -28,7 +38,7 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
       cache: 'no-store',
     });
   } catch (error) {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !isNavigationInProgress()) {
       window.dispatchEvent(
         new CustomEvent('app:toast', {
           detail: { type: 'error', message: langPack.networkError },
@@ -49,7 +59,7 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
       // keep fallback message
     }
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !isNavigationInProgress()) {
       window.dispatchEvent(
         new CustomEvent('app:toast', {
           detail: { type: 'error', message },
@@ -70,4 +80,3 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
 
   return (await response.json()) as T;
 }
-

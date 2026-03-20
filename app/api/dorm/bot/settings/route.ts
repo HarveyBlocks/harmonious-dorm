@@ -7,8 +7,8 @@ import { updateDormBotSettings } from '@/lib/services';
 export async function PUT(request: Request) {
   return withApiGuard(async () => {
     const session = await requireSessionOrThrow();
-    const body = await parseJson<{ settings: Array<{ key: string; value: string }>; otherContent?: string }>(request);
-    const result = await updateDormBotSettings(session, body.settings || [], body.otherContent || '');
+    const body = await parseJson<{ settings: Array<{ key: string; value: string }>; otherContent?: string; memoryWindow?: number }>(request);
+    const result = await updateDormBotSettings(session, body.settings || [], body.otherContent || '', body.memoryWindow);
     return NextResponse.json(result);
   });
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import { consumeSeenPendingChats } from '@/components/dorm-hub/hooks/chat-pending-seen';
@@ -77,9 +77,17 @@ export function useDormHubChatRuntime(options: {
     setNewChatHintCount,
   });
 
+  const hasStreamingMessage = liveMessages.some((item) => item.isStreaming);
+  const liveContentVersion = useMemo(
+    () => liveMessages.reduce((sum, item) => sum + item.content.length + (item.isStreaming ? 1 : 0), 0),
+    [liveMessages],
+  );
+
   useChatLayoutSync({
     activeTab: activeTab as any,
     liveMessageCount: liveMessages.length,
+    liveContentVersion,
+    hasStreamingMessage,
     chatScrollRef,
     chatPrependStateRef: chatWindow.chatPrependStateRef,
     chatForceBottomOnNextLayoutRef,

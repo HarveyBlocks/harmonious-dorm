@@ -3,10 +3,12 @@ export type SettingsCardKey = 'user' | 'dorm' | 'member' | 'bot' | 'security';
 
 export type ChatMessage = {
   id: number;
+  displayOrder?: number;
   userId: number;
   userName: string;
   content: string;
   createdAt: string;
+  isStreaming?: boolean;
 };
 
 export type RenderedChatMessage = ChatMessage & {

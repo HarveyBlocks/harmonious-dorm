@@ -56,3 +56,139 @@
 .app-toast-info {
   background: rgba(15, 118, 110, 0.9);
 }
+
+.bot-markdown {
+  color: var(--text-main);
+}
+
+.bot-markdown > :first-child {
+  margin-top: 0;
+}
+
+.bot-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.bot-markdown h1,
+.bot-markdown h2,
+.bot-markdown h3,
+.bot-markdown h4 {
+  margin: 0.85em 0 0.45em;
+  line-height: 1.35;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.bot-markdown h1 {
+  font-size: 1.45em;
+}
+
+.bot-markdown h2 {
+  font-size: 1.28em;
+}
+
+.bot-markdown h3 {
+  font-size: 1.16em;
+}
+
+.bot-markdown p {
+  margin: 0.55em 0;
+}
+
+.bot-markdown ul,
+.bot-markdown ol {
+  margin: 0.6em 0;
+  padding-left: 1.25em;
+}
+
+.bot-markdown li {
+  margin: 0.28em 0;
+}
+
+.bot-markdown ul li::marker,
+.bot-markdown ol li::marker {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.bot-markdown blockquote {
+  margin: 0.75em 0;
+  padding: 0.45em 0.85em;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 8px;
+  color: var(--text-main);
+}
+
+.bot-markdown hr {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 0.95em 0;
+}
+
+.bot-markdown code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.bot-markdown :not(pre) > code {
+  padding: 0.12em 0.38em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-main) 12%, transparent);
+}
+
+.bot-markdown pre {
+  margin: 0.7em 0;
+  padding: 0.75em 0.85em;
+  border-radius: 10px;
+  overflow-x: auto;
+  border: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--text-main) 8%, transparent);
+}
+
+.bot-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.95em;
+}
+
+.bot-markdown th,
+.bot-markdown td {
+  border: 1px solid var(--card-border);
+  padding: 0.45em 0.55em;
+  text-align: left;
+}
+
+.bot-markdown th {
+  font-weight: 800;
+  background: color-mix(in srgb, var(--text-main) 9%, transparent);
+}
+
+.bot-markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 700;
+}
+
+.bot-stream-spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  animation: bot-stream-spin 0.7s linear infinite;
+}
+
+@keyframes bot-stream-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

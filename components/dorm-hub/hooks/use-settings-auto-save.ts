@@ -14,6 +14,7 @@ export function useSettingsAutoSave(options: {
   language: string;
   dormNameInput: string;
   botNameInput: string;
+  botMemoryWindowInput: string;
   botOtherContent: string;
   botSettingsInput: Array<{ key: string; value: string }>;
   memberDescriptionsInput: Record<number, string>;
@@ -37,6 +38,7 @@ export function useSettingsAutoSave(options: {
     language,
     dormNameInput,
     botNameInput,
+    botMemoryWindowInput,
     botOtherContent,
     botSettingsInput,
     memberDescriptionsInput,
@@ -58,7 +60,11 @@ export function useSettingsAutoSave(options: {
   const botAvatarSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const memberDescriptionsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const periodicFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastActiveTabRef = useRef<ActiveTab>('dashboard');
+  const INPUT_DEBOUNCE_MS = 900;
+  const AVATAR_DEBOUNCE_MS = 1200;
+  const PERIODIC_FLUSH_MS = 3000;
 
   useEffect(() => {
     if (!botOtherEditing) return;
@@ -71,86 +77,117 @@ export function useSettingsAutoSave(options: {
   useEffect(() => {
     if (activeTab !== 'settings' || !hasMe) return;
     if (profileSaveTimerRef.current) clearTimeout(profileSaveTimerRef.current);
-    profileSaveTimerRef.current = setTimeout(saveProfileNow, 900);
+    profileSaveTimerRef.current = setTimeout(saveProfileNow, INPUT_DEBOUNCE_MS);
     return () => {
       if (profileSaveTimerRef.current) {
         clearTimeout(profileSaveTimerRef.current);
         profileSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, hasMe, language, name, saveProfileNow]);
+  }, [INPUT_DEBOUNCE_MS, activeTab, hasMe, language, name, saveProfileNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !isLeader) return;
     if (dormSaveTimerRef.current) clearTimeout(dormSaveTimerRef.current);
-    dormSaveTimerRef.current = setTimeout(saveDormNow, 900);
+    dormSaveTimerRef.current = setTimeout(saveDormNow, INPUT_DEBOUNCE_MS);
     return () => {
       if (dormSaveTimerRef.current) {
         clearTimeout(dormSaveTimerRef.current);
         dormSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, dormNameInput, isLeader, saveDormNow]);
+  }, [INPUT_DEBOUNCE_MS, activeTab, dormNameInput, isLeader, saveDormNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !isLeader) return;
     if (botSaveTimerRef.current) clearTimeout(botSaveTimerRef.current);
-    botSaveTimerRef.current = setTimeout(saveBotNow, 900);
+    botSaveTimerRef.current = setTimeout(saveBotNow, INPUT_DEBOUNCE_MS);
     return () => {
       if (botSaveTimerRef.current) {
         clearTimeout(botSaveTimerRef.current);
         botSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, botNameInput, isLeader, saveBotNow]);
+  }, [INPUT_DEBOUNCE_MS, activeTab, botNameInput, isLeader, saveBotNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !isLeader) return;
     if (botSettingsSaveTimerRef.current) clearTimeout(botSettingsSaveTimerRef.current);
-    botSettingsSaveTimerRef.current = setTimeout(saveBotSettingsNow, 900);
+    botSettingsSaveTimerRef.current = setTimeout(saveBotSettingsNow, INPUT_DEBOUNCE_MS);
     return () => {
       if (botSettingsSaveTimerRef.current) {
         clearTimeout(botSettingsSaveTimerRef.current);
         botSettingsSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, botOtherContent, botSettingsInput, isLeader, saveBotSettingsNow]);
+  }, [INPUT_DEBOUNCE_MS, activeTab, botMemoryWindowInput, botOtherContent, botSettingsInput, isLeader, saveBotSettingsNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !hasMe) return;
     if (memberDescriptionsSaveTimerRef.current) clearTimeout(memberDescriptionsSaveTimerRef.current);
-    memberDescriptionsSaveTimerRef.current = setTimeout(saveMemberDescriptionsNow, 900);
+    memberDescriptionsSaveTimerRef.current = setTimeout(saveMemberDescriptionsNow, INPUT_DEBOUNCE_MS);
     return () => {
       if (memberDescriptionsSaveTimerRef.current) {
         clearTimeout(memberDescriptionsSaveTimerRef.current);
         memberDescriptionsSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, hasMe, memberDescriptionsInput, saveMemberDescriptionsNow]);
+  }, [INPUT_DEBOUNCE_MS, activeTab, hasMe, memberDescriptionsInput, saveMemberDescriptionsNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !avatarFile) return;
     if (avatarSaveTimerRef.current) clearTimeout(avatarSaveTimerRef.current);
-    avatarSaveTimerRef.current = setTimeout(saveAvatarNow, 1200);
+    avatarSaveTimerRef.current = setTimeout(saveAvatarNow, AVATAR_DEBOUNCE_MS);
     return () => {
       if (avatarSaveTimerRef.current) {
         clearTimeout(avatarSaveTimerRef.current);
         avatarSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, avatarFile, saveAvatarNow]);
+  }, [AVATAR_DEBOUNCE_MS, activeTab, avatarFile, saveAvatarNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !botAvatarFile || !isLeader) return;
     if (botAvatarSaveTimerRef.current) clearTimeout(botAvatarSaveTimerRef.current);
-    botAvatarSaveTimerRef.current = setTimeout(saveBotAvatarNow, 1200);
+    botAvatarSaveTimerRef.current = setTimeout(saveBotAvatarNow, AVATAR_DEBOUNCE_MS);
     return () => {
       if (botAvatarSaveTimerRef.current) {
         clearTimeout(botAvatarSaveTimerRef.current);
         botAvatarSaveTimerRef.current = null;
       }
     };
-  }, [activeTab, botAvatarFile, isLeader, saveBotAvatarNow]);
+  }, [AVATAR_DEBOUNCE_MS, activeTab, botAvatarFile, isLeader, saveBotAvatarNow]);
+
+  useEffect(() => {
+    if (activeTab !== 'settings') return;
+    if (periodicFlushTimerRef.current) clearInterval(periodicFlushTimerRef.current);
+    periodicFlushTimerRef.current = setInterval(() => {
+      saveProfileNow();
+      saveDormNow();
+      saveBotNow();
+      saveBotSettingsNow();
+      saveMemberDescriptionsNow();
+      saveAvatarNow();
+      saveBotAvatarNow();
+    }, PERIODIC_FLUSH_MS);
+
+    return () => {
+      if (periodicFlushTimerRef.current) {
+        clearInterval(periodicFlushTimerRef.current);
+        periodicFlushTimerRef.current = null;
+      }
+    };
+  }, [
+    PERIODIC_FLUSH_MS,
+    activeTab,
+    saveAvatarNow,
+    saveBotAvatarNow,
+    saveBotNow,
+    saveBotSettingsNow,
+    saveDormNow,
+    saveMemberDescriptionsNow,
+    saveProfileNow,
+  ]);
 
   useEffect(() => {
     if (lastActiveTabRef.current === 'settings' && activeTab !== 'settings') {
@@ -212,6 +249,7 @@ export function useSettingsAutoSave(options: {
       if (memberDescriptionsSaveTimerRef.current) clearTimeout(memberDescriptionsSaveTimerRef.current);
       if (avatarSaveTimerRef.current) clearTimeout(avatarSaveTimerRef.current);
       if (botAvatarSaveTimerRef.current) clearTimeout(botAvatarSaveTimerRef.current);
+      if (periodicFlushTimerRef.current) clearInterval(periodicFlushTimerRef.current);
     },
     [],
   );

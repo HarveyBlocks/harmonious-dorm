@@ -31,6 +31,7 @@ type ErrorText = {
   botSettingValueTooLong: string;
   botOtherTooLong: string;
   botSettingsTooMany: string;
+  botMemoryWindowInvalid: string;
   dormNameRequired: string;
   transferTargetRequired: string;
   avatarRequired: string;
@@ -77,6 +78,11 @@ type SettingsText = {
   memberDescLabel: string;
   memberDescPlaceholder: string;
   botOtherContentLabel: string;
+  botMemoryWindowLabel: string;
+  botMemoryWindowHintSimple: string;
+  botMemoryWindowHintHeavy: string;
+  botMemoryWindowHintTech: string;
+  botMemoryWindowHintHyper: string;
   botOtherContentPlaceholder: string;
   botSettingKeyLabel: string;
   botSettingValueLabel: string;
@@ -124,7 +130,7 @@ export function buildPanelText(language: LanguageCode | undefined): PanelText {
 }
 
 export function buildErrorText(language: LanguageCode | undefined, t: any): ErrorText {
-  const staticMap: Omit<ErrorText, 'chooseMember' | 'invalidDate' | 'messageTooLong' | 'nameTooLong' | 'dormNameTooLong' | 'billDescTooLong' | 'customCategoryTooLong' | 'memberDescriptionTooLong' | 'botNameTooLong' | 'botSettingKeyTooLong' | 'botSettingValueTooLong' | 'botOtherTooLong' | 'botSettingsTooMany' | 'dutyTaskTooLong' | 'weightTooLarge'> = {
+  const staticMap: Omit<ErrorText, 'chooseMember' | 'invalidDate' | 'messageTooLong' | 'nameTooLong' | 'dormNameTooLong' | 'billDescTooLong' | 'customCategoryTooLong' | 'memberDescriptionTooLong' | 'botNameTooLong' | 'botSettingKeyTooLong' | 'botSettingValueTooLong' | 'botOtherTooLong' | 'botSettingsTooMany' | 'botMemoryWindowInvalid' | 'dutyTaskTooLong' | 'weightTooLarge'> = {
     amountRequired: pick(language, { 'zh-CN': '请输入账单金额', 'zh-TW': '請輸入帳單金額', fr: 'Veuillez saisir le montant', en: 'Please enter bill amount' }),
     amountNotNumber: pick(language, { 'zh-CN': '账单金额必须是数字', 'zh-TW': '帳單金額必須是數字', fr: 'Le montant doit être un nombre', en: 'Bill amount must be a number' }),
     amountGtZero: pick(language, { 'zh-CN': '账单金额必须大于 0', 'zh-TW': '帳單金額必須大於 0', fr: 'Le montant doit être supérieur à 0', en: 'Bill amount must be greater than 0' }),
@@ -156,6 +162,7 @@ export function buildErrorText(language: LanguageCode | undefined, t: any): Erro
     botSettingValueTooLong: pick(language, { 'zh-CN': `机器人设定值不能超过 ${LIMITS.BOT_SETTING_VALUE} 字`, 'zh-TW': `機器人設定值不能超過 ${LIMITS.BOT_SETTING_VALUE} 字`, fr: `La valeur du paramètre du robot ne peut pas dépasser ${LIMITS.BOT_SETTING_VALUE} caractères`, en: `Bot setting value cannot exceed ${LIMITS.BOT_SETTING_VALUE} characters` }),
     botOtherTooLong: pick(language, { 'zh-CN': `机器人的其他内容不能超过 ${LIMITS.BOT_OTHER_CONTENT} 字`, 'zh-TW': `機器人的其他內容不能超過 ${LIMITS.BOT_OTHER_CONTENT} 字`, fr: `Le contenu supplémentaire du robot ne peut pas dépasser ${LIMITS.BOT_OTHER_CONTENT} caractères`, en: `Bot extra content cannot exceed ${LIMITS.BOT_OTHER_CONTENT} characters` }),
     botSettingsTooMany: pick(language, { 'zh-CN': `机器人设定不能超过 ${LIMITS.BOT_SETTINGS_ITEMS} 条`, 'zh-TW': `機器人設定不能超過 ${LIMITS.BOT_SETTINGS_ITEMS} 條`, fr: `Les paramètres du robot ne peuvent pas dépasser ${LIMITS.BOT_SETTINGS_ITEMS} éléments`, en: `Bot settings cannot exceed ${LIMITS.BOT_SETTINGS_ITEMS} items` }),
+    botMemoryWindowInvalid: pick(language, { 'zh-CN': '短期记忆长度必须为 1-35 的整数', 'zh-TW': '短期記憶長度必須為 1-35 的整數', fr: 'La mémoire courte doit être un entier entre 1 et 35', en: 'Short-term memory must be an integer between 1 and 35' }),
     dutyTaskTooLong: pick(language, { 'zh-CN': `值日任务不能超过 ${LIMITS.DUTY_TASK} 字`, 'zh-TW': `值日任務不能超過 ${LIMITS.DUTY_TASK} 字`, fr: `La tâche ne peut pas dépasser ${LIMITS.DUTY_TASK} caractères`, en: `Duty task cannot exceed ${LIMITS.DUTY_TASK} characters` }),
     weightTooLarge: pick(language, { 'zh-CN': `权重不能超过 ${LIMITS.BILL_WEIGHT}`, 'zh-TW': `權重不能超過 ${LIMITS.BILL_WEIGHT}`, fr: `Le poids ne peut pas dépasser ${LIMITS.BILL_WEIGHT}`, en: `Weight cannot exceed ${LIMITS.BILL_WEIGHT}` }),
     ...staticMap,
@@ -186,6 +193,11 @@ const SETTINGS_TEXT_MAP: Record<keyof SettingsText, LangMap> = {
   memberDescLabel: { 'zh-CN': '成员描述', 'zh-TW': '成員描述', fr: 'Description des membres', en: 'Member Description' },
   memberDescPlaceholder: { 'zh-CN': '写一段自我介绍...', 'zh-TW': '寫一段自我介紹...', fr: 'Écrivez une courte présentation...', en: 'Write a short self-introduction...' },
   botOtherContentLabel: { 'zh-CN': '机器人的其他内容', 'zh-TW': '機器人的其他內容', fr: 'Autres contenus du robot', en: 'Bot Other Content' },
+  botMemoryWindowLabel: { 'zh-CN': '短期记忆长度', 'zh-TW': '短期記憶長度', fr: 'Fenêtre de mémoire courte', en: 'Short-Term Memory Window' },
+  botMemoryWindowHintSimple: { 'zh-CN': '5-10：适合简单聊天', 'zh-TW': '5-10：適合簡單聊天', fr: '5-10: adapté aux conversations simples', en: '5-10: suitable for simple chats' },
+  botMemoryWindowHintHeavy: { 'zh-CN': '10-15：适合高频使用机器人', 'zh-TW': '10-15：適合高頻使用機器人', fr: '10-15: adapté à un usage intensif du bot', en: '10-15: suitable for heavy bot usage' },
+  botMemoryWindowHintTech: { 'zh-CN': '15-20：适合技术交流', 'zh-TW': '15-20：適合技術交流', fr: '15-20: adapté aux échanges techniques', en: '15-20: suitable for technical discussions' },
+  botMemoryWindowHintHyper: { 'zh-CN': '20-30：适合超活跃群聊', 'zh-TW': '20-30：適合超活躍群聊', fr: '20-30: adapté aux groupes très actifs', en: '20-30: suitable for hyper-active group chats' },
   botOtherContentPlaceholder: { 'zh-CN': '输入机器人的额外内容...', 'zh-TW': '輸入機器人的額外內容...', fr: 'Saisissez du contenu supplémentaire du robot...', en: 'Input additional bot content...' },
   botSettingKeyLabel: { 'zh-CN': '字段名', 'zh-TW': '欄位名', fr: 'Nom du champ', en: 'Field name' },
   botSettingValueLabel: { 'zh-CN': '字段值', 'zh-TW': '欄位值', fr: 'Valeur du champ', en: 'Field value' },
