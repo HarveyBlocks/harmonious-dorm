@@ -124,9 +124,19 @@ export function mergeChatMessages(base: ChatMessage[], incoming: ChatMessage[]):
       map.set(item.id, item);
       return;
     }
+    const hasIncomingStreamingFlag = typeof item.isStreaming === 'boolean';
+    const incomingContent = item.content ?? '';
+    const existedContent = existed.content ?? '';
+    const keepExistingContent =
+      Boolean(existed.isStreaming) &&
+      incomingContent.length < existedContent.length;
+    const mergedContent = keepExistingContent ? existedContent : (item.content ?? existed.content);
+    const mergedIsStreaming = hasIncomingStreamingFlag ? item.isStreaming : existed.isStreaming;
     map.set(item.id, {
       ...existed,
       ...item,
+      content: mergedContent,
+      isStreaming: mergedIsStreaming,
       displayOrder: item.displayOrder ?? existed.displayOrder,
     });
   });

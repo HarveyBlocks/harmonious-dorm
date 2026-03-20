@@ -14,8 +14,8 @@ export function DashboardTab(props: {
   const p = props;
 
   return (
-    <motion.div key="dash" animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 glass-card sleep-depth-near p-8 rounded-2xl accent-bg relative overflow-hidden shadow-2xl">
+    <motion.div key="dash" animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="md:col-span-2 glass-card sleep-depth-near p-8 rounded-2xl accent-bg relative overflow-hidden shadow-2xl">
         <div className="pointer-events-none absolute inset-0 opacity-25">
           <Coffee className="absolute right-8 top-8 w-10 h-10 rotate-12" />
           <Moon className="absolute right-24 bottom-12 w-12 h-12 -rotate-12" />

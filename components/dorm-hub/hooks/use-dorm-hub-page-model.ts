@@ -244,6 +244,7 @@ export function useDormHubPageModel() {
     activeTab: state.activeTab,
     setActiveTab: state.setActiveTab,
     lastActiveTabRef: refs.lastActiveTabRef,
+    onNavigateToNotifications: () => state.setNotificationFilter('unread'),
   });
   const scrollHandlers = useTabScrollHandlers({
     notificationsQuery: queries.notificationsQuery,

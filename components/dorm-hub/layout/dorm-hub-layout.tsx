@@ -32,8 +32,9 @@ export function DormHubLayout(props: any) {
         onNavigate={p.navigateToTab}
       />
 
-      <main className="pb-24 md:pb-8 md:pl-24 lg:pl-72 p-4 md:p-8 max-w-7xl mx-auto">
-        <TopHeader
+      <main className="pb-24 md:pb-8 md:ml-24 lg:ml-72">
+        <div className="pt-3 md:pt-5 px-8 md:px-16 lg:px-24 max-w-[1680px] mx-auto">
+          <TopHeader
           t={p.t}
           dormName={p.dormName}
           meName={p.me?.name}
@@ -45,7 +46,7 @@ export function DormHubLayout(props: any) {
           }}
         />
 
-        <AnimatePresence initial={false}>
+          <AnimatePresence initial={false}>
           {p.activeTab === 'dashboard' && <DashboardTab t={p.t} me={p.me} displayUsers={p.displayUsers} />}
 
           {p.activeTab === 'duty' && (
@@ -207,7 +208,7 @@ export function DormHubLayout(props: any) {
           )}
 
           {p.activeTab === 'settings' && (
-            <motion.div key="settings" animate={{ opacity: 1 }} className="space-y-8">
+            <motion.div key="settings" animate={{ opacity: 1 }} className="space-y-10">
               <UserSettingsCard
                 t={p.t}
                 me={p.me}
@@ -305,7 +306,8 @@ export function DormHubLayout(props: any) {
               />
             </motion.div>
           )}
-        </AnimatePresence>
+          </AnimatePresence>
+        </div>
       </main>
     </div>
   );

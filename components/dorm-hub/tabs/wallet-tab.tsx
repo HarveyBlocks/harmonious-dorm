@@ -60,64 +60,16 @@ export function WalletTab(props: {
   const buildBillLine = (bill: any) => bill.customCategory || categoryLabel(p.me?.language || 'zh-CN', bill.category);
 
   return (
-    <motion.div key="wallet" animate={{ opacity: 1, scale: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <div className="glass-card wallet-total-card p-8 rounded-2xl shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 wallet-total-overlay pointer-events-none" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-4"><CreditCard className="w-10 h-10 wallet-top-icon" /><span className="text-sm font-bold tracking-widest uppercase wallet-kpi-label">{p.t.bills}</span></div>
-            <p className="text-sm font-bold uppercase tracking-widest mb-1 wallet-kpi-label">{p.t.monthTotal}</p>
-            <h2 className="text-5xl font-black mb-8 wallet-main-value">¥ {p.monthTotal.toFixed(2)}</h2>
-            <div className="flex gap-8">
-              <div><p className="text-[10px] font-bold uppercase mb-1 wallet-kpi-label">{p.t.billCount}</p><p className="text-xl font-bold flex items-center gap-1 wallet-kpi-value"><ArrowDownLeft className="w-4 h-4 text-emerald-300" /> {p.billsRows.length}</p></div>
-              <div><p className="text-[10px] font-bold uppercase mb-1 wallet-kpi-label">{p.t.pendingPayment}</p><p className="text-xl font-bold flex items-center gap-1 wallet-kpi-value"><ArrowUpRight className="w-4 h-4 text-rose-300" /> {p.billsRows.filter((item) => !item.myPaid).length}</p></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
-          <h3 className="text-xl font-black mb-6">{p.pText.unpaidBills}</h3>
-          <div ref={p.billUnpaidListRef} className="space-y-4 max-h-[30vh] overflow-y-auto pr-1" onScroll={p.onBillUnpaidListScroll}>
-            {p.groupedUnpaidBills.map(([monthKey, items]) => (
-              <div key={monthKey} className="space-y-3">
-                <p className="text-xs font-black text-muted">{monthKey}</p>
-                {items.map((bill) => (
-                  <div key={bill.id} className="flex items-center justify-between p-4 glass-card rounded-2xl">
-                    <div>
-                      <p className={`font-black ${BILL_CATEGORY_COLOR[bill.category] || 'text-muted'}`}>{buildBillLine(bill)}</p>
-                      <p className="text-xs text-muted font-bold">{new Date(bill.createdAt).toLocaleDateString()} · {formatPaidInfo(p.me?.language || 'zh-CN', bill.paidCount, bill.totalCount)} · ¥{(bill.myAmount || 0).toFixed(2)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-lg font-black">¥{bill.total.toFixed(2)}</p>
-                      <button onClick={() => p.togglePaidMutation.mutate({ billId: bill.id, paid: true })} className="px-3 py-2 accent-bg rounded-xl text-xs font-bold">{p.t.markPaid}</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
-          <h3 className="text-xl font-black mb-6">{p.pText.paidBills}</h3>
-          <div ref={p.billPaidListRef} className="space-y-4 max-h-[30vh] overflow-y-auto pr-1" onScroll={p.onBillPaidListScroll}>
-            {p.groupedPaidBills.map(([monthKey, items]) => (
-              <div key={monthKey} className="space-y-3">
-                <p className="text-xs font-black text-muted">{monthKey}</p>
-                {items.map((bill) => (
-                  <div key={bill.id} className="flex items-center justify-between p-4 glass-card rounded-2xl">
-                    <div>
-                      <p className={`font-black ${BILL_CATEGORY_COLOR[bill.category] || 'text-muted'}`}>{buildBillLine(bill)}</p>
-                      <p className="text-xs text-muted font-bold">{new Date(bill.createdAt).toLocaleDateString()} · {formatPaidInfo(p.me?.language || 'zh-CN', bill.paidCount, bill.totalCount)} · ¥{(bill.myAmount || 0).toFixed(2)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-lg font-black">¥{bill.total.toFixed(2)}</p>
-                      <button onClick={() => p.togglePaidMutation.mutate({ billId: bill.id, paid: false })} className="px-3 py-2 accent-bg rounded-xl text-xs font-bold">{p.t.resetUnpaid}</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
+    <motion.div key="wallet" animate={{ opacity: 1, scale: 1 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="md:col-span-2 glass-card wallet-total-card p-8 rounded-2xl shadow-2xl relative overflow-hidden">
+        <div className="absolute inset-0 wallet-total-overlay pointer-events-none" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-4"><CreditCard className="w-10 h-10 wallet-top-icon" /><span className="text-sm font-bold tracking-widest uppercase wallet-kpi-label">{p.t.bills}</span></div>
+          <p className="text-sm font-bold uppercase tracking-widest mb-1 wallet-kpi-label">{p.t.monthTotal}</p>
+          <h2 className="text-5xl font-black mb-8 wallet-main-value">¥ {p.monthTotal.toFixed(2)}</h2>
+          <div className="flex gap-8">
+            <div><p className="text-[10px] font-bold uppercase mb-1 wallet-kpi-label">{p.t.billCount}</p><p className="text-xl font-bold flex items-center gap-1 wallet-kpi-value"><ArrowDownLeft className="w-4 h-4 text-emerald-300" /> {p.billsRows.length}</p></div>
+            <div><p className="text-[10px] font-bold uppercase mb-1 wallet-kpi-label">{p.t.pendingPayment}</p><p className="text-xl font-bold flex items-center gap-1 wallet-kpi-value"><ArrowUpRight className="w-4 h-4 text-rose-300" /> {p.billsRows.filter((item) => !item.myPaid).length}</p></div>
           </div>
         </div>
       </div>
@@ -150,7 +102,57 @@ export function WalletTab(props: {
         onSubmit={() => p.createBillMutation.mutate()}
       />
 
-      <div className="lg:col-span-3 glass-card sleep-depth-deep p-6 rounded-2xl">
+      <div className="md:col-span-3 glass-card sleep-depth-mid p-8 rounded-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section className="min-h-[42vh]">
+            <h3 className="text-xl font-black mb-6">{p.pText.unpaidBills}</h3>
+            <div ref={p.billUnpaidListRef} className="space-y-4 max-h-[50vh] overflow-y-auto pr-1" onScroll={p.onBillUnpaidListScroll}>
+              {p.groupedUnpaidBills.map(([monthKey, items]) => (
+                <div key={monthKey} className="space-y-3">
+                  <p className="text-xs font-black text-muted">{monthKey}</p>
+                  {items.map((bill) => (
+                    <div key={bill.id} className="flex items-center justify-between p-4 glass-card rounded-2xl">
+                      <div>
+                        <p className={`font-black ${BILL_CATEGORY_COLOR[bill.category] || 'text-muted'}`}>{buildBillLine(bill)}</p>
+                        <p className="text-xs text-muted font-bold">{new Date(bill.createdAt).toLocaleDateString()} · {formatPaidInfo(p.me?.language || 'zh-CN', bill.paidCount, bill.totalCount)} · ¥{(bill.myAmount || 0).toFixed(2)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-lg font-black">¥{bill.total.toFixed(2)}</p>
+                        <button onClick={() => p.togglePaidMutation.mutate({ billId: bill.id, paid: true })} className="px-3 py-2 accent-bg rounded-xl text-xs font-bold">{p.t.markPaid}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="min-h-[42vh]">
+            <h3 className="text-xl font-black mb-6">{p.pText.paidBills}</h3>
+            <div ref={p.billPaidListRef} className="space-y-4 max-h-[50vh] overflow-y-auto pr-1" onScroll={p.onBillPaidListScroll}>
+              {p.groupedPaidBills.map(([monthKey, items]) => (
+                <div key={monthKey} className="space-y-3">
+                  <p className="text-xs font-black text-muted">{monthKey}</p>
+                  {items.map((bill) => (
+                    <div key={bill.id} className="flex items-center justify-between p-4 glass-card rounded-2xl">
+                      <div>
+                        <p className={`font-black ${BILL_CATEGORY_COLOR[bill.category] || 'text-muted'}`}>{buildBillLine(bill)}</p>
+                        <p className="text-xs text-muted font-bold">{new Date(bill.createdAt).toLocaleDateString()} · {formatPaidInfo(p.me?.language || 'zh-CN', bill.paidCount, bill.totalCount)} · ¥{(bill.myAmount || 0).toFixed(2)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-lg font-black">¥{bill.total.toFixed(2)}</p>
+                        <button onClick={() => p.togglePaidMutation.mutate({ billId: bill.id, paid: false })} className="px-3 py-2 accent-bg rounded-xl text-xs font-bold">{p.t.resetUnpaid}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="md:col-span-3 glass-card sleep-depth-deep p-6 rounded-2xl">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <select className="p-3 rounded-xl glass-card custom-field" value={p.billPeriodType} onChange={(e) => p.setBillPeriodType(e.target.value as PeriodType)}><option value="month">{p.pText.month}</option><option value="quarter">{p.pText.quarter}</option><option value="year">{p.pText.year}</option></select>
           <input className="p-3 rounded-xl glass-card custom-field" type="number" value={p.billYear} onChange={(e) => p.setBillYear(e.target.value)} />
@@ -163,7 +165,7 @@ export function WalletTab(props: {
         </div>
       </div>
 
-      <div className="lg:col-span-3 grid grid-cols-1 gap-6">
+      <div className="md:col-span-3 grid grid-cols-1 gap-8">
         <PieChartCard title={p.pText.billPie} data={p.billPieData} currency darkMode={p.selectedState === 'sleep'} />
         <LineChartCard title={p.pText.billLine} data={p.billLineData} currency darkMode={p.selectedState === 'sleep'} />
         <LineChartCard title={p.pText.billLineByCategory} series={p.billCategoryLineSeries} currency darkMode={p.selectedState === 'sleep'} />

@@ -129,16 +129,46 @@ export async function replyByDormBotIfMentioned(
     });
   }
 
+  let streamedContent = '';
+  let lastPersistedLength = 0;
+  let lastPersistAt = 0;
+  let persistChain: Promise<void> = Promise.resolve();
+  const PERSIST_INTERVAL_MS = 600;
+  const PERSIST_MIN_GROWTH = 120;
+
+  const queuePersist = () => {
+    const snapshot = streamedContent;
+    persistChain = persistChain
+      .then(async () => {
+        await prisma.chatMessage.update({
+          where: { id: streamId },
+          data: { content: snapshot },
+        });
+      })
+      .catch(() => {
+        // Keep streaming even if an intermediate persistence attempt fails.
+      });
+    lastPersistAt = Date.now();
+    lastPersistedLength = snapshot.length;
+  };
+
   const botReply = await streamGlmReply({
     systemPrompt: prompt.systemPrompt,
     userPrompt: prompt.userPrompt,
     onDelta: (delta) => {
+      streamedContent += delta;
       emitToDorm(session.dormId, 'chat:stream:chunk', {
         streamId,
         delta,
       });
+      const shouldPersistByTime = Date.now() - lastPersistAt >= PERSIST_INTERVAL_MS;
+      const shouldPersistByGrowth = streamedContent.length - lastPersistedLength >= PERSIST_MIN_GROWTH;
+      if (shouldPersistByTime || shouldPersistByGrowth) {
+        queuePersist();
+      }
     },
   });
+  await persistChain;
 
   const botMessage = await prisma.chatMessage.update({
     where: { id: streamId },

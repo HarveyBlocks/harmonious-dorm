@@ -8,7 +8,7 @@ import type { ActiveTab, LineGranularity, NotificationFilter, PeriodType, Settin
 function useDormTabState(pathname: string | null) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => mapPathToTab(pathname || '/'));
   const [selectedState, setSelectedState] = useState<DormState>('out');
-  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('unread');
   const [showAllDoneDuty, setShowAllDoneDuty] = useState(false);
   const [noticePopup, setNoticePopup] = useState<{ title: string; content: string } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<SettingsCardKey, boolean>>({

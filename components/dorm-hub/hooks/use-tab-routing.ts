@@ -11,8 +11,9 @@ export function useTabRouting(options: {
   activeTab: ActiveTab;
   setActiveTab: Dispatch<SetStateAction<ActiveTab>>;
   lastActiveTabRef: MutableRefObject<ActiveTab>;
+  onNavigateToNotifications?: () => void;
 }) {
-  const { pathname, router, activeTab, setActiveTab, lastActiveTabRef } = options;
+  const { pathname, router, activeTab, setActiveTab, lastActiveTabRef, onNavigateToNotifications } = options;
 
   useEffect(() => {
     setActiveTab(mapPathToTab(pathname || '/'));
@@ -25,12 +26,15 @@ export function useTabRouting(options: {
   const navigateToTab = useCallback(
     (tab: ActiveTab) => {
       const targetPath = mapTabToPath(tab);
+      if (tab === 'notifications') {
+        onNavigateToNotifications?.();
+      }
       setActiveTab(tab);
       if (pathname !== targetPath) {
         router.push(targetPath);
       }
     },
-    [pathname, router, setActiveTab],
+    [onNavigateToNotifications, pathname, router, setActiveTab],
   );
 
   return { navigateToTab };

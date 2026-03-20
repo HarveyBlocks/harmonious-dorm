@@ -28,7 +28,8 @@ export function ChatTab(props: {
   const isEchoPreview = (text: string) => text.startsWith('### Echo HTTP Request');
 
   return (
-    <motion.div key="chat" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[70vh] shadow-2xl relative">
+    <motion.div key="chat" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[78vh] shadow-2xl relative">
+      <div className="h-8 border-b border-slate-200/25 bg-white/10" />
       <div ref={p.chatScrollRef} onScroll={p.onChatListScroll} className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-50/30">
         {p.lastPositionChatId && p.unreadChatCount > 20 ? (
           <div className="flex justify-end">
@@ -64,17 +65,17 @@ export function ChatTab(props: {
                   />
                 )}
                 <div className={`max-w-[70%] ${msg.userId === p.meId ? 'items-end' : 'items-start'} flex flex-col`}>
-                  <p className={`text-xs text-muted mb-1 px-1 ${msg.userId === p.meId ? 'text-right' : 'text-left'}`}>{msg.userName}</p>
+                  <p className={`text-sm text-muted mb-1 px-1 ${msg.userId === p.meId ? 'text-right' : 'text-left'}`}>{msg.userName}</p>
                   <div className={`w-full p-4 rounded-3xl shadow-sm ${msg.userId === p.meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}>
                     {msg.isBotMessage ? (
-                      <div className={`bot-markdown text-sm leading-relaxed ${isEchoPreview(msg.content) ? 'echo-preview-markdown' : ''}`}>
+                      <div className={`bot-markdown text-base leading-relaxed ${isEchoPreview(msg.content) ? 'echo-preview-markdown' : ''}`}>
                         {msg.isStreaming ? (
                           <span className="bot-stream-spinner mb-2" aria-hidden="true" />
                         ) : null}
                         <MarkdownRenderer content={msg.content} />
                       </div>
                     ) : (
-                      <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
+                      <p className="text-base font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
                     )}
                   </div>
                 </div>

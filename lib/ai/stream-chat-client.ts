@@ -180,7 +180,7 @@ function logRequestStarted(
       traceId,
       provider: config.provider,
       model: config.model,
-      httpRequest: buildHttpRequestPreview(config, body),
+      httpRequestRaw: buildHttpRequestRaw(config, body),
     });
   }
 }
@@ -386,6 +386,15 @@ function buildHttpRequestPreview(config: ChatClientConfig, body: Record<string, 
     'body - readable',
     ...buildReadableBodySection(body),
   ].join('\n');
+}
+
+function buildHttpRequestRaw(config: ChatClientConfig, body: Record<string, unknown>) {
+  return {
+    method: 'POST',
+    url: config.baseUrl,
+    headers: maskSensitiveHeaders(buildRequestHeaders(config)),
+    bodyJson: JSON.stringify(body),
+  };
 }
 
 function sleep(ms: number): Promise<void> {

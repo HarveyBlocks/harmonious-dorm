@@ -47,57 +47,58 @@ export function DutyTab(props: {
   const p = props;
 
   return (
-    <motion.div key="duty" animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className={`${p.me?.isLeader ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
+    <motion.div key="duty" animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className={`${p.me?.isLeader ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-8`}>
         <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
           <h3 className="text-2xl font-black mb-4">{p.t.dutyBoard}</h3>
-          <p className="font-black mb-3">{p.pText.pendingTasks}</p>
-          <div className="space-y-4 max-h-[34vh] overflow-y-auto pr-1" onScroll={p.onPendingDutyScroll}>
-            {p.groupedPendingDuties.map(([weekKey, items]) => (
-              <div key={weekKey} className="space-y-3">
-                <p className="text-xs font-black text-muted">{weekKey}</p>
-                {items.map((item) => (
-                  <div key={item.dutyId} className={`flex items-center justify-between p-4 glass-card rounded-2xl ${item.userId === p.meId ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (item.userId === p.meId) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: true }); }}>
-                    <div>
-                      <p className="font-black">{item.date}</p>
-                      <p className="text-sm text-muted">{item.userName}</p>
-                      <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Circle className="w-5 h-5 text-amber-500" />
-                      {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="min-h-[42vh]">
+              <p className="font-black mb-3">{p.pText.pendingTasks}</p>
+              <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onPendingDutyScroll}>
+                {p.groupedPendingDuties.map(([weekKey, items]) => (
+                  <div key={weekKey} className="space-y-3">
+                    <p className="text-xs font-black text-muted">{weekKey}</p>
+                    {items.map((item) => (
+                      <div key={item.dutyId} className={`flex items-center justify-between p-4 glass-card rounded-2xl ${item.userId === p.meId ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (item.userId === p.meId) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: true }); }}>
+                        <div>
+                          <p className="font-black">{item.date}</p>
+                          <p className="text-sm text-muted">{item.userName}</p>
+                          <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Circle className="w-5 h-5 text-amber-500" />
+                          {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-black">{p.pText.doneList}</p>
-            {p.doneDutyList.length > 5 ? <button className="text-xs font-bold accent-text" onClick={() => p.setShowAllDoneDuty((v) => !v)}>{p.showAllDoneDuty ? p.pText.showLess : p.pText.showMore}</button> : null}
-          </div>
-          <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1" onScroll={p.onDoneDutyScroll}>
-            {p.groupedDoneDuties.map(([weekKey, items]) => (
-              <div key={weekKey} className="space-y-3">
-                <p className="text-xs font-black text-muted">{weekKey}</p>
-                {items.map((item) => (
-                  <div key={item.dutyId} className={`flex items-center justify-between p-4 glass-card rounded-2xl ${item.userId === p.meId ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (item.userId === p.meId) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: false }); }}>
-                    <div>
-                      <p className="font-black">{item.date}</p>
-                      <p className="text-sm text-muted">{item.userName}</p>
-                      <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
-                    </div>
+            <div className="min-h-[42vh]">
+              <p className="font-black mb-3">{p.pText.doneList}</p>
+              <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onDoneDutyScroll}>
+                {p.groupedDoneDuties.map(([weekKey, items]) => (
+                  <div key={weekKey} className="space-y-3">
+                    <p className="text-xs font-black text-muted">{weekKey}</p>
+                    {items.map((item) => (
+                      <div key={item.dutyId} className={`flex items-center justify-between p-4 glass-card rounded-2xl ${item.userId === p.meId ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (item.userId === p.meId) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: false }); }}>
+                        <div>
+                          <p className="font-black">{item.date}</p>
+                          <p className="text-sm text-muted">{item.userName}</p>
+                          <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -128,9 +129,11 @@ export function DutyTab(props: {
         </div>
       </div>
 
-      <div className="lg:col-span-3 grid grid-cols-1 gap-6">
+      <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-8">
         <PieChartCard title={p.pText.dutyPie} data={p.dutyPieData} darkMode={p.selectedState === 'sleep'} />
         <PieChartCard title={p.pText.dutyByMemberPie} data={p.dutyByMemberPieData} darkMode={p.selectedState === 'sleep'} />
+      </div>
+      <div className="lg:col-span-3 grid grid-cols-1 gap-8">
         <LineChartCard title={p.pText.dutyLine} data={p.dutyLineData} darkMode={p.selectedState === 'sleep'} />
         <LineChartCard title={p.pText.dutyLineByMember} series={p.dutyMemberLineSeries} darkMode={p.selectedState === 'sleep'} />
       </div>
