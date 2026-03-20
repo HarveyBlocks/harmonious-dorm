@@ -60,7 +60,13 @@ export function BotSettingsCard(props: {
         <div className="pt-5 border-t border-slate-200/20 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-muted font-bold">{p.botSettingsLabel}</p>
-            {p.me?.isLeader ? <button type="button" onClick={() => p.setBotSettingsInput((prev) => { if (prev.length >= LIMITS.BOT_SETTINGS_ITEMS) { p.dispatchToast('error', p.eText.botSettingsTooMany); return prev; } return [...prev, { key: '', value: '' }]; })} title={p.addFieldLabel} aria-label={p.addFieldLabel} className="w-10 h-10 rounded-xl flex items-center justify-center border border-slate-300/40 hover:bg-slate-100/10 custom-field bot-kv-btn"><Plus className="w-4 h-4" /></button> : null}
+            {p.me?.isLeader ? <button type="button" onClick={() => {
+              if (p.botSettingsInput.length >= LIMITS.BOT_SETTINGS_ITEMS) {
+                p.dispatchToast('error', p.eText.botSettingsTooMany);
+                return;
+              }
+              p.setBotSettingsInput([...p.botSettingsInput, { key: '', value: '' }]);
+            }} title={p.addFieldLabel} aria-label={p.addFieldLabel} className="w-10 h-10 rounded-xl flex items-center justify-center border border-slate-300/40 hover:bg-slate-100/10 custom-field bot-kv-btn"><Plus className="w-4 h-4" /></button> : null}
           </div>
           <div className="space-y-4">
             {p.botSettingsInput.map((row, index) => p.me?.isLeader ? (

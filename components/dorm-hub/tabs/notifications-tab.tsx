@@ -88,7 +88,7 @@ export function NotificationsTab(props: {
 
       <div ref={notificationListRef} className="space-y-3 max-h-[64vh] overflow-y-auto pr-1" onScroll={onNoticeListScroll}>
         {notices.map((notice) => (
-          <article key={notice.id} className="glass-card p-4 rounded-2xl flex items-start justify-between gap-4 cursor-pointer hover:scale-[1.01]" onClick={() => onOpenNotice(notice)}>
+          <article key={notice.id} className="mx-4 glass-card p-4 rounded-2xl flex items-start justify-between gap-4 cursor-pointer hover:scale-[1.01]" onClick={() => onOpenNotice(notice)}>
             <div className="flex items-start gap-3">
               <button
                 type="button"

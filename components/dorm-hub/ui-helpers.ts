@@ -52,7 +52,7 @@ export function weekStartLabel(isoDate: string): string {
   const diff = (day + 6) % 7;
   const start = new Date(base);
   start.setDate(base.getDate() - diff);
-  return `周起始 ${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, '0')}-${`${start.getDate()}`.padStart(2, '0')}`;
+  return `${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, '0')}-${`${start.getDate()}`.padStart(2, '0')}`;
 }
 
 export function settingsFoldLabel(lang: LanguageCode, folded: boolean): string {

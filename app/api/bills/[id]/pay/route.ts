@@ -7,15 +7,16 @@ import { markBillPaid } from '@/lib/services';
 import { markPaySchema } from '@/lib/validators';
 
 interface Params {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function POST(request: Request, { params }: Params) {
   return withApiGuard(async () => {
     const session = await requireSessionOrThrow();
-    const billId = Number(params.id);
+    const { id } = await params;
+    const billId = Number(id);
     if (!Number.isInteger(billId) || billId <= 0) {
       throw new ApiError(400, '账单 ID 无效');
     }

@@ -45,6 +45,7 @@ export function DutyTab(props: {
   dutyMemberLineSeries: any[];
 }) {
   const p = props;
+  const canToggleDuty = (userId: number) => Boolean(p.me?.isLeader || userId === p.meId);
 
   return (
     <motion.div key="duty" animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -57,9 +58,9 @@ export function DutyTab(props: {
               <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onPendingDutyScroll}>
                 {p.groupedPendingDuties.map(([weekKey, items]) => (
                   <div key={weekKey} className="space-y-3">
-                    <p className="text-xs font-black text-muted">{weekKey}</p>
+                    <p className="mx-4 text-xs font-black text-muted">{weekKey}</p>
                     {items.map((item) => (
-                      <div key={item.dutyId} className={`flex items-center justify-between p-4 glass-card rounded-2xl ${item.userId === p.meId ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (item.userId === p.meId) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: true }); }}>
+                      <div key={item.dutyId} className={`mx-4 flex items-center justify-between p-4 glass-card rounded-2xl ${canToggleDuty(item.userId) ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (canToggleDuty(item.userId)) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: true }); }}>
                         <div>
                           <p className="font-black">{item.date}</p>
                           <p className="text-sm text-muted">{item.userName}</p>
@@ -81,9 +82,9 @@ export function DutyTab(props: {
               <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onDoneDutyScroll}>
                 {p.groupedDoneDuties.map(([weekKey, items]) => (
                   <div key={weekKey} className="space-y-3">
-                    <p className="text-xs font-black text-muted">{weekKey}</p>
+                    <p className="mx-4 text-xs font-black text-muted">{weekKey}</p>
                     {items.map((item) => (
-                      <div key={item.dutyId} className={`flex items-center justify-between p-4 glass-card rounded-2xl ${item.userId === p.meId ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (item.userId === p.meId) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: false }); }}>
+                      <div key={item.dutyId} className={`mx-4 flex items-center justify-between p-4 glass-card rounded-2xl ${canToggleDuty(item.userId) ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (canToggleDuty(item.userId)) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: false }); }}>
                         <div>
                           <p className="font-black">{item.date}</p>
                           <p className="text-sm text-muted">{item.userName}</p>

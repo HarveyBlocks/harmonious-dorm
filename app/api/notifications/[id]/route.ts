@@ -5,13 +5,14 @@ import { requireSessionOrThrow, withApiGuard } from '@/lib/route';
 import { deleteNotification } from '@/lib/services/notification-service';
 
 interface Params {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
   return withApiGuard(async () => {
     const session = await requireSessionOrThrow();
-    const id = Number(params.id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
     if (!Number.isInteger(id) || id <= 0) {
       throw new ApiError(400, '通知 ID 无效');
     }

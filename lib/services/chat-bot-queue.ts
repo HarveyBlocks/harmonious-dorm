@@ -18,6 +18,7 @@ export interface DormBotTask {
   botName: string;
   placeholderMessageId: number;
   content: string;
+  contextMessageIds?: number[];
   session: SessionUser;
   meta: {
     source: 'chat';
@@ -69,6 +70,7 @@ async function runDormQueue(dormId: number): Promise<void> {
           streamId: task.streamId,
           streamOrder: task.streamOrder,
           botIdentity: { id: task.botId, name: task.botName },
+          explicitContextMessageIds: task.contextMessageIds,
         });
       } catch (error) {
         const isRetryable = error instanceof UpstreamServiceError && error.retryable;
@@ -127,6 +129,7 @@ export async function enqueueDormBotTaskIfMentioned(input: {
   session: SessionUser;
   content: string;
   anchorMessageId: number;
+  contextMessageIds?: number[];
   source?: 'chat';
 }): Promise<DormBotTask | null> {
   const bot = await ensureDormBotUser(input.dormId);
@@ -171,6 +174,7 @@ export async function enqueueDormBotTaskIfMentioned(input: {
     botName: bot.name,
     placeholderMessageId: placeholder.id,
     content: input.content,
+    contextMessageIds: input.contextMessageIds,
     session: input.session,
     meta: {
       source: input.source || 'chat',

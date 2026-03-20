@@ -131,4 +131,5 @@ export const transferLeaderSchema = z.object({
 
 export const sendChatSchema = z.object({
   content: z.string().trim().min(1, { message: '消息不能为空' }).max(LIMITS.CHAT_USER_CONTENT, { message: `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字` }),
+  contextMessageIds: z.array(z.number().int().positive({ message: '上下文消息 ID 无效' })).max(200, { message: '上下文消息过多' }).optional(),
 });

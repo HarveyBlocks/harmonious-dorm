@@ -323,6 +323,24 @@
     "fr": "Aller à la dernière position",
     "en": "Jump to last position"
   },
+  "addToContext": {
+    "zh-CN": "加入聊天上下文",
+    "zh-TW": "加入聊天上下文",
+    "fr": "Ajouter au contexte",
+    "en": "Add to chat context"
+  },
+  "removeFromContext": {
+    "zh-CN": "取消加入上下文",
+    "zh-TW": "取消加入上下文",
+    "fr": "Retirer du contexte",
+    "en": "Remove from context"
+  },
+  "contextSelectionLimitReached": {
+    "zh-CN": "上下文选择数量已达到上限",
+    "zh-TW": "上下文選擇數量已達上限",
+    "fr": "Limite de sélection de contexte atteinte",
+    "en": "Context selection limit reached"
+  },
   "moreActions": {
     "zh-CN": "更多操作",
     "zh-TW": "更多操作",

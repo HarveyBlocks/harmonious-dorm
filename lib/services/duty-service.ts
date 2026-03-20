@@ -164,8 +164,9 @@ export async function completeDuty(
     throw new ApiError(404, '值日记录不存在');
   }
 
-  if (duty.userId !== session.userId) {
-    throw new ApiError(403, '只能完成自己的值日任务');
+  const canToggle = session.isLeader || duty.userId === session.userId;
+  if (!canToggle) {
+    throw new ApiError(403, '成员只能完成自己的值日任务');
   }
 
   await prisma.duty.update({

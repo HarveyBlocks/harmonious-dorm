@@ -44,8 +44,9 @@ export function useDormMutations(options: {
   setCustomCategory: (value: string) => void;
   setBillUseWeights: (value: boolean) => void;
   setParticipantWeights: (value: Record<number, string>) => void;
-  chatInput: string;
-  setChatInput: (value: string) => void;
+  chatContextMessageIds: number[];
+  setChatContextMessageIds: (value: number[]) => void;
+  botName: string;
   chatForceBottomOnNextLayoutRef: MutableRefObject<boolean>;
 }) {
   const {
@@ -65,8 +66,9 @@ export function useDormMutations(options: {
     setCustomCategory,
     setBillUseWeights,
     setParticipantWeights,
-    chatInput,
-    setChatInput,
+    chatContextMessageIds,
+    setChatContextMessageIds,
+    botName,
     chatForceBottomOnNextLayoutRef,
   } = options;
 
@@ -164,16 +166,16 @@ export function useDormMutations(options: {
   });
 
   const sendChatMutation = useMutation({
-    mutationFn: (content: string) => {
+    mutationFn: (payload: { content: string; contextMessageIds?: number[] }) => {
       return apiRequest('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(payload),
       });
     },
   });
 
-  const sendChat = () => {
-    const trimmed = chatInput.trim();
+  const sendChat = (input: string) => {
+    const trimmed = input.trim();
     if (!trimmed) {
       dispatchToast('error', eText.messageRequired);
       return;
@@ -182,9 +184,23 @@ export function useDormMutations(options: {
       dispatchToast('error', eText.messageTooLong);
       return;
     }
+    const mentionToken = botName ? `@${botName}` : '';
+    const hasBotMention = Boolean(mentionToken && trimmed.includes(mentionToken));
+    const contextMessageIds = hasBotMention ? [...new Set(chatContextMessageIds)] : [];
     chatForceBottomOnNextLayoutRef.current = true;
-    setChatInput('');
-    sendChatMutation.mutate(trimmed);
+    sendChatMutation.mutate(
+      {
+        content: trimmed,
+        ...(contextMessageIds.length > 0 ? { contextMessageIds } : {}),
+      },
+      {
+        onSuccess: () => {
+          if (hasBotMention && contextMessageIds.length > 0) {
+            setChatContextMessageIds([]);
+          }
+        },
+      },
+    );
   };
 
   return {

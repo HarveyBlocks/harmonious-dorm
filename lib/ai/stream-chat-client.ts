@@ -175,14 +175,17 @@ function logRequestStarted(
     stream,
     estimatedInputTokens: estimateTokens(input.messages.map((item) => item.content).join('\n')),
   });
-  if (config.env === 'echo') {
-    logInfo('llm_request_http_preview', {
-      traceId,
-      provider: config.provider,
-      model: config.model,
-      httpRequestRaw: buildHttpRequestRaw(config, body),
-    });
-  }
+}
+
+function logEchoHandled(config: ChatClientConfig, traceId: string, stream: boolean, body: Record<string, unknown>) {
+  logInfo('llm_echo_handled', {
+    traceId,
+    provider: config.provider,
+    model: config.model,
+    stream,
+    action: 'skip_upstream_and_return_echo_preview',
+    request: buildHttpRequestRaw(config, body),
+  });
 }
 
 // Shared terminal error normalizer used by both entry points.
@@ -216,39 +219,22 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
   let firstChunkAt: number | null = null;
   const requestBody = buildRequestBody(config, input, true);
 
-  logRequestStarted(config, traceId, input, true, requestBody);
   if (config.env === 'echo') {
-    const echoText = buildHttpRequestPreview(config, requestBody);
+    logEchoHandled(config, traceId, true, requestBody);
+    const echoBody = buildEchoPreviewBody(requestBody);
+    const echoText = buildHttpRequestPreview(config, echoBody);
     const chunks = splitEchoByToken(echoText);
     const echoDelay = Math.max(1, Math.floor(config.echoStreamDelayMs ?? 40));
     for (const chunk of chunks) {
-      if (firstChunkAt === null) {
-        firstChunkAt = Date.now();
-        logInfo('llm_first_stream_chunk', {
-          traceId,
-          provider: config.provider,
-          model: config.model,
-          firstChunkLatencyMs: firstChunkAt - startedAt,
-        });
-      }
       input.onDelta(chunk);
       // Simulate real token cadence in echo mode for front-end streaming tests.
       // eslint-disable-next-line no-await-in-loop
       await sleep(echoDelay);
     }
-    logInfo('llm_stream_completed', {
-      traceId,
-      provider: config.provider,
-      model: config.model,
-      totalCostMs: Date.now() - startedAt,
-      firstChunkLatencyMs: firstChunkAt === null ? null : firstChunkAt - startedAt,
-      estimatedOutputTokens: estimateTokens(echoText),
-      outputChars: echoText.length,
-      mode: 'echo',
-    });
     clearTimeout(timer);
     return echoText;
   }
+  logRequestStarted(config, traceId, input, true, requestBody);
 
   try {
     const resp = await requestUpstream(config, requestBody, controller);
@@ -318,21 +304,14 @@ export async function requestChatCompletion(config: ChatClientConfig, input: Non
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   const requestBody = buildRequestBody(config, input, false);
 
-  logRequestStarted(config, traceId, input, false, requestBody);
   if (config.env === 'echo') {
-    const echoText = buildHttpRequestPreview(config, requestBody);
-    logInfo('llm_response_received', {
-      traceId,
-      provider: config.provider,
-      model: config.model,
-      totalCostMs: Date.now() - startedAt,
-      estimatedOutputTokens: estimateTokens(echoText),
-      outputChars: echoText.length,
-      mode: 'echo',
-    });
+    logEchoHandled(config, traceId, false, requestBody);
+    const echoBody = buildEchoPreviewBody(requestBody);
+    const echoText = buildHttpRequestPreview(config, echoBody);
     clearTimeout(timer);
     return echoText;
   }
+  logRequestStarted(config, traceId, input, false, requestBody);
 
   try {
     const resp = await requestUpstream(config, requestBody, controller);
@@ -413,15 +392,15 @@ function collectReadableEntries(value: unknown, path: string, lines: string[]) {
     return;
   }
   if (typeof value === 'string') {
-    const rendered = decodeDisplayText(value);
-    if (rendered.includes('\n')) {
+    if (isMessageContentPath(path)) {
+      const rendered = renderMessageContentForEcho(value);
       lines.push(`- ${path}:`);
-      lines.push('```text');
-      lines.push(rendered);
+      lines.push(`\`\`\`${rendered.kind}`);
+      lines.push(rendered.text);
       lines.push('```');
       return;
     }
-    lines.push(`- ${path}: ${rendered}`);
+    lines.push(`- ${path}: ${renderEscapedString(value)}`);
     return;
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
@@ -452,12 +431,106 @@ function collectReadableEntries(value: unknown, path: string, lines: string[]) {
   lines.push(`- ${path}: ${String(value)}`);
 }
 
-function decodeDisplayText(value: string): string {
-  return value
-    .replace(/\\r\\n/g, '\n')
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\\\/g, '\\');
+function renderEscapedString(value: string): string {
+  return JSON.stringify(value).slice(1, -1);
+}
+
+function isMessageContentPath(path: string): boolean {
+  return /^body\.messages\[\d+\]\.content$/.test(path);
+}
+
+function renderMessageContentForEcho(value: string): { kind: 'markdown' | 'text'; text: string } {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const normalized = normalizeHistoryContentForEcho(parsed);
+    return {
+      kind: 'markdown',
+      text: formatMessageContentReadable(normalized),
+    };
+  } catch {
+    return {
+      kind: 'text',
+      text: value.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n'),
+    };
+  }
+}
+
+function normalizeHistoryContentForEcho(input: Record<string, unknown>): Record<string, unknown> {
+  const cloned = JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
+  const apply = (history: unknown) => {
+    if (!Array.isArray(history)) return;
+    history.forEach((row, index) => {
+      if (!Array.isArray(row)) return;
+      const contentIndex = row.length - 1;
+      if (contentIndex >= 0 && typeof row[contentIndex] === 'string') {
+        history[index][contentIndex] = (row[contentIndex] as string).replace(/\r\n/g, '\\n').replace(/\n/g, '\\n');
+      }
+    });
+  };
+  apply(cloned.history);
+  if (cloned.userPayload && typeof cloned.userPayload === 'object') {
+    apply((cloned.userPayload as Record<string, unknown>).history);
+  }
+  return cloned;
+}
+
+function formatMessageContentReadable(payload: Record<string, unknown>): string {
+  const lines: string[] = [];
+  const schemaVersion = payload.schemaVersion;
+  const dormName = payload.dormName;
+  const senderRef = payload.senderRef;
+  const memoryWindow = payload.memoryWindow;
+  const metadata = payload.metadata && typeof payload.metadata === 'object'
+    ? (payload.metadata as Record<string, unknown>)
+    : null;
+  const settings = Array.isArray(payload.settings) ? payload.settings : [];
+  const botExtraContent = payload.botExtraContent;
+
+  const history = Array.isArray(payload.history)
+    ? payload.history
+    : (payload.userPayload && typeof payload.userPayload === 'object' && Array.isArray((payload.userPayload as Record<string, unknown>).history)
+      ? ((payload.userPayload as Record<string, unknown>).history as unknown[])
+      : []);
+  const currentQuery = Array.isArray(payload.currentQuery)
+    ? payload.currentQuery
+    : (payload.userPayload && typeof payload.userPayload === 'object' && Array.isArray((payload.userPayload as Record<string, unknown>).currentQuery)
+      ? ((payload.userPayload as Record<string, unknown>).currentQuery as unknown[])
+      : []);
+
+  lines.push('prompt payload');
+  if (schemaVersion !== undefined) lines.push(`- schemaVersion: ${String(schemaVersion)}`);
+  if (dormName !== undefined) lines.push(`- dormName: ${String(dormName)}`);
+  if (senderRef !== undefined) lines.push(`- senderRef: ${String(senderRef)}`);
+  if (memoryWindow !== undefined) lines.push(`- memoryWindow: ${String(memoryWindow)}`);
+  if (metadata) {
+    lines.push(`- metadata.currentTime: ${String(metadata.currentTime ?? '')}`);
+    lines.push(`- metadata.currentTimestampSec: ${String(metadata.currentTimestampSec ?? '')}`);
+    lines.push(`- metadata.outputTokenLimit: ${String(metadata.outputTokenLimit ?? '')}`);
+  }
+  lines.push(`- settingsCount: ${settings.length}`);
+  if (botExtraContent !== undefined) {
+    lines.push(`- botExtraContent: ${String(botExtraContent)}`);
+  }
+  lines.push('');
+  lines.push(`history (${history.length})`);
+  history.forEach((row, index) => {
+    if (!Array.isArray(row)) return;
+    if (row.length >= 5) {
+      lines.push(`- [${index}] userRef=${String(row[0])}; userId=${String(row[1])}; userName=${String(row[2])}; dormRole=${String(row[3])}`);
+      lines.push(`  content: ${String(row[4])}`);
+      return;
+    }
+    lines.push(`- [${index}] ${JSON.stringify(row)}`);
+  });
+  lines.push('');
+  lines.push('currentQuery');
+  if (currentQuery.length >= 2) {
+    lines.push(`- senderRef: ${String(currentQuery[0])}`);
+    lines.push(`- content: ${String(currentQuery[1])}`);
+  } else {
+    lines.push('- (empty)');
+  }
+  return lines.join('\n');
 }
 
 function splitEchoByToken(text: string): string[] {
@@ -465,4 +538,58 @@ function splitEchoByToken(text: string): string[] {
   const parts = text.match(/(\s+|[^\s]+)/g);
   if (!parts || parts.length === 0) return [text];
   return parts;
+}
+
+const ECHO_HISTORY_ITEM_MAX_CHARS = 220;
+
+function truncateEchoText(value: string): string {
+  if (value.length <= ECHO_HISTORY_ITEM_MAX_CHARS) return value;
+  return `${value.slice(0, ECHO_HISTORY_ITEM_MAX_CHARS)}...`;
+}
+
+function buildEchoPreviewBody(body: Record<string, unknown>): Record<string, unknown> {
+  const cloned = JSON.parse(JSON.stringify(body)) as Record<string, unknown>;
+  const messages = cloned.messages;
+  if (!Array.isArray(messages)) return cloned;
+  cloned.messages = messages.map((item) => sanitizeEchoMessage(item));
+  return cloned;
+}
+
+function sanitizeEchoMessage(input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input;
+  const message = { ...(input as Record<string, unknown>) };
+  if (message.role !== 'user' || typeof message.content !== 'string') return message;
+  try {
+    const parsed = JSON.parse(message.content) as {
+      history?: Array<unknown[]>;
+      userPayload?: {
+        history?: Array<unknown[]>;
+      };
+    };
+
+    const applyHistoryTrim = (rows: Array<unknown[]>) =>
+      rows.map((row) => {
+        if (!Array.isArray(row) || row.length === 0) return row;
+        const contentIndex = row.length - 1;
+        if (typeof row[contentIndex] !== 'string') return row;
+        const next = [...row];
+        next[contentIndex] = truncateEchoText(next[contentIndex] as string);
+        return next;
+      });
+
+    let changed = false;
+    if (Array.isArray(parsed.history)) {
+      parsed.history = applyHistoryTrim(parsed.history);
+      changed = true;
+    }
+    if (parsed.userPayload && Array.isArray(parsed.userPayload.history)) {
+      parsed.userPayload.history = applyHistoryTrim(parsed.userPayload.history);
+      changed = true;
+    }
+    if (!changed) return message;
+    message.content = JSON.stringify(parsed);
+    return message;
+  } catch {
+    return message;
+  }
 }

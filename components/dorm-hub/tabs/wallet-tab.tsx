@@ -109,9 +109,9 @@ export function WalletTab(props: {
             <div ref={p.billUnpaidListRef} className="space-y-4 max-h-[50vh] overflow-y-auto pr-1" onScroll={p.onBillUnpaidListScroll}>
               {p.groupedUnpaidBills.map(([monthKey, items]) => (
                 <div key={monthKey} className="space-y-3">
-                  <p className="text-xs font-black text-muted">{monthKey}</p>
+                  <p className="mx-4 text-xs font-black text-muted">{monthKey}</p>
                   {items.map((bill) => (
-                    <div key={bill.id} className="flex items-center justify-between p-4 glass-card rounded-2xl">
+                    <div key={bill.id} className="mx-4 flex items-center justify-between p-4 glass-card rounded-2xl">
                       <div>
                         <p className={`font-black ${BILL_CATEGORY_COLOR[bill.category] || 'text-muted'}`}>{buildBillLine(bill)}</p>
                         <p className="text-xs text-muted font-bold">{new Date(bill.createdAt).toLocaleDateString()} · {formatPaidInfo(p.me?.language || 'zh-CN', bill.paidCount, bill.totalCount)} · ¥{(bill.myAmount || 0).toFixed(2)}</p>
@@ -132,9 +132,9 @@ export function WalletTab(props: {
             <div ref={p.billPaidListRef} className="space-y-4 max-h-[50vh] overflow-y-auto pr-1" onScroll={p.onBillPaidListScroll}>
               {p.groupedPaidBills.map(([monthKey, items]) => (
                 <div key={monthKey} className="space-y-3">
-                  <p className="text-xs font-black text-muted">{monthKey}</p>
+                  <p className="mx-4 text-xs font-black text-muted">{monthKey}</p>
                   {items.map((bill) => (
-                    <div key={bill.id} className="flex items-center justify-between p-4 glass-card rounded-2xl">
+                    <div key={bill.id} className="mx-4 flex items-center justify-between p-4 glass-card rounded-2xl">
                       <div>
                         <p className={`font-black ${BILL_CATEGORY_COLOR[bill.category] || 'text-muted'}`}>{buildBillLine(bill)}</p>
                         <p className="text-xs text-muted font-bold">{new Date(bill.createdAt).toLocaleDateString()} · {formatPaidInfo(p.me?.language || 'zh-CN', bill.paidCount, bill.totalCount)} · ¥{(bill.myAmount || 0).toFixed(2)}</p>

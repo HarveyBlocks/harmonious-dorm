@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import { consumeSeenPendingChats } from '@/components/dorm-hub/hooks/chat-pending-seen';
-import { isChatNearBottom } from '@/components/dorm-hub/ui-helpers';
 import type { ActiveTab } from '@/components/dorm-hub/ui-types';
 
 export function useChatTabSync(options: {
@@ -32,9 +31,9 @@ export function useChatTabSync(options: {
     requestAnimationFrame(() => {
       const container = chatScrollRef.current;
       if (!container) return;
-      const nearBottom = isChatNearBottom(container);
-      chatAtBottomRef.current = nearBottom;
-      if (nearBottom && pendingNewChatIdsRef.current.size > 0) {
+      container.scrollTop = container.scrollHeight;
+      chatAtBottomRef.current = true;
+      if (pendingNewChatIdsRef.current.size > 0) {
         pendingNewChatIdsRef.current.clear();
         setNewChatHintCount(0);
         return;

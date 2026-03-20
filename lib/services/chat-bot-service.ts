@@ -29,6 +29,7 @@ export async function replyByDormBotIfMentioned(
     streamId?: number;
     streamOrder?: number;
     botIdentity?: BotIdentity;
+    explicitContextMessageIds?: number[];
   },
 ): Promise<void> {
   const bot = options?.botIdentity || await ensureDormBotUser(session.dormId);
@@ -62,23 +63,38 @@ export async function replyByDormBotIfMentioned(
     }
     return true;
   });
+  const explicitContextMessageIds = Array.isArray(options?.explicitContextMessageIds)
+    ? [...new Set(options!.explicitContextMessageIds!.filter((id) => Number.isInteger(id) && id > 0))]
+    : [];
+  const cappedContextMessageIds = explicitContextMessageIds.slice(0, botMemoryWindow);
+  const useExplicitContext = cappedContextMessageIds.length > 0;
+
   const recentMessagesRows = await prisma.chatMessage.findMany({
-    where: {
-      dormId: session.dormId,
-      id: {
-        lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
-      },
-    },
+    where: useExplicitContext
+      ? {
+          dormId: session.dormId,
+          id: {
+            in: cappedContextMessageIds,
+            lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
+          },
+        }
+      : {
+          dormId: session.dormId,
+          id: {
+            lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
+          },
+        },
     include: {
       user: {
         select: { id: true, name: true },
       },
     },
-    orderBy: { id: 'desc' },
-    take: botMemoryWindow,
+    orderBy: { id: useExplicitContext ? 'asc' : 'desc' },
+    ...(useExplicitContext ? {} : { take: botMemoryWindow }),
   });
   const recentMessages = recentMessagesRows
-    .reverse()
+    .slice()
+    .sort((a, b) => a.id - b.id)
     .map((item) => ({ userId: item.user.id, userName: item.user.name, content: item.content }));
 
   const sender = dorm.users.find((item) => item.id === session.userId);

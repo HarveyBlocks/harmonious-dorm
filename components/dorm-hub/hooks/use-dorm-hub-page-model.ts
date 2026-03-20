@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +14,6 @@ import { useDormQueries } from '@/components/dorm-hub/hooks/use-dorm-queries';
 import { useDormViewModels } from '@/components/dorm-hub/hooks/use-dorm-view-models';
 import { useDormMutations } from '@/components/dorm-hub/hooks/use-dorm-mutations';
 import { useMeSyncState } from '@/components/dorm-hub/hooks/use-me-sync-state';
-import { useChatInput } from '@/components/dorm-hub/hooks/use-chat-input';
 import { useSettingsMutations } from '@/components/dorm-hub/hooks/use-settings-mutations';
 import { useSettingsSaveActions } from '@/components/dorm-hub/hooks/use-settings-save-actions';
 import { useNoticeAuthMutations } from '@/components/dorm-hub/hooks/use-notice-auth-mutations';
@@ -147,18 +146,10 @@ export function useDormHubPageModel() {
     setCustomCategory: state.setCustomCategory,
     setBillUseWeights: state.setBillUseWeights,
     setParticipantWeights: state.setParticipantWeights,
-    chatInput: state.chatInput,
-    setChatInput: state.setChatInput,
+    chatContextMessageIds: state.chatContextMessageIds,
+    setChatContextMessageIds: state.setChatContextMessageIds,
+    botName: me?.botName || '',
     chatForceBottomOnNextLayoutRef: refs.chatForceBottomOnNextLayoutRef,
-  });
-
-  const chatInput = useChatInput({
-    chatInput: state.chatInput,
-    setChatInput: state.setChatInput,
-    maxLength: LIMITS.CHAT_USER_CONTENT,
-    tooLongMessage: eText.messageTooLong,
-    tryApplyLimitedInput,
-    onSend: () => domainMutations.sendChat(),
   });
 
   const chatRuntime = useDormHubChatRuntime({
@@ -270,6 +261,9 @@ export function useDormHubPageModel() {
       setChatNewerCursor: chatRuntime.setChatNewerCursor,
       setChatHasNewer: chatRuntime.setChatHasNewer,
       setNoticePopup: state.setNoticePopup,
+      onBotStreamCommit: () => {
+        state.setChatContextMessageIds([]);
+      },
       autoReadByTypeMutation: noticeAuthMutations.autoReadByTypeMutation,
     },
     settingsAutoSaveOptions: {
@@ -326,6 +320,53 @@ export function useDormHubPageModel() {
     },
   });
 
+  const chatContextStorageKey = useMemo(() => {
+    if (!me?.id || !me?.dormId) return null;
+    return `chat-context-selection:${me.dormId}:${me.id}`;
+  }, [me?.dormId, me?.id]);
+
+  useEffect(() => {
+    if (!chatContextStorageKey || typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(chatContextStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as number[];
+      if (!Array.isArray(parsed)) return;
+      const normalized = parsed.filter((id) => Number.isInteger(id) && id > 0);
+      state.setChatContextMessageIds(normalized);
+    } catch {
+      state.setChatContextMessageIds([]);
+    }
+  }, [chatContextStorageKey, state.setChatContextMessageIds]);
+
+  useEffect(() => {
+    if (!chatContextStorageKey || typeof window === 'undefined') return;
+    window.localStorage.setItem(chatContextStorageKey, JSON.stringify(state.chatContextMessageIds));
+  }, [chatContextStorageKey, state.chatContextMessageIds]);
+
+  const toggleChatContextMessage = useCallback(
+    (messageId: number) => {
+      const maxContext = Math.max(1, me?.botMemoryWindow || 10);
+      const prev = state.chatContextMessageIds;
+      const exists = prev.includes(messageId);
+      if (exists) {
+        state.setChatContextMessageIds(prev.filter((id) => id !== messageId));
+        return;
+      }
+      if (prev.length >= maxContext) {
+        dispatchToast('error', t.contextSelectionLimitReached);
+        return;
+      }
+      state.setChatContextMessageIds([...prev, messageId]);
+    },
+    [me?.botMemoryWindow, state.chatContextMessageIds, state.setChatContextMessageIds, t.contextSelectionLimitReached],
+  );
+
+  const isChatContextSelected = useCallback(
+    (messageId: number) => state.chatContextMessageIds.includes(messageId),
+    [state.chatContextMessageIds],
+  );
+
   const copyInviteCode = async () => {
     const code = me?.inviteCode;
     if (!code || typeof window === 'undefined') return;
@@ -346,7 +387,7 @@ export function useDormHubPageModel() {
     view,
     selection,
     domainMutations,
-    chatInput,
+    chatInput: {},
     settingsMutations,
     noticeAuthMutations,
     scrollHandlers,
@@ -371,6 +412,8 @@ export function useDormHubPageModel() {
       dormName: me?.dormName || t.dormTitle,
       notificationVisibleRows: view.notificationRows,
       dispatchToast,
+      toggleChatContextMessage,
+      isChatContextSelected,
     },
   });
 }

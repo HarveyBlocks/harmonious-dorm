@@ -59,6 +59,10 @@
 
 .bot-markdown {
   color: var(--text-main);
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bot-markdown > :first-child {
@@ -77,6 +81,8 @@
   line-height: 1.35;
   font-weight: 900;
   color: var(--text-main);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bot-markdown h1 {
@@ -93,6 +99,8 @@
 
 .bot-markdown p {
   margin: 0.55em 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bot-markdown ul,
@@ -103,6 +111,8 @@
 
 .bot-markdown li {
   margin: 0.28em 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bot-markdown ul li::marker,
@@ -118,6 +128,8 @@
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 8px;
   color: var(--text-main);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bot-markdown hr {
@@ -170,6 +182,8 @@
   text-decoration: underline;
   text-underline-offset: 2px;
   font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bot-stream-spinner {

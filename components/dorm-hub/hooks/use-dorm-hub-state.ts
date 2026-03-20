@@ -44,7 +44,7 @@ function useDormComposerState() {
   const [billUseWeights, setBillUseWeights] = useState(false);
   const [participants, setParticipants] = useState<number[]>([]);
   const [participantWeights, setParticipantWeights] = useState<Record<number, string>>({});
-  const [chatInput, setChatInput] = useState('');
+  const [chatContextMessageIds, setChatContextMessageIds] = useState<number[]>([]);
   const [newChatHintCount, setNewChatHintCount] = useState(0);
   return {
     assignUserId,
@@ -65,8 +65,8 @@ function useDormComposerState() {
     setParticipants,
     participantWeights,
     setParticipantWeights,
-    chatInput,
-    setChatInput,
+    chatContextMessageIds,
+    setChatContextMessageIds,
     newChatHintCount,
     setNewChatHintCount,
   };

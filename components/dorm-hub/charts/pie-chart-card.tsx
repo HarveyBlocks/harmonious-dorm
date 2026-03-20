@@ -24,7 +24,7 @@ function buildSlices(data: ChartPoint[]) {
       const x2 = cx + r * Math.cos(end);
       const y2 = cy + r * Math.sin(end);
       const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
-      return { ...item, path, mid, color: randomColor(index) };
+      return { ...item, sliceKey: `${index}-${item.label}-${item.value}`, path, mid, color: randomColor(index) };
     }),
   };
 }
@@ -40,12 +40,12 @@ export function PieChartCard({
   currency?: boolean;
   darkMode?: boolean;
 }) {
-  const [hovered, setHovered] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
-  const [focusedLabel, setFocusedLabel] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<{ key: string; label: string; value: number; x: number; y: number } | null>(null);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { slices, total } = buildSlices(data);
-  const activeLabel = focusedLabel || hovered?.label || null;
+  const activeKey = focusedKey || hovered?.key || null;
 
   const renderChart = (isFullscreen: boolean) => (
     <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-8' : 'p-6'}`} ref={containerRef}>
@@ -61,25 +61,25 @@ export function PieChartCard({
           <div className="cursor-zoom-in" onClick={() => setFullscreen(true)}>
             <svg className={`w-full max-w-[380px] h-auto ${darkMode ? 'drop-shadow-[0_6px_20px_rgba(2,6,23,0.65)]' : 'drop-shadow-[0_6px_20px_rgba(15,23,42,0.25)]'}`} viewBox="0 0 300 300">
               {slices.map((slice) => {
-                const isActive = !activeLabel || activeLabel === slice.label;
-                const shift = activeLabel === slice.label ? 7 : 0;
+                const isActive = !activeKey || activeKey === slice.sliceKey;
+                const shift = activeKey === slice.sliceKey ? 7 : 0;
                 return (
                   <path
-                    key={slice.label}
+                    key={slice.sliceKey}
                     d={slice.path}
                     fill={slice.color}
                     stroke="rgba(255,255,255,0.7)"
-                    strokeWidth={activeLabel === slice.label ? 2.5 : 1.2}
+                    strokeWidth={activeKey === slice.sliceKey ? 2.5 : 1.2}
                     style={{ opacity: isActive ? 1 : 0.35, transform: `translate(${Math.cos(slice.mid) * shift}px, ${Math.sin(slice.mid) * shift}px)`, transformOrigin: '150px 150px', transition: 'opacity 160ms ease, transform 160ms ease, stroke-width 160ms ease' }}
-                    onMouseEnter={() => setFocusedLabel(slice.label)}
+                    onMouseEnter={() => setFocusedKey(slice.sliceKey)}
                     onMouseMove={(event) => {
                       const rect = containerRef.current?.getBoundingClientRect();
                       if (!rect) return;
-                      setHovered({ label: slice.label, value: slice.value, x: event.clientX - rect.left, y: event.clientY - rect.top });
+                      setHovered({ key: slice.sliceKey, label: slice.label, value: slice.value, x: event.clientX - rect.left, y: event.clientY - rect.top });
                     }}
                     onMouseLeave={() => {
                       setHovered(null);
-                      setFocusedLabel(null);
+                      setFocusedKey(null);
                     }}
                   />
                 );
@@ -88,9 +88,9 @@ export function PieChartCard({
           </div>
           <div className="space-y-2 text-sm">
             {slices.map((slice) => {
-              const isActive = !activeLabel || activeLabel === slice.label;
+              const isActive = !activeKey || activeKey === slice.sliceKey;
               return (
-                <div key={slice.label} className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors" style={{ opacity: isActive ? 1 : 0.4 }} onMouseEnter={() => setFocusedLabel(slice.label)} onMouseLeave={() => setFocusedLabel(null)}>
+                <div key={slice.sliceKey} className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors" style={{ opacity: isActive ? 1 : 0.4 }} onMouseEnter={() => setFocusedKey(slice.sliceKey)} onMouseLeave={() => setFocusedKey(null)}>
                   <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: slice.color }} />
                   <span>{slice.label}: {currency ? `¥${slice.value.toFixed(2)}` : slice.value} ({total > 0 ? ((slice.value / total) * 100).toFixed(1) : '0.0'}%)</span>
                 </div>

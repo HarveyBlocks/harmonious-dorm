@@ -106,10 +106,11 @@ export function DormHubLayout(props: any) {
               jumpToFirstNewChat={p.jumpToFirstNewChat}
               chatEndRef={p.chatEndRef}
               chatInputRef={p.chatInputRef}
-              chatInput={p.chatInput}
-              onChatInputChange={p.onChatInputChange}
-              onChatInputKeyDown={p.onChatInputKeyDown}
               onSendChat={p.sendChat}
+              messageTooLongText={p.eText.messageTooLong}
+              maxInputLength={p.LIMITS.CHAT_USER_CONTENT}
+              isChatContextSelected={p.isChatContextSelected}
+              onToggleChatContextMessage={p.toggleChatContextMessage}
             />
           )}
 

@@ -191,7 +191,11 @@ export async function findChatAnchorByTime(session: SessionUser, fromIso: string
   return row?.id ?? null;
 }
 
-export async function sendChatMessage(session: SessionUser, content: string) {
+export async function sendChatMessage(
+  session: SessionUser,
+  content: string,
+  options?: { contextMessageIds?: number[] },
+) {
   const user = await ensureSessionUser(session);
   const trimmed = content.trim();
   if (!trimmed) {
@@ -243,6 +247,7 @@ export async function sendChatMessage(session: SessionUser, content: string) {
         session,
         content: message.content,
         anchorMessageId: message.id,
+        contextMessageIds: options?.contextMessageIds,
         source: 'chat',
       });
     },

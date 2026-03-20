@@ -5,6 +5,7 @@ import { io, type Socket } from 'socket.io-client';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { mergeChatMessages, tabForNotificationType } from '../ui-helpers';
+import { markAppNavigating } from '@/lib/client-api';
 import type { ActiveTab, ChatMessage } from '../ui-types';
 
 type AutoReadType = 'chat' | 'bill' | 'duty' | 'settings' | 'dorm' | 'leader';
@@ -34,6 +35,7 @@ export function useDormSocket(options: {
   setChatNewerCursor: Dispatch<SetStateAction<number | null>>;
   setChatHasNewer: Dispatch<SetStateAction<boolean>>;
   setNoticePopup: Dispatch<SetStateAction<{ title: string; content: string } | null>>;
+  onBotStreamCommit: () => void;
   autoReadByTypeMutation: { mutate: (type: AutoReadType) => void };
 }) {
   const {
@@ -50,9 +52,11 @@ export function useDormSocket(options: {
     setChatNewerCursor,
     setChatHasNewer,
     setNoticePopup,
+    onBotStreamCommit,
     autoReadByTypeMutation,
   } = options;
   const autoReadMutateRef = useRef(autoReadByTypeMutation.mutate);
+  const onBotStreamCommitRef = useRef(onBotStreamCommit);
   const connectedDormRef = useRef<number | null>(null);
   const initCooldownUntilRef = useRef<number>(0);
   const streamBufferRef = useRef<Map<number, string>>(new Map());
@@ -107,10 +111,14 @@ export function useDormSocket(options: {
   }, [autoReadByTypeMutation.mutate]);
 
   useEffect(() => {
-    if (isNavigationInProgress()) return;
+    onBotStreamCommitRef.current = onBotStreamCommit;
+  }, [onBotStreamCommit]);
+
+  useEffect(() => {
     if (!dormId) return;
     if (socketRef.current && connectedDormRef.current === dormId) return;
     if (Date.now() < initCooldownUntilRef.current) return;
+    markAppNavigating(false);
 
     let mounted = true;
 
@@ -176,6 +184,7 @@ export function useDormSocket(options: {
         setLiveMessages((prev) => mergeChatMessages(prev, [payload.message]));
         setChatNewerCursor((prev) => (prev && prev > payload.message.id ? prev : payload.message.id));
         setChatHasNewer(false);
+        onBotStreamCommitRef.current();
       });
 
       socket.on('chat:stream:chunk', (payload: { streamId: number; delta: string }) => {

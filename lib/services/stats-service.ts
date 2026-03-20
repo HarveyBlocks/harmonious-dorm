@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 
 type PeriodType = 'month' | 'quarter' | 'year';
 type LineGranularity = 'month' | 'day';
+const CUSTOM_CATEGORY_MERGE_RATIO = 0.05;
 
 function inPeriod(date: Date, periodType: PeriodType, year: number, marker: number): boolean {
   if (periodType === 'year') {
@@ -39,19 +40,45 @@ export async function getBillStats(
   });
   const filtered = rows.filter((item) => inPeriod(item.createdAt, input.periodType, input.year, input.marker));
 
+  const totalAmount = filtered.reduce((sum, item) => sum + item.totalAmount, 0);
+  const mergeThreshold = totalAmount * CUSTOM_CATEGORY_MERGE_RATIO;
+
   const pieMap = new Map<string, number>();
   const lineMap = new Map<string, number>();
   const categoryLineMap = new Map<string, Map<string, number>>();
+  const customPieMap = new Map<string, number>();
+  const customLineMap = new Map<string, Map<string, number>>();
   const lineLabels = new Set<string>();
   for (const item of filtered) {
-    const categoryKey = item.customCategory || item.category || 'other';
-    pieMap.set(categoryKey, (pieMap.get(categoryKey) || 0) + item.totalAmount);
     const key = dateLabel(item.createdAt, input.lineGranularity);
     lineLabels.add(key);
     lineMap.set(key, (lineMap.get(key) || 0) + item.totalAmount);
-    const categoryBucket = categoryLineMap.get(categoryKey) || new Map<string, number>();
+    const category = item.category || 'other';
+    const customName = item.customCategory?.trim() || '';
+
+    if (category === 'other' && customName) {
+      customPieMap.set(customName, (customPieMap.get(customName) || 0) + item.totalAmount);
+      const customBucket = customLineMap.get(customName) || new Map<string, number>();
+      customBucket.set(key, (customBucket.get(key) || 0) + item.totalAmount);
+      customLineMap.set(customName, customBucket);
+      continue;
+    }
+
+    pieMap.set(category, (pieMap.get(category) || 0) + item.totalAmount);
+    const categoryBucket = categoryLineMap.get(category) || new Map<string, number>();
     categoryBucket.set(key, (categoryBucket.get(key) || 0) + item.totalAmount);
-    categoryLineMap.set(categoryKey, categoryBucket);
+    categoryLineMap.set(category, categoryBucket);
+  }
+
+  for (const [customName, amount] of customPieMap.entries()) {
+    const mergedName = amount < mergeThreshold ? 'other' : customName;
+    pieMap.set(mergedName, (pieMap.get(mergedName) || 0) + amount);
+    const sourceBucket = customLineMap.get(customName) || new Map<string, number>();
+    const targetBucket = categoryLineMap.get(mergedName) || new Map<string, number>();
+    for (const [label, value] of sourceBucket.entries()) {
+      targetBucket.set(label, (targetBucket.get(label) || 0) + value);
+    }
+    categoryLineMap.set(mergedName, targetBucket);
   }
   const sortedLabels = [...lineLabels].sort((a, b) => a.localeCompare(b));
   const topCategories = [...pieMap.entries()]

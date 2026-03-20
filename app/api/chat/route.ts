@@ -22,8 +22,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return withApiGuard(async () => {
     const session = await requireSessionOrThrow();
-    const body = sendChatSchema.parse(await parseJson<{ content: string }>(request));
-    const payload = await sendChatMessage(session, body.content);
+    const body = sendChatSchema.parse(await parseJson<{ content: string; contextMessageIds?: number[] }>(request));
+    const payload = await sendChatMessage(session, body.content, { contextMessageIds: body.contextMessageIds });
     return NextResponse.json(payload, { status: 201 });
   });
 }
