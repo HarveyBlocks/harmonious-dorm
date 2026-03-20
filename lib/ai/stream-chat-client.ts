@@ -113,12 +113,10 @@ async function requestUpstream(
   body: Record<string, unknown>,
   controller: AbortController,
 ): Promise<Response> {
+  const headers = buildRequestHeaders(config);
   return fetch(config.baseUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-    },
+    headers,
     body: JSON.stringify(body),
     signal: controller.signal,
   });
@@ -159,7 +157,13 @@ async function assertSuccessfulResponse(
   });
 }
 
-function logRequestStarted(config: ChatClientConfig, traceId: string, input: BaseChatInput, stream: boolean) {
+function logRequestStarted(
+  config: ChatClientConfig,
+  traceId: string,
+  input: BaseChatInput,
+  stream: boolean,
+  body: Record<string, unknown>,
+) {
   logInfo('llm_request_started', {
     traceId,
     provider: config.provider,
@@ -170,6 +174,14 @@ function logRequestStarted(config: ChatClientConfig, traceId: string, input: Bas
     stream,
     estimatedInputTokens: estimateTokens(input.messages.map((item) => item.content).join('\n')),
   });
+  if (config.env === 'echo') {
+    logInfo('llm_request_http_preview', {
+      traceId,
+      provider: config.provider,
+      model: config.model,
+      httpRequest: buildHttpRequestPreview(config, body),
+    });
+  }
 }
 
 // Shared terminal error normalizer used by both entry points.
@@ -201,11 +213,40 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   let firstChunkAt: number | null = null;
+  const requestBody = buildRequestBody(config, input, true);
 
-  logRequestStarted(config, traceId, input, true);
+  logRequestStarted(config, traceId, input, true, requestBody);
+  if (config.env === 'echo') {
+    const echoText = buildHttpRequestPreview(config, requestBody);
+    const chunks = chunkText(echoText, 96);
+    for (const chunk of chunks) {
+      if (firstChunkAt === null) {
+        firstChunkAt = Date.now();
+        logInfo('llm_first_stream_chunk', {
+          traceId,
+          provider: config.provider,
+          model: config.model,
+          firstChunkLatencyMs: firstChunkAt - startedAt,
+        });
+      }
+      input.onDelta(chunk);
+    }
+    logInfo('llm_stream_completed', {
+      traceId,
+      provider: config.provider,
+      model: config.model,
+      totalCostMs: Date.now() - startedAt,
+      firstChunkLatencyMs: firstChunkAt === null ? null : firstChunkAt - startedAt,
+      estimatedOutputTokens: estimateTokens(echoText),
+      outputChars: echoText.length,
+      mode: 'echo',
+    });
+    clearTimeout(timer);
+    return echoText;
+  }
 
   try {
-    const resp = await requestUpstream(config, buildRequestBody(config, input, true), controller);
+    const resp = await requestUpstream(config, requestBody, controller);
     await assertSuccessfulResponse(resp, config, traceId, startedAt);
 
     const reader = resp.body!.getReader();
@@ -270,11 +311,26 @@ export async function requestChatCompletion(config: ChatClientConfig, input: Non
   const startedAt = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  const requestBody = buildRequestBody(config, input, false);
 
-  logRequestStarted(config, traceId, input, false);
+  logRequestStarted(config, traceId, input, false, requestBody);
+  if (config.env === 'echo') {
+    const echoText = buildHttpRequestPreview(config, requestBody);
+    logInfo('llm_response_received', {
+      traceId,
+      provider: config.provider,
+      model: config.model,
+      totalCostMs: Date.now() - startedAt,
+      estimatedOutputTokens: estimateTokens(echoText),
+      outputChars: echoText.length,
+      mode: 'echo',
+    });
+    clearTimeout(timer);
+    return echoText;
+  }
 
   try {
-    const resp = await requestUpstream(config, buildRequestBody(config, input, false), controller);
+    const resp = await requestUpstream(config, requestBody, controller);
     await assertSuccessfulResponse(resp, config, traceId, startedAt);
 
     const payload = (await resp.json()) as unknown;
@@ -294,4 +350,39 @@ export async function requestChatCompletion(config: ChatClientConfig, input: Non
   } finally {
     clearTimeout(timer);
   }
+}
+
+function buildRequestHeaders(config: ChatClientConfig): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${config.apiKey}`,
+  };
+}
+
+function maskSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+  const masked = { ...headers };
+  if (masked.Authorization) {
+    masked.Authorization = 'Bearer ***';
+  }
+  return masked;
+}
+
+function buildHttpRequestPreview(config: ChatClientConfig, body: Record<string, unknown>): string {
+  const headers = maskSensitiveHeaders(buildRequestHeaders(config));
+  return [
+    `POST ${config.baseUrl}`,
+    'headers',
+    JSON.stringify(headers, null, 2),
+    'body - json',
+    JSON.stringify(body, null, 2),
+  ].join('\n');
+}
+
+function chunkText(text: string, size: number): string[] {
+  if (!text) return [];
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += size) {
+    chunks.push(text.slice(i, i + size));
+  }
+  return chunks;
 }
