@@ -28,6 +28,7 @@ export enum NoticeMessageKey {
   LeaderTransferContent = 'notice.leaderTransferContent',
   DutyAssignedContent = 'notice.dutyAssignedContent',
   BotNameChanged = 'notice.botNameChanged',
+  BotReplyStoppedBeforeStart = 'notice.botReplyStoppedBeforeStart',
 }
 
 type MultiLangText = Record<LanguageCode, string>;
@@ -61,6 +62,12 @@ const STATIC_TEXT: Record<NoticeMessageKey, MultiLangText> = {
   [NoticeMessageKey.LeaderTransferContent]: { 'zh-CN': '', 'zh-TW': '', fr: '', en: '' },
   [NoticeMessageKey.DutyAssignedContent]: { 'zh-CN': '', 'zh-TW': '', fr: '', en: '' },
   [NoticeMessageKey.BotNameChanged]: { 'zh-CN': '', 'zh-TW': '', fr: '', en: '' },
+  [NoticeMessageKey.BotReplyStoppedBeforeStart]: {
+    'zh-CN': '机器人回复已停止',
+    'zh-TW': '機器人回覆已停止',
+    fr: 'La reponse du robot est arretee',
+    en: 'Robot reply stopped',
+  },
 };
 
 const STATE_LABEL: Record<LanguageCode, Record<string, string>> = {

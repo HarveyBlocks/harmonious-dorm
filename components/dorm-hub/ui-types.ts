@@ -9,6 +9,9 @@ export type ChatMessage = {
   content: string;
   createdAt: string;
   isStreaming?: boolean;
+  isPrivateForBot?: boolean;
+  abortableByUserId?: number;
+  reasoningCount?: number;
 };
 
 export type RenderedChatMessage = ChatMessage & {

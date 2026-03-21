@@ -15,6 +15,10 @@ function isNavigationInProgress(): boolean {
   return (window as Window & { __APP_NAVIGATING__?: boolean }).__APP_NAVIGATING__ === true;
 }
 
+function isAuthPagePath(pathname: string): boolean {
+  return pathname === '/login' || pathname.startsWith('/login/');
+}
+
 export function markAppNavigating(flag = true) {
   if (typeof window === 'undefined') return;
   (window as Window & { __APP_NAVIGATING__?: boolean }).__APP_NAVIGATING__ = flag;
@@ -67,8 +71,14 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
       );
     }
 
-    if (response.status === 401 && typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.replace('/login');
+    if (response.status === 401 && typeof window !== 'undefined') {
+      const win = window as Window & { __APP_LOGIN_REDIRECTING__?: boolean };
+      const currentPath = window.location.pathname || '/';
+      if (!isAuthPagePath(currentPath) && !win.__APP_LOGIN_REDIRECTING__) {
+        win.__APP_LOGIN_REDIRECTING__ = true;
+        markAppNavigating(true);
+        window.location.replace('/login');
+      }
     }
 
     throw new ClientApiError(response.status, message);

@@ -111,6 +111,14 @@ export function DormHubLayout(props: any) {
               maxInputLength={p.LIMITS.CHAT_USER_CONTENT}
               isChatContextSelected={p.isChatContextSelected}
               onToggleChatContextMessage={p.toggleChatContextMessage}
+              isChatMessagePrivateForBot={p.isChatMessagePrivateForBot}
+              onToggleChatPrivacy={p.toggleChatPrivacy}
+              addRobotMemoryText={p.t.addToRobotMemory}
+              removeRobotMemoryText={p.t.removeFromRobotMemory}
+              setPrivateText={p.t.markAsPrivate}
+              unsetPrivateText={p.t.unmarkPrivate}
+              stopGeneratingText={p.t.stopGenerating}
+              onAbortBotStream={p.abortBotStream}
             />
           )}
 

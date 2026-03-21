@@ -149,7 +149,7 @@ export function useDormSocket(options: {
         return;
       }
       const socket = io({
-        path: '/api/ws/',
+        path: '/api/ws',
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 500,
@@ -171,6 +171,15 @@ export function useDormSocket(options: {
         }
         setChatNewerCursor((prev) => (prev && prev > message.id ? prev : message.id));
         setChatHasNewer(false);
+      });
+
+      socket.on('chat:privacy-changed', (payload: { id: number; isPrivateForBot: boolean }) => {
+        if (!payload?.id) return;
+        setLiveMessages((prev) =>
+          prev.map((item) =>
+            item.id === payload.id ? { ...item, isPrivateForBot: payload.isPrivateForBot } : item,
+          ),
+        );
       });
 
       socket.on('chat:stream:start', (payload: { streamId: number; message: ChatMessage }) => {
@@ -198,6 +207,16 @@ export function useDormSocket(options: {
         scheduleStreamFlush(payload.streamId);
       });
 
+      socket.on('chat:stream:reasoning', (payload: { streamId: number; reasoningCount: number }) => {
+        if (!payload?.streamId) return;
+        const safeCount = Number.isFinite(payload.reasoningCount) ? payload.reasoningCount : 0;
+        setLiveMessages((prev) =>
+          prev.map((item) =>
+            item.id === payload.streamId ? { ...item, reasoningCount: safeCount } : item,
+          ),
+        );
+      });
+
       socket.on('chat:stream:commit', (payload: { streamId: number; message: ChatMessage }) => {
         if (!payload?.message) return;
         flushStreamBuffer(payload.streamId);
@@ -220,6 +239,14 @@ export function useDormSocket(options: {
         if (!payload?.streamId) return;
         clearStreamState(payload.streamId);
         setLiveMessages((prev) => prev.filter((item) => item.id !== payload.streamId));
+      });
+
+      socket.on('chat:stream:stop-requested', (payload: { streamId: number }) => {
+        if (!payload?.streamId) return;
+        clearStreamState(payload.streamId);
+        setLiveMessages((prev) =>
+          prev.map((item) => (item.id === payload.streamId ? { ...item, isStreaming: false } : item)),
+        );
       });
 
       socket.on('duty:changed', () => {

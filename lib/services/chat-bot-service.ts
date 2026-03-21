@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { StreamAbortError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import type { SessionUser } from '@/lib/types';
@@ -19,6 +20,46 @@ import { listDormUserDescriptions } from './user-description-service';
 
 type BotIdentity = { id: number; name: string };
 const STATUS_CHAT_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.ChatStatusChanged}"`;
+const ABORTED_BEFORE_START_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.BotReplyStoppedBeforeStart}"`;
+const RECENT_FETCH_BATCH_SIZE = 80;
+
+async function fetchRecentMessagesForBotMemory(input: {
+  dormId: number;
+  anchorMessageId?: number;
+  botMemoryWindow: number;
+}) {
+  const result: Array<{
+    id: number;
+    content: string;
+    user: { id: number; name: string };
+  }> = [];
+  let cursorId = Number.isFinite(input.anchorMessageId) ? Number(input.anchorMessageId) : Number.MAX_SAFE_INTEGER;
+
+  while (result.length < input.botMemoryWindow) {
+    const rows = await prisma.chatMessage.findMany({
+      where: {
+        dormId: input.dormId,
+        isPrivateForBot: false,
+        id: { lt: cursorId },
+        NOT: [
+          { content: { startsWith: STATUS_CHAT_TOKEN_PREFIX } },
+          { content: { startsWith: ABORTED_BEFORE_START_TOKEN_PREFIX } },
+        ],
+      },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { id: 'desc' },
+      take: RECENT_FETCH_BATCH_SIZE,
+    });
+    if (!rows.length) break;
+    result.push(...rows);
+    cursorId = rows[rows.length - 1].id;
+  }
+
+  return result
+    .slice(0, input.botMemoryWindow)
+    .sort((a, b) => a.id - b.id)
+    .map((item) => ({ userId: item.user.id, userName: item.user.name, content: item.content }));
+}
 
 export async function replyByDormBotIfMentioned(
   session: SessionUser,
@@ -31,6 +72,7 @@ export async function replyByDormBotIfMentioned(
     streamOrder?: number;
     botIdentity?: BotIdentity;
     explicitContextMessageIds?: number[];
+    abortSignal?: AbortSignal;
   },
 ): Promise<void> {
   const bot = options?.botIdentity || await ensureDormBotUser(session.dormId);
@@ -87,43 +129,30 @@ export async function replyByDormBotIfMentioned(
   const cappedContextMessageIds = explicitContextMessageIds.slice(0, botMemoryWindow);
   const useExplicitContext = cappedContextMessageIds.length > 0;
 
-  const recentMessagesRows = await prisma.chatMessage.findMany({
-    where: useExplicitContext
-      ? {
+  const recentMessages = useExplicitContext
+    ? (
+      await prisma.chatMessage.findMany({
+        where: {
           dormId: session.dormId,
-          NOT: {
-            content: {
-              startsWith: STATUS_CHAT_TOKEN_PREFIX,
-            },
-          },
+          isPrivateForBot: false,
+          NOT: [
+            { content: { startsWith: STATUS_CHAT_TOKEN_PREFIX } },
+            { content: { startsWith: ABORTED_BEFORE_START_TOKEN_PREFIX } },
+          ],
           id: {
             in: cappedContextMessageIds,
             lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
           },
-        }
-      : {
-          dormId: session.dormId,
-          NOT: {
-            content: {
-              startsWith: STATUS_CHAT_TOKEN_PREFIX,
-            },
-          },
-          id: {
-            lt: Number.isFinite(anchorMessageId) ? Number(anchorMessageId) : Number.MAX_SAFE_INTEGER,
-          },
         },
-    include: {
-      user: {
-        select: { id: true, name: true },
-      },
-    },
-    orderBy: { id: useExplicitContext ? 'asc' : 'desc' },
-    ...(useExplicitContext ? {} : { take: botMemoryWindow }),
-  });
-  const recentMessages = recentMessagesRows
-    .slice()
-    .sort((a, b) => a.id - b.id)
-    .map((item) => ({ userId: item.user.id, userName: item.user.name, content: item.content }));
+        include: { user: { select: { id: true, name: true } } },
+        orderBy: { id: 'asc' },
+      })
+    ).map((item) => ({ userId: item.user.id, userName: item.user.name, content: item.content }))
+    : await fetchRecentMessagesForBotMemory({
+      dormId: session.dormId,
+      anchorMessageId,
+      botMemoryWindow,
+    });
 
   const sender = dorm.users.find((item) => item.id === session.userId);
   const prompt = buildDormBotPrompt({
@@ -169,11 +198,15 @@ export async function replyByDormBotIfMentioned(
         content: '',
         createdAt: streamCreatedAt.toISOString(),
         isStreaming: true,
+        isPrivateForBot: false,
+        abortableByUserId: session.userId,
+        reasoningCount: 0,
       },
     });
   }
 
   let streamedContent = '';
+  let reasoningCount = 0;
   let lastPersistedLength = 0;
   let lastPersistAt = 0;
   let persistChain: Promise<void> = Promise.resolve();
@@ -196,27 +229,49 @@ export async function replyByDormBotIfMentioned(
     lastPersistedLength = snapshot.length;
   };
 
-  const botReply = await streamGlmReply({
-    systemPrompt: prompt.systemPrompt,
-    userPrompt: prompt.userPrompt,
-    onDelta: (delta) => {
-      streamedContent += delta;
-      emitToDorm(session.dormId, 'chat:stream:chunk', {
-        streamId,
-        delta,
-      });
-      const shouldPersistByTime = Date.now() - lastPersistAt >= PERSIST_INTERVAL_MS;
-      const shouldPersistByGrowth = streamedContent.length - lastPersistedLength >= PERSIST_MIN_GROWTH;
-      if (shouldPersistByTime || shouldPersistByGrowth) {
-        queuePersist();
-      }
-    },
-  });
+  let botReply = '';
+  let abortedByUser = false;
+  try {
+    botReply = await streamGlmReply({
+      systemPrompt: prompt.systemPrompt,
+      userPrompt: prompt.userPrompt,
+      abortSignal: options?.abortSignal,
+      onDelta: (delta) => {
+        streamedContent += delta;
+        emitToDorm(session.dormId, 'chat:stream:chunk', {
+          streamId,
+          delta,
+        });
+        const shouldPersistByTime = Date.now() - lastPersistAt >= PERSIST_INTERVAL_MS;
+        const shouldPersistByGrowth = streamedContent.length - lastPersistedLength >= PERSIST_MIN_GROWTH;
+        if (shouldPersistByTime || shouldPersistByGrowth) {
+          queuePersist();
+        }
+      },
+      onProgressDelta: (step) => {
+        const safeStep = Number.isFinite(step) ? Math.max(1, Math.floor(step)) : 1;
+        reasoningCount += safeStep;
+        emitToDorm(session.dormId, 'chat:stream:reasoning', {
+          streamId,
+          reasoningCount,
+        });
+      },
+    });
+  } catch (error) {
+    if (error instanceof StreamAbortError) {
+      abortedByUser = true;
+    } else {
+      throw error;
+    }
+  }
   await persistChain;
 
+  const finalContent = abortedByUser
+    ? (streamedContent.trim() || encodeMessageToken(NoticeMessageKey.BotReplyStoppedBeforeStart))
+    : (botReply.trim() || 'Bot returned empty response.');
   const botMessage = await prisma.chatMessage.update({
     where: { id: streamId },
-    data: { content: botReply.trim() || 'Bot returned empty response.' },
+    data: { content: finalContent },
     include: {
       user: {
         select: { id: true, name: true },
@@ -233,6 +288,7 @@ export async function replyByDormBotIfMentioned(
       userName: botMessage.user.name,
       content: botMessage.content,
       createdAt: botMessage.createdAt.toISOString(),
+      isPrivateForBot: false,
     },
   });
 

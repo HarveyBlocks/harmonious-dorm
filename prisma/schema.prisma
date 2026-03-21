@@ -127,6 +127,7 @@ model ChatMessage {
   userId    Int      @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   String
+  isPrivateForBot Boolean @default(false) @map("is_private_for_bot")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([dormId, createdAt])

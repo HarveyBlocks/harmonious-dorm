@@ -1,9 +1,10 @@
-﻿import { ApiError, UpstreamServiceError } from '@/lib/errors';
+import { ApiError, StreamAbortError, UpstreamServiceError } from '@/lib/errors';
 import { logInfo, logWarn } from '@/lib/logger';
 
 export type LlmMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 type DeltaHandler = (delta: string) => void;
-type DeltaLineResult = { content: string; done: boolean };
+type DeltaStatus = 'content' | 'done' | 'reasoning';
+type DeltaLineResult = { status: DeltaStatus; content: string };
 
 type BaseChatInput = {
   messages: LlmMessage[];
@@ -23,6 +24,9 @@ export type ChatClientConfig = {
 
 export type StreamChatInput = BaseChatInput & {
   onDelta: DeltaHandler;
+  onReasoningDelta?: DeltaHandler;
+  onProgressDelta?: (step: number) => void;
+  abortSignal?: AbortSignal;
 };
 
 export type NonStreamChatInput = BaseChatInput;
@@ -48,23 +52,46 @@ function parseSsePayloadLines(buffer: string): { lines: string[]; rest: string }
 }
 
 // Normalizes provider stream payload into unified delta shape.
-function parseDeltaLine(line: string, env?: string): DeltaLineResult {
+function toTextChunk(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map((item) => toTextChunk(item)).join('');
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (typeof record.text === 'string') return record.text;
+    if (typeof record.content === 'string') return record.content;
+  }
+  return '';
+}
+
+function parseDeltaLine({line, env, preStatus}: { line: string, env?: string, preStatus: DeltaStatus }): DeltaLineResult {
   if (env === 'test') {
-    const json = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
-    return { content: json.message?.content || '', done: Boolean(json.done) };
+    const json = JSON.parse(line) as { message?: { content?: unknown }; done?: boolean };
+    if (json.done) return { status: 'done', content: '' };
+    return { status: 'content', content: toTextChunk(json.message?.content) };
   }
   const trimmed = line.trim();
-  if (!trimmed.startsWith('data:')) return { content: '', done: true };
+  if (trimmed === '') return { status: preStatus, content: '' };
+  if (!trimmed.startsWith('data:')) return { status: preStatus, content: '' };
   const payload = trimmed.slice(5).trim();
-  if (!payload || payload === '[DONE]') return { content: '', done: true };
+  if (!payload || payload === '[DONE]') return { status: 'done', content: '' };
   try {
     const json = JSON.parse(payload) as {
-      choices?: Array<{ delta?: { content?: string }; message?: { content?: string } }>;
+      choices?: Array<{
+        delta?: { content?: unknown; reasoning_content?: unknown };
+        message?: { content?: unknown; reasoning_content?: unknown };
+      }
+      >;
     };
-    const content = json.choices?.[0]?.delta?.content || json.choices?.[0]?.message?.content || '';
-    return { content, done: false };
+    const content = toTextChunk(json.choices?.[0]?.delta?.content) || toTextChunk(json.choices?.[0]?.message?.content);
+    if (content) return { status: 'content', content };
+    const reasoning =
+      toTextChunk(json.choices?.[0]?.delta?.reasoning_content) ||
+      toTextChunk(json.choices?.[0]?.message?.reasoning_content);
+    if (reasoning) return { status: 'reasoning', content: reasoning };
+    return { status: preStatus, content: '' };
   } catch {
-    return { content: '', done: true };
+    return { status: preStatus, content: '' };
   }
 }
 
@@ -216,6 +243,8 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
   const startedAt = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  input.abortSignal?.addEventListener('abort', onExternalAbort);
   let firstChunkAt: number | null = null;
   const requestBody = buildRequestBody(config, input, true);
 
@@ -226,12 +255,16 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
     const chunks = splitEchoByToken(echoText);
     const echoDelay = Math.max(1, Math.floor(config.echoStreamDelayMs ?? 40));
     for (const chunk of chunks) {
+      if (input.abortSignal?.aborted) {
+        throw new StreamAbortError('Stream aborted by user');
+      }
       input.onDelta(chunk);
       // Simulate real token cadence in echo mode for front-end streaming tests.
       // eslint-disable-next-line no-await-in-loop
       await sleep(echoDelay);
     }
     clearTimeout(timer);
+    input.abortSignal?.removeEventListener('abort', onExternalAbort);
     return echoText;
   }
   logRequestStarted(config, traceId, input, true, requestBody);
@@ -245,7 +278,7 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
     let buffer = '';
     let fullText = '';
     let done = false;
-
+    let preStatus:DeltaStatus = 'content';
     while (!done) {
       // eslint-disable-next-line no-await-in-loop
       const step = await reader.read();
@@ -255,14 +288,19 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
       buffer = parsed.rest;
 
       for (const line of parsed.lines) {
-        const delta = parseDeltaLine(line, config.env);
-        if (!delta.content) {
-          if (delta.done) {
-            done = true;
-            break;
-          }
+        const delta = parseDeltaLine({line: line, env: config.env, preStatus: preStatus});
+        preStatus = delta.status;
+        if (delta.status === 'done') {
+          done = true;
+          break;
+        }
+        if (delta.status === 'reasoning') {
+          const step = Math.max(1, delta.content.length || line.length);
+          input.onProgressDelta?.(step);
+          if (delta.content) input.onReasoningDelta?.(delta.content);
           continue;
         }
+        if (!delta.content) continue;
         fullText += delta.content;
         if (firstChunkAt === null) {
           firstChunkAt = Date.now();
@@ -288,9 +326,13 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
     });
     return fullText.trim();
   } catch (error) {
+    if (input.abortSignal?.aborted) {
+      throw new StreamAbortError('Stream aborted by user');
+    }
     return normalizeUnknownFailure(config, error);
   } finally {
     clearTimeout(timer);
+    input.abortSignal?.removeEventListener('abort', onExternalAbort);
   }
 }
 

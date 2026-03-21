@@ -9,6 +9,9 @@ export async function streamGlmReply(input: {
   systemPrompt: string;
   userPrompt: string;
   onDelta: DeltaHandler;
+  onReasoningDelta?: DeltaHandler;
+  onProgressDelta?: (step: number) => void;
+  abortSignal?: AbortSignal;
 }): Promise<string> {
   if (!isAiChatConfigured()) {
     throw new ApiError(500, 'AI chat config missing');
@@ -31,6 +34,9 @@ export async function streamGlmReply(input: {
         { role: 'user', content: input.userPrompt },
       ],
       onDelta: input.onDelta,
+      onReasoningDelta: input.onReasoningDelta,
+      onProgressDelta: input.onProgressDelta,
+      abortSignal: input.abortSignal,
     },
   );
 }

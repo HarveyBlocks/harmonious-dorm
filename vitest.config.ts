@@ -16,4 +16,17 @@ export default defineConfig({
       concurrent: false,
     },
   },
+  server: {
+    watch: {
+      ignored: [
+        'docs/**', // ignore all files in docs
+        '**/*.md', // ignore all markdown files
+        'prisma/**',
+        '**/*.db',
+        '**/*.prisma',
+        '**/*.log',
+        'logs/**',
+      ]
+    }
+  },
 });

@@ -40,7 +40,9 @@
     "tests/**/*.ts",
     "scripts/**/*.ts",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-user /types/**/*.ts",
+    ".next-user /dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

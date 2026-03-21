@@ -323,23 +323,59 @@
     "fr": "Aller à la dernière position",
     "en": "Jump to last position"
   },
-  "addToContext": {
-    "zh-CN": "加入聊天上下文",
-    "zh-TW": "加入聊天上下文",
-    "fr": "Ajouter au contexte",
-    "en": "Add to chat context"
+  "addToRobotMemory": {
+    "zh-CN": "加入机器人记忆",
+    "zh-TW": "加入機器人記憶",
+    "fr": "Ajouter a la memoire du robot",
+    "en": "Add to robot memory"
   },
-  "removeFromContext": {
-    "zh-CN": "取消加入上下文",
-    "zh-TW": "取消加入上下文",
-    "fr": "Retirer du contexte",
-    "en": "Remove from context"
+  "removeFromRobotMemory": {
+    "zh-CN": "取消加入机器人记忆",
+    "zh-TW": "取消加入機器人記憶",
+    "fr": "Retirer de la memoire du robot",
+    "en": "Remove from robot memory"
   },
-  "contextSelectionLimitReached": {
-    "zh-CN": "上下文选择数量已达到上限",
-    "zh-TW": "上下文選擇數量已達上限",
-    "fr": "Limite de sélection de contexte atteinte",
-    "en": "Context selection limit reached"
+  "robotMemorySelectionLimitReached": {
+    "zh-CN": "机器人记忆选择数量已达到上限",
+    "zh-TW": "機器人記憶選擇數量已達上限",
+    "fr": "La limite de selection de memoire du robot est atteinte",
+    "en": "Robot memory selection limit reached"
+  },
+  "markAsPrivate": {
+    "zh-CN": "设为隐私",
+    "zh-TW": "設為隱私",
+    "fr": "Definir comme prive",
+    "en": "Mark as private"
+  },
+  "unmarkPrivate": {
+    "zh-CN": "取消隐私",
+    "zh-TW": "取消隱私",
+    "fr": "Retirer le marqueur prive",
+    "en": "Unmark private"
+  },
+  "stopGenerating": {
+    "zh-CN": "停止生成",
+    "zh-TW": "停止生成",
+    "fr": "Arreter la generation",
+    "en": "Stop generating"
+  },
+  "loadingProgress": {
+    "zh-CN": "正在加载，加载进度",
+    "zh-TW": "正在載入，載入進度",
+    "fr": "Chargement en cours, progression",
+    "en": "Loading, progress"
+  },
+  "thinkingProgress": {
+    "zh-CN": "思考中，思考进度",
+    "zh-TW": "思考中，思考進度",
+    "fr": "Reflexion en cours, progression",
+    "en": "Thinking, progress"
+  },
+  "privateMessageCannotJoinRobotMemory": {
+    "zh-CN": "隐私消息不会发给机器人",
+    "zh-TW": "隱私訊息不會發給機器人",
+    "fr": "Un message prive ne peut pas etre ajoute a la memoire du robot",
+    "en": "Private messages cannot be added to robot memory"
   },
   "moreActions": {
     "zh-CN": "更多操作",

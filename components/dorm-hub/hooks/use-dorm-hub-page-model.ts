@@ -320,15 +320,15 @@ export function useDormHubPageModel() {
     },
   });
 
-  const chatContextStorageKey = useMemo(() => {
+  const robotMemoryStorageKey = useMemo(() => {
     if (!me?.id || !me?.dormId) return null;
-    return `chat-context-selection:${me.dormId}:${me.id}`;
+    return `chat-robot-memory-selection:${me.dormId}:${me.id}`;
   }, [me?.dormId, me?.id]);
 
   useEffect(() => {
-    if (!chatContextStorageKey || typeof window === 'undefined') return;
+    if (!robotMemoryStorageKey || typeof window === 'undefined') return;
     try {
-      const raw = window.localStorage.getItem(chatContextStorageKey);
+      const raw = window.localStorage.getItem(robotMemoryStorageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw) as number[];
       if (!Array.isArray(parsed)) return;
@@ -337,15 +337,31 @@ export function useDormHubPageModel() {
     } catch {
       state.setChatContextMessageIds([]);
     }
-  }, [chatContextStorageKey, state.setChatContextMessageIds]);
+  }, [robotMemoryStorageKey, state.setChatContextMessageIds]);
 
   useEffect(() => {
-    if (!chatContextStorageKey || typeof window === 'undefined') return;
-    window.localStorage.setItem(chatContextStorageKey, JSON.stringify(state.chatContextMessageIds));
-  }, [chatContextStorageKey, state.chatContextMessageIds]);
+    if (!robotMemoryStorageKey || typeof window === 'undefined') return;
+    window.localStorage.setItem(robotMemoryStorageKey, JSON.stringify(state.chatContextMessageIds));
+  }, [robotMemoryStorageKey, state.chatContextMessageIds]);
+
+  const privateMessageIdSet = useMemo(
+    () => new Set(liveMessages.filter((item) => item.isPrivateForBot).map((item) => item.id)),
+    [liveMessages],
+  );
+
+  useEffect(() => {
+    if (!state.chatContextMessageIds.length) return;
+    const filtered = state.chatContextMessageIds.filter((id) => !privateMessageIdSet.has(id));
+    if (filtered.length === state.chatContextMessageIds.length) return;
+    state.setChatContextMessageIds(filtered);
+  }, [privateMessageIdSet, state.chatContextMessageIds, state.setChatContextMessageIds]);
 
   const toggleChatContextMessage = useCallback(
     (messageId: number) => {
+      if (privateMessageIdSet.has(messageId)) {
+        dispatchToast('error', t.privateMessageCannotJoinRobotMemory);
+        return;
+      }
       const maxContext = Math.max(1, me?.botMemoryWindow || 10);
       const prev = state.chatContextMessageIds;
       const exists = prev.includes(messageId);
@@ -354,17 +370,52 @@ export function useDormHubPageModel() {
         return;
       }
       if (prev.length >= maxContext) {
-        dispatchToast('error', t.contextSelectionLimitReached);
+        dispatchToast('error', t.robotMemorySelectionLimitReached);
         return;
       }
       state.setChatContextMessageIds([...prev, messageId]);
     },
-    [me?.botMemoryWindow, state.chatContextMessageIds, state.setChatContextMessageIds, t.contextSelectionLimitReached],
+    [
+      me?.botMemoryWindow,
+      privateMessageIdSet,
+      state.chatContextMessageIds,
+      state.setChatContextMessageIds,
+      t.privateMessageCannotJoinRobotMemory,
+      t.robotMemorySelectionLimitReached,
+    ],
   );
 
   const isChatContextSelected = useCallback(
     (messageId: number) => state.chatContextMessageIds.includes(messageId),
     [state.chatContextMessageIds],
+  );
+
+  const isChatMessagePrivateForBot = useCallback(
+    (messageId: number) => privateMessageIdSet.has(messageId),
+    [privateMessageIdSet],
+  );
+
+  const toggleChatPrivacy = useCallback(
+    (messageId: number) => {
+      const isPrivate = privateMessageIdSet.has(messageId);
+      if (!isPrivate && state.chatContextMessageIds.includes(messageId)) {
+        state.setChatContextMessageIds(state.chatContextMessageIds.filter((id) => id !== messageId));
+      }
+      domainMutations.toggleChatPrivacyMutation.mutate({ messageId, isPrivateForBot: !isPrivate });
+    },
+    [
+      domainMutations.toggleChatPrivacyMutation,
+      privateMessageIdSet,
+      state.chatContextMessageIds,
+      state.setChatContextMessageIds,
+    ],
+  );
+
+  const abortBotStream = useCallback(
+    (messageId: number) => {
+      domainMutations.abortBotStreamMutation.mutate(messageId);
+    },
+    [domainMutations.abortBotStreamMutation],
   );
 
   const copyInviteCode = async () => {
@@ -414,6 +465,9 @@ export function useDormHubPageModel() {
       dispatchToast,
       toggleChatContextMessage,
       isChatContextSelected,
+      isChatMessagePrivateForBot,
+      toggleChatPrivacy,
+      abortBotStream,
     },
   });
 }

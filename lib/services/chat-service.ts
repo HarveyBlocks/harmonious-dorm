@@ -11,7 +11,7 @@ import { enqueueDormBotTaskIfMentioned } from './chat-bot-queue';
 import { ensureSessionUser } from './helpers';
 import { pushDormNotification } from './notification-service';
 
-type ChatListItem = { id: number; userId: number; userName: string; content: string; createdAt: string };
+type ChatListItem = { id: number; userId: number; userName: string; content: string; createdAt: string; isPrivateForBot: boolean };
 
 function runInBackground(task: () => Promise<void>, errorMessage: string, meta?: Record<string, unknown>) {
   setTimeout(() => {
@@ -26,6 +26,7 @@ function toChatListItems(
     id: number;
     userId: number;
     content: string;
+    isPrivateForBot: boolean;
     createdAt: Date;
     user: { id: number; name: string };
   }>,
@@ -36,6 +37,7 @@ function toChatListItems(
     userName: item.user.name,
     content: item.content,
     createdAt: item.createdAt.toISOString(),
+    isPrivateForBot: item.isPrivateForBot,
   }));
 }
 
@@ -220,6 +222,7 @@ export async function sendChatMessage(
     userName: user.name,
     content: message.content,
     createdAt: message.createdAt.toISOString(),
+    isPrivateForBot: false,
   };
 
   emitToDorm(session.dormId, 'chat:new', payload);
@@ -256,4 +259,26 @@ export async function sendChatMessage(
   );
 
   return payload;
+}
+
+export async function toggleChatMessagePrivacy(
+  session: SessionUser,
+  messageId: number,
+  isPrivateForBot: boolean,
+): Promise<{ id: number; isPrivateForBot: boolean }> {
+  await ensureSessionUser(session);
+  const target = await prisma.chatMessage.findFirst({
+    where: { id: messageId, dormId: session.dormId },
+    select: { id: true },
+  });
+  if (!target) throw new ApiError(404, '消息不存在');
+
+  const updated = await prisma.chatMessage.update({
+    where: { id: messageId },
+    data: { isPrivateForBot },
+    select: { id: true, isPrivateForBot: true },
+  });
+
+  emitToDorm(session.dormId, 'chat:privacy-changed', updated);
+  return updated;
 }

@@ -40,6 +40,12 @@ export class UpstreamServiceError extends ApiError {
   }
 }
 
+export class StreamAbortError extends ApiError {
+  constructor(message = 'Stream aborted') {
+    super(499, message, { code: 'STREAM_ABORTED', controlled: true });
+  }
+}
+
 export function isControlledError(error: unknown): error is ApiError {
   return error instanceof ApiError && error.controlled;
 }

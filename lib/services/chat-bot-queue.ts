@@ -1,8 +1,10 @@
 import type { SessionUser } from '@/lib/types';
 import { emitToDorm } from '@/lib/socket-server';
 import { prisma } from '@/lib/db';
-import { UpstreamServiceError } from '@/lib/errors';
+import { ApiError, StreamAbortError, UpstreamServiceError } from '@/lib/errors';
 import { logError, logWarn } from '@/lib/logger';
+import { encodeMessageToken } from '@/lib/i18n/message-token';
+import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 
 import { ensureDormBotUser } from './bot-service';
 import { replyByDormBotIfMentioned } from './chat-bot-service';
@@ -34,6 +36,11 @@ type DormQueueState = {
 };
 
 const dormQueueMap = new Map<number, DormQueueState>();
+const runningStreamAbortMap = new Map<number, {
+  dormId: number;
+  actorUserId: number;
+  abort: () => void;
+}>();
 
 function queueStateOf(dormId: number): DormQueueState {
   const existing = dormQueueMap.get(dormId);
@@ -63,6 +70,12 @@ async function runDormQueue(dormId: number): Promise<void> {
     while (true) {
       const task = state.items.shift();
       if (!task) break;
+      const streamAbortController = new AbortController();
+      runningStreamAbortMap.set(task.streamId, {
+        dormId: task.dormId,
+        actorUserId: task.meta.actorUserId,
+        abort: () => streamAbortController.abort(),
+      });
       try {
         await replyByDormBotIfMentioned(task.session, task.content, task.anchorMessageId, {
           force: true,
@@ -71,8 +84,12 @@ async function runDormQueue(dormId: number): Promise<void> {
           streamOrder: task.streamOrder,
           botIdentity: { id: task.botId, name: task.botName },
           explicitContextMessageIds: task.contextMessageIds,
+          abortSignal: streamAbortController.signal,
         });
       } catch (error) {
+        if (error instanceof StreamAbortError) {
+          continue;
+        }
         const isRetryable = error instanceof UpstreamServiceError && error.retryable;
         if (isRetryable && task.attempts < task.maxAttempts) {
           task.attempts += 1;
@@ -112,8 +129,12 @@ async function runDormQueue(dormId: number): Promise<void> {
             userName: task.botName,
             content: 'Bot request failed. Please try again.',
             createdAt: new Date().toISOString(),
+            isPrivateForBot: false,
           },
         });
+      }
+      finally {
+        runningStreamAbortMap.delete(task.streamId);
       }
     }
   } finally {
@@ -160,6 +181,9 @@ export async function enqueueDormBotTaskIfMentioned(input: {
       content: '',
       createdAt: placeholder.createdAt.toISOString(),
       isStreaming: true,
+      isPrivateForBot: false,
+      abortableByUserId: input.session.userId,
+      reasoningCount: 0,
     },
   });
 
@@ -188,4 +212,54 @@ export async function enqueueDormBotTaskIfMentioned(input: {
   state.items.push(task);
   void runDormQueue(input.dormId);
   return task;
+}
+
+export async function abortDormBotStream(input: {
+  session: SessionUser;
+  streamId: number;
+}): Promise<{ aborted: boolean }> {
+  const { session, streamId } = input;
+  if (!Number.isInteger(streamId) || streamId <= 0) {
+    throw new ApiError(400, '当前消息无法停止');
+  }
+
+  const running = runningStreamAbortMap.get(streamId);
+  if (running && running.dormId === session.dormId) {
+    if (running.actorUserId !== session.userId) {
+      throw new ApiError(403, '只有发起这次提问的人可以停止');
+    }
+    emitToDorm(session.dormId, 'chat:stream:stop-requested', { streamId });
+    running.abort();
+    return { aborted: true };
+  }
+
+  const queueState = queueStateOf(session.dormId);
+  const pendingIndex = queueState.items.findIndex((item) => item.streamId === streamId);
+  if (pendingIndex >= 0) {
+    const pending = queueState.items[pendingIndex];
+    if (pending.meta.actorUserId !== session.userId) {
+      throw new ApiError(403, '只有发起这次提问的人可以停止');
+    }
+    queueState.items.splice(pendingIndex, 1);
+    const aborted = await prisma.chatMessage.update({
+      where: { id: pending.placeholderMessageId },
+      data: { content: encodeMessageToken(NoticeMessageKey.BotReplyStoppedBeforeStart) },
+      select: { id: true, createdAt: true },
+    });
+    emitToDorm(session.dormId, 'chat:stream:commit', {
+      streamId,
+      message: {
+        id: aborted.id,
+        displayOrder: aborted.id,
+        userId: pending.botId,
+        userName: pending.botName,
+        content: encodeMessageToken(NoticeMessageKey.BotReplyStoppedBeforeStart),
+        createdAt: aborted.createdAt.toISOString(),
+        isPrivateForBot: false,
+      },
+    });
+    return { aborted: true };
+  }
+
+  throw new ApiError(404, '这条回复已结束');
 }

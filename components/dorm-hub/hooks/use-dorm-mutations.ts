@@ -174,6 +174,22 @@ export function useDormMutations(options: {
     },
   });
 
+  const toggleChatPrivacyMutation = useMutation({
+    mutationFn: (payload: { messageId: number; isPrivateForBot: boolean }) =>
+      apiRequest(`/api/chat/${payload.messageId}/privacy`, {
+        method: 'POST',
+        body: JSON.stringify({ isPrivateForBot: payload.isPrivateForBot }),
+      }),
+  });
+
+  const abortBotStreamMutation = useMutation({
+    mutationFn: (streamId: number) =>
+      apiRequest(`/api/chat/stream/${streamId}/abort`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+  });
+
   const sendChat = (input: string) => {
     const trimmed = input.trim();
     if (!trimmed) {
@@ -211,6 +227,8 @@ export function useDormMutations(options: {
     togglePaidMutation,
     updateStatusMutation,
     sendChatMutation,
+    toggleChatPrivacyMutation,
+    abortBotStreamMutation,
     sendChat,
   };
 }

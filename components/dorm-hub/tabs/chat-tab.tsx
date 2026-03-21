@@ -1,5 +1,5 @@
 
-import { BookMarked, Send } from 'lucide-react';
+import { BookMarked, EyeOff, Pause, Send } from 'lucide-react';
 import { motion } from 'motion/react';
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from 'react-dom';
@@ -25,6 +25,14 @@ export function ChatTab(props: {
   maxInputLength: number;
   isChatContextSelected: (messageId: number) => boolean;
   onToggleChatContextMessage: (messageId: number) => void;
+  isChatMessagePrivateForBot: (messageId: number) => boolean;
+  onToggleChatPrivacy: (messageId: number) => void;
+  addRobotMemoryText: string;
+  removeRobotMemoryText: string;
+  setPrivateText: string;
+  unsetPrivateText: string;
+  stopGeneratingText: string;
+  onAbortBotStream: (messageId: number) => void;
 }) {
   const p = props;
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageId: number } | null>(null);
@@ -50,7 +58,7 @@ export function ChatTab(props: {
 
   const openContextMenu = (x: number, y: number, messageId: number) => {
     const menuWidth = 240;
-    const menuHeight = 56;
+    const menuHeight = 104;
     const margin = 8;
     const left = Math.min(Math.max(margin, x + 6), window.innerWidth - menuWidth - margin);
     const top = Math.min(Math.max(margin, y + 6), window.innerHeight - menuHeight - margin);
@@ -94,6 +102,9 @@ export function ChatTab(props: {
         chatMessageRefs={p.chatMessageRefs}
         chatEndRef={p.chatEndRef}
         isChatContextSelected={p.isChatContextSelected}
+        isChatMessagePrivateForBot={p.isChatMessagePrivateForBot}
+        stopGeneratingText={p.stopGeneratingText}
+        onAbortBotStream={p.onAbortBotStream}
         onMessageContextMenu={(event, messageId) => {
           event.preventDefault();
           openContextMenu(event.clientX, event.clientY, messageId);
@@ -127,10 +138,14 @@ export function ChatTab(props: {
       <ChatContextMenu
         contextMenu={contextMenu}
         isSelected={p.isChatContextSelected}
-        addText={p.t.addToContext}
-        removeText={p.t.removeFromContext}
+        isPrivate={p.isChatMessagePrivateForBot}
+        addText={p.addRobotMemoryText}
+        removeText={p.removeRobotMemoryText}
+        setPrivateText={p.setPrivateText}
+        unsetPrivateText={p.unsetPrivateText}
         onClose={() => setContextMenu(null)}
         onToggle={p.onToggleChatContextMessage}
+        onTogglePrivacy={p.onToggleChatPrivacy}
       />
 
       <ChatComposer
@@ -154,6 +169,9 @@ const ChatMessagesPane = React.memo(function ChatMessagesPane(props: {
   chatMessageRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>;
   chatEndRef: React.RefObject<HTMLDivElement>;
   isChatContextSelected: (messageId: number) => boolean;
+  isChatMessagePrivateForBot: (messageId: number) => boolean;
+  stopGeneratingText: string;
+  onAbortBotStream: (messageId: number) => void;
   onMessageContextMenu: (event: React.MouseEvent<HTMLDivElement>, messageId: number) => void;
   onMessageTouchStart: (event: React.TouchEvent<HTMLDivElement>, messageId: number) => void;
   onMessageTouchMove: () => void;
@@ -161,6 +179,7 @@ const ChatMessagesPane = React.memo(function ChatMessagesPane(props: {
 }) {
   const p = props;
   const isEchoPreview = (text: string) => text.startsWith('### Echo HTTP Request');
+  const isI18nToken = (text: string) => text.startsWith('__i18n__:');
   return (
     <div ref={p.chatScrollRef} onScroll={p.onChatListScroll} className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-50/30">
       {p.lastPositionChatId && p.unreadChatCount > 20 ? (
@@ -183,7 +202,7 @@ const ChatMessagesPane = React.memo(function ChatMessagesPane(props: {
               {msg.userId !== p.meId ? <img src={msg.avatar} className="w-10 h-10 rounded-full shadow-md" alt="" /> : null}
               <div className={`max-w-[70%] min-w-0 ${msg.userId === p.meId ? 'items-end' : 'items-start'} flex flex-col`}>
                 <p className={`text-base text-muted mb-1 px-1 ${msg.userId === p.meId ? 'text-right' : 'text-left'}`}>{msg.userName}</p>
-                <div className={`flex items-start gap-2 max-w-full min-w-0 ${msg.userId === p.meId ? 'flex-row-reverse' : ''}`}>
+                <div className={`flex items-stretch gap-2 max-w-full min-w-0 ${msg.userId === p.meId ? 'flex-row-reverse' : ''}`}>
                   <div
                     className={`max-w-full min-w-0 p-4 rounded-3xl shadow-sm ${msg.userId === p.meId ? 'accent-bg rounded-tr-none' : 'glass-card rounded-tl-none'}`}
                     onContextMenu={(event) => p.onMessageContextMenu(event, msg.id)}
@@ -193,21 +212,55 @@ const ChatMessagesPane = React.memo(function ChatMessagesPane(props: {
                     onTouchCancel={p.onMessageTouchEnd}
                   >
                     {msg.isBotMessage ? (
-                      <div className={`bot-markdown text-lg leading-relaxed max-w-full min-w-0 ${isEchoPreview(msg.content) ? 'echo-preview-markdown' : ''}`}>
-                        <MarkdownRenderer content={msg.content} />
-                      </div>
+                      isI18nToken(msg.content) ? (
+                        <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
+                      ) : (msg.isStreaming && !msg.content) ? (
+                        <p className="text-sm font-medium leading-relaxed text-muted whitespace-pre-wrap break-words">
+                          {p.t.thinkingProgress}: {Number.isFinite(msg.reasoningCount) ? msg.reasoningCount : 0}
+                        </p>
+                      ) : (
+                        <div className={`bot-markdown text-lg leading-relaxed max-w-full min-w-0 ${isEchoPreview(msg.content) ? 'echo-preview-markdown' : ''}`}>
+                          <MarkdownRenderer content={msg.content} />
+                        </div>
+                      )
                     ) : (
                       <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>
                     )}
                   </div>
-                  {(p.isChatContextSelected(msg.id) || (msg.isBotMessage && msg.isStreaming)) ? (
-                    <div className="mt-1 flex flex-col items-center gap-1 min-w-5">
-                      {p.isChatContextSelected(msg.id) ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/90 text-white">
-                          <BookMarked className="w-3.5 h-3.5" />
-                        </span>
+                  {(p.isChatContextSelected(msg.id)
+                    || p.isChatMessagePrivateForBot(msg.id)
+                    || (msg.isBotMessage && msg.isStreaming)
+                    || (msg.isBotMessage && msg.isStreaming && msg.abortableByUserId === p.meId)) ? (
+                    <div className="mt-1 min-w-6 flex flex-col items-end h-full">
+                      <div className="flex flex-col items-end gap-1">
+                        {p.isChatContextSelected(msg.id) ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/90 text-white">
+                            <BookMarked className="w-3.5 h-3.5" />
+                          </span>
+                        ) : null}
+                        {p.isChatMessagePrivateForBot(msg.id) ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-700/90 text-white">
+                            <EyeOff className="w-3.5 h-3.5" />
+                          </span>
+                        ) : null}
+                        {msg.isBotMessage && msg.isStreaming ? <span className="bot-stream-spinner" aria-hidden="true" /> : null}
+                      </div>
+                      {msg.isBotMessage && msg.isStreaming && msg.abortableByUserId === p.meId ? (
+                        <button
+                          type="button"
+                          aria-label={p.stopGeneratingText}
+                          title={p.stopGeneratingText}
+                          onClick={() => p.onAbortBotStream(msg.id)}
+                          className="inline-flex items-center justify-center w-6 h-6 rounded-full border transition-colors shadow-sm mt-auto"
+                          style={{
+                            borderColor: 'color-mix(in srgb, var(--accent) 48%, transparent)',
+                            color: 'var(--accent)',
+                            backgroundColor: 'color-mix(in srgb, var(--accent) 12%, var(--bg-main) 88%)',
+                          }}
+                        >
+                          <Pause className="w-3.5 h-3.5" />
+                        </button>
                       ) : null}
-                      {msg.isBotMessage && msg.isStreaming ? <span className="bot-stream-spinner" aria-hidden="true" /> : null}
                     </div>
                   ) : null}
                 </div>
@@ -261,14 +314,19 @@ const ChatComposer = React.memo(function ChatComposer(props: {
 const ChatContextMenu = React.memo(function ChatContextMenu(props: {
   contextMenu: { x: number; y: number; messageId: number } | null;
   isSelected: (messageId: number) => boolean;
+  isPrivate: (messageId: number) => boolean;
   addText: string;
   removeText: string;
+  setPrivateText: string;
+  unsetPrivateText: string;
   onClose: () => void;
   onToggle: (messageId: number) => void;
+  onTogglePrivacy: (messageId: number) => void;
 }) {
   const p = props;
   if (!p.contextMenu || typeof document === 'undefined') return null;
   const menu = p.contextMenu;
+  const privateForBot = p.isPrivate(menu.messageId);
   return createPortal(
     <div
       key={`${menu.messageId}-${menu.x}-${menu.y}`}
@@ -283,8 +341,21 @@ const ChatContextMenu = React.memo(function ChatContextMenu(props: {
           p.onClose();
           p.onToggle(menu.messageId);
         }}
+        disabled={privateForBot}
+        title={privateForBot ? p.setPrivateText : undefined}
+        style={privateForBot ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
       >
         {p.isSelected(menu.messageId) ? p.removeText : p.addText}
+      </button>
+      <button
+        type="button"
+        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold"
+        onClick={() => {
+          p.onClose();
+          p.onTogglePrivacy(menu.messageId);
+        }}
+      >
+        {privateForBot ? p.unsetPrivateText : p.setPrivateText}
       </button>
     </div>,
     document.body,

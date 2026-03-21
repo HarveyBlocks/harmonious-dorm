@@ -1,11 +1,11 @@
 ﻿'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { LogIn, Users } from 'lucide-react';
 
-import { apiRequest } from '@/lib/client-api';
+import { apiRequest, markAppNavigating } from '@/lib/client-api';
 import { getUiText, type LanguageCode } from '@/lib/i18n';
 
 export default function LoginPage() {
@@ -23,6 +23,11 @@ export default function LoginPage() {
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    markAppNavigating(false);
+    (window as Window & { __APP_LOGIN_REDIRECTING__?: boolean }).__APP_LOGIN_REDIRECTING__ = false;
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,4 +129,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
