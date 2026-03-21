@@ -1,18 +1,50 @@
+# Dependencies
 node_modules/
+
+# Next.js build outputs
 .next/
+.next-user/
+.next-user /
+.next-agent/
+.next-*/
 out/
 dist/
 coverage/
-.DS_Store
+
+# Caches and temp
+.temp/
+.tmp/
+.turbo/
+.cache/
+
+# Logs
 *.log
+**/logs/**
+
+# TypeScript
 *.tsbuildinfo
+
+# Environment
 .env
 .env.*
-/.idea/
-**/logs/**
-prisma/dev.db
-prisma/dev.db-journal
-prisma/test.db
-prisma/test.db-journal
-/harmoniousdorm-oldversion/
-/demo/
+!.env.example
+
+# IDE / OS
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local DB files
+prisma/*.db
+prisma/*.db-journal
+prisma/*.sqlite
+prisma/*.sqlite-journal
+
+# Local backup / generated docs
+docs/errors/
+docs/_notifications_disabled_backup/
+docs/_settings_disabled_backup/
+
+# Local-only folders
+harmoniousdorm-oldversion/
+demo/
