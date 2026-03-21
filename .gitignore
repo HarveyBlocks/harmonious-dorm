@@ -44,7 +44,7 @@ prisma/*.sqlite-journal
 docs/errors/
 docs/_notifications_disabled_backup/
 docs/_settings_disabled_backup/
+/docs/**
 
 # Local-only folders
-harmoniousdorm-oldversion/
 demo/

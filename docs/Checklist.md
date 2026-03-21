@@ -64,6 +64,7 @@
     - 总是禁止 AI 执行某个 Tool (访问LLM时从ToolList中删除这个Tool)
     - 总是允许 AI 执行某个 Tool (访问LLM时, 从ToolList中加入这个Tool)
     - 询问(默认)
+  - [ ] Tool call 的配置写一个文件, tool call 的 function 写入一个文件夹下, 一个funciton对应一个文件
 - [ ] 压缩长期记忆
   - [ ] 对聊天记录的整理概括(一个check point, 来记录, 到目前为止, 几条消息被传输给了AI 让AI完成了总结, 有哪些没有), 是否需要触发自动总结? 每超过n条聊天记录, 自动总结?
   - [ ] 短期记忆被淘汰后, 会被进行和长期记忆合并, 然后交给AI总结?
