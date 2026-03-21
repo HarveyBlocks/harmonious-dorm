@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { BOT_RUNTIME_CONFIG } from '@/lib/config/bot-runtime';
 
 type MemoryQueryInput = {
   dormId: number;
@@ -15,7 +16,7 @@ export async function fetchRecentMessagesForBotMemory(input: MemoryQueryInput) {
     content: string;
     user: { id: number; name: string };
   }> = [];
-  const batchSize = input.batchSize ?? 80;
+  const batchSize = input.batchSize ?? BOT_RUNTIME_CONFIG.memoryFetchBatchSize;
   let cursorId = Number.isFinite(input.anchorMessageId) ? Number(input.anchorMessageId) : Number.MAX_SAFE_INTEGER;
 
   while (result.length < input.botMemoryWindow) {

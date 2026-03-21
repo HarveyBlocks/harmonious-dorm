@@ -3,6 +3,7 @@ import type { Socket } from 'socket.io-client';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { mergeChatMessages, tabForNotificationType } from '@/components/dorm-hub/ui-helpers';
+import { NOTICE_POPUP_HIDE_MS } from '@/components/dorm-hub/ui-constants';
 import type { ActiveTab, ChatMessage } from '@/components/dorm-hub/ui-types';
 import type { StreamState } from './stream-types';
 import { clearStreamEntry, enqueueStreamDelta, flushStreamEntry } from './stream-buffer';
@@ -130,7 +131,7 @@ function bindNotificationEvents(deps: CommonDeps) {
     deps.setNoticePopup({ title: payload.title, content: payload.content });
     setTimeout(() => {
       deps.setNoticePopup((current) => (current && current.title === payload.title && current.content === payload.content ? null : current));
-    }, 5000);
+    }, NOTICE_POPUP_HIDE_MS);
   });
 
   deps.socket.on('notification:changed', (payload: { type?: string }) => {

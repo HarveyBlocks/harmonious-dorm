@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 
+import {
+  CHAT_CONTEXT_LONG_PRESS_MS,
+  CHAT_CONTEXT_MENU_HEIGHT,
+  CHAT_CONTEXT_MENU_MARGIN,
+  CHAT_CONTEXT_MENU_OFFSET,
+  CHAT_CONTEXT_MENU_WIDTH,
+} from '@/components/dorm-hub/ui-constants';
 import type { ChatTabProps, ContextMenuState } from './types';
 
 function clearTimer(timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) {
@@ -10,12 +17,12 @@ function clearTimer(timerRef: React.MutableRefObject<ReturnType<typeof setTimeou
 }
 
 function resolveContextMenuPosition(x: number, y: number) {
-  const menuWidth = 240;
-  const menuHeight = 104;
-  const margin = 8;
+  const menuWidth = CHAT_CONTEXT_MENU_WIDTH;
+  const menuHeight = CHAT_CONTEXT_MENU_HEIGHT;
+  const margin = CHAT_CONTEXT_MENU_MARGIN;
   return {
-    x: Math.min(Math.max(margin, x + 6), window.innerWidth - menuWidth - margin),
-    y: Math.min(Math.max(margin, y + 6), window.innerHeight - menuHeight - margin),
+    x: Math.min(Math.max(margin, x + CHAT_CONTEXT_MENU_OFFSET), window.innerWidth - menuWidth - margin),
+    y: Math.min(Math.max(margin, y + CHAT_CONTEXT_MENU_OFFSET), window.innerHeight - menuHeight - margin),
   };
 }
 
@@ -74,7 +81,10 @@ export function useChatTabController(props: ChatTabProps) {
       const touch = event.touches[0];
       if (!touch) return;
       clearTimer(longPressTimerRef);
-      longPressTimerRef.current = setTimeout(() => openContextMenu(touch.clientX, touch.clientY, messageId), 460);
+      longPressTimerRef.current = setTimeout(
+        () => openContextMenu(touch.clientX, touch.clientY, messageId),
+        CHAT_CONTEXT_LONG_PRESS_MS,
+      );
     },
     onMessageTouchMove: () => clearTimer(longPressTimerRef),
     onMessageTouchEnd: () => clearTimer(longPressTimerRef),

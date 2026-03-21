@@ -6,6 +6,11 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { markAppNavigating } from '@/lib/client-api';
 import type { ActiveTab, ChatMessage } from '@/components/dorm-hub/ui-types';
+import {
+  SOCKET_INIT_COOLDOWN_MS,
+  SOCKET_INIT_MAX_ATTEMPTS,
+  SOCKET_INIT_RETRY_BASE_MS,
+} from '@/components/dorm-hub/ui-constants';
 import { bindSocketEvents } from './bind-events';
 import { clearAllStreamEntries, createStreamState } from './stream-buffer';
 
@@ -37,7 +42,7 @@ function isNavigationInProgress(): boolean {
 }
 
 async function initSocketServerEndpoint(): Promise<boolean> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < SOCKET_INIT_MAX_ATTEMPTS; attempt += 1) {
     try {
       const initResp = await fetch('/api/socket-init', { method: 'GET', cache: 'no-store', headers: { Accept: 'application/json' } });
       if (initResp.ok) return true;
@@ -45,7 +50,7 @@ async function initSocketServerEndpoint(): Promise<boolean> {
       if (!isNavigationInProgress()) console.error('[socket-init] failed', error);
     }
     // eslint-disable-next-line no-await-in-loop
-    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    await new Promise((resolve) => setTimeout(resolve, SOCKET_INIT_RETRY_BASE_MS * (attempt + 1)));
   }
   return false;
 }
@@ -77,7 +82,7 @@ export function useSocketConnection(input: Input) {
       const initOk = await initSocketServerEndpoint();
       if (!mounted) return;
       if (!initOk) {
-        input.initCooldownUntilRef.current = Date.now() + 5000;
+        input.initCooldownUntilRef.current = Date.now() + SOCKET_INIT_COOLDOWN_MS;
         return;
       }
 

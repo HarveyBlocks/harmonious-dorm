@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { BOT_RUNTIME_CONFIG } from '@/lib/config/bot-runtime';
 import { StreamAbortError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
@@ -35,8 +36,8 @@ type ReplyOptions = {
 
 const STATUS_CHAT_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.ChatStatusChanged}"`;
 const ABORTED_BEFORE_START_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.BotReplyStoppedBeforeStart}"`;
-const PERSIST_INTERVAL_MS = 600;
-const PERSIST_MIN_GROWTH = 120;
+const PERSIST_INTERVAL_MS = BOT_RUNTIME_CONFIG.streamPersistIntervalMs;
+const PERSIST_MIN_GROWTH = BOT_RUNTIME_CONFIG.streamPersistMinGrowth;
 
 function shouldReplyToMention(content: string, botName: string, force?: boolean) {
   if (force) return true;
