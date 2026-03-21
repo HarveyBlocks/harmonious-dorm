@@ -4,7 +4,7 @@ import type { Socket } from 'socket.io-client';
 import type { LanguageCode } from '@/lib/i18n';
 import type { ActiveTab } from '@/components/dorm-hub/ui-types';
 
-function useDormNodeRefs() {
+function useHubNodeRefs() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatMessageRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -29,7 +29,7 @@ function useDormNodeRefs() {
   };
 }
 
-function useDormRuntimeRefs() {
+function useHubRuntimeRefs() {
   const socketRef = useRef<Socket | null>(null);
   const limitToastRef = useRef<Record<string, number>>({});
   const chatAutoScrolledRef = useRef(false);
@@ -50,7 +50,7 @@ function useDormRuntimeRefs() {
   };
 }
 
-function useDormSyncedDraftRefs() {
+function useHubSyncedDraftRefs() {
   const lastSyncedProfileRef = useRef<{ name: string; language: LanguageCode } | null>(null);
   const lastSyncedDormNameRef = useRef<string>('');
   const lastSyncedBotNameRef = useRef<string>('');
@@ -69,10 +69,10 @@ function useDormSyncedDraftRefs() {
   };
 }
 
-export function useDormHubRefs() {
+export function useHubRefs() {
   return {
-    ...useDormNodeRefs(),
-    ...useDormRuntimeRefs(),
-    ...useDormSyncedDraftRefs(),
+    ...useHubNodeRefs(),
+    ...useHubRuntimeRefs(),
+    ...useHubSyncedDraftRefs(),
   };
 }

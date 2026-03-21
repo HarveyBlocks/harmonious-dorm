@@ -5,7 +5,7 @@ import type { DormState } from '@/lib/types';
 import { mapPathToTab, todayText } from '@/components/dorm-hub/ui-helpers';
 import type { ActiveTab, LineGranularity, NotificationFilter, PeriodType, SettingsCardKey } from '@/components/dorm-hub/ui-types';
 
-function useDormTabState(pathname: string | null) {
+function useHubTabState(pathname: string | null) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => mapPathToTab(pathname || '/'));
   const [selectedState, setSelectedState] = useState<DormState>('out');
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('unread');
@@ -34,7 +34,7 @@ function useDormTabState(pathname: string | null) {
   };
 }
 
-function useDormComposerState() {
+function useHubComposerState() {
   const [assignUserId, setAssignUserId] = useState<number | null>(null);
   const [assignDate, setAssignDate] = useState(todayText());
   const [dutyTask, setDutyTask] = useState('');
@@ -72,7 +72,7 @@ function useDormComposerState() {
   };
 }
 
-function useDormChartFilterState() {
+function useHubChartFilterState() {
   const [billPeriodType, setBillPeriodType] = useState<PeriodType>('month');
   const [billYear, setBillYear] = useState(`${new Date().getFullYear()}`);
   const [billPeriodMarker, setBillPeriodMarker] = useState<number>(new Date().getMonth() + 1);
@@ -101,7 +101,7 @@ function useDormChartFilterState() {
   };
 }
 
-function useDormSettingsDraftState() {
+function useHubSettingsDraftState() {
   const [name, setName] = useState('');
   const [language, setLanguage] = useState<LanguageCode>('zh-CN');
   const [dormNameInput, setDormNameInput] = useState('');
@@ -142,11 +142,11 @@ function useDormSettingsDraftState() {
   };
 }
 
-export function useDormHubState(pathname: string | null) {
+export function useHubState(pathname: string | null) {
   return {
-    ...useDormTabState(pathname),
-    ...useDormComposerState(),
-    ...useDormChartFilterState(),
-    ...useDormSettingsDraftState(),
+    ...useHubTabState(pathname),
+    ...useHubComposerState(),
+    ...useHubChartFilterState(),
+    ...useHubSettingsDraftState(),
   };
 }

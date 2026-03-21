@@ -1,4 +1,4 @@
-export function createDormHubLayoutProps(sections: {
+export function createHubLayoutProps(sections: {
   state: Record<string, any>;
   settingsText: Record<string, any>;
   view: Record<string, any>;

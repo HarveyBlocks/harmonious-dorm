@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -8,8 +8,8 @@ import { getUiText } from '@/lib/i18n';
 import { LIMITS } from '@/lib/limits';
 import { dispatchToast, mapPathToTab, mapTabToPath, settingsFoldLabel } from '@/components/dorm-hub/ui-helpers';
 import { buildErrorText, buildPanelText, buildSettingsText } from '@/components/dorm-hub/view-model-mappers';
-import { useDormHubRefs } from '@/components/dorm-hub/hooks/use-dorm-hub-refs';
-import { useDormHubState } from '@/components/dorm-hub/hooks/use-dorm-hub-state';
+import { useHubRefs } from '@/components/dorm-hub/hooks/use-hub-refs';
+import { useHubState } from '@/components/dorm-hub/hooks/use-hub-state';
 import { useDormQueries } from '@/components/dorm-hub/hooks/use-dorm-queries';
 import { useDormViewModels } from '@/components/dorm-hub/hooks/use-dorm-view-models';
 import { useDormMutations } from '@/components/dorm-hub/hooks/use-dorm-mutations';
@@ -20,39 +20,27 @@ import { useNoticeAuthMutations } from '@/components/dorm-hub/hooks/use-notice-a
 import { useNotificationSelection } from '@/components/dorm-hub/hooks/use-notification-selection';
 import { useTabRouting } from '@/components/dorm-hub/hooks/use-tab-routing';
 import { useTabScrollHandlers } from '@/components/dorm-hub/hooks/use-tab-scroll-handlers';
-import { useDormHubChatRuntime } from '@/components/dorm-hub/hooks/use-dorm-hub-chat-runtime';
-import { useDormHubLifecycleEffects } from '@/components/dorm-hub/hooks/use-dorm-hub-lifecycle-effects';
-import { createDormHubLayoutProps } from '@/components/dorm-hub/hooks/create-dorm-hub-layout-props';
+import { useChatRuntime } from '@/components/dorm-hub/hooks/use-chat-runtime';
+import { useHubLifecycleEffects } from '@/components/dorm-hub/hooks/use-hub-lifecycle-effects';
+import { createHubLayoutProps } from '@/components/dorm-hub/hooks/create-hub-layout-props';
+import { createLifecycleOptions } from '@/components/dorm-hub/hooks/create-lifecycle-options';
+import { useChatMemorySelection } from '@/components/dorm-hub/hooks/use-chat-memory-selection';
+import { useInviteCodeCopy, useLimitedInputGuard } from '@/components/dorm-hub/hooks/use-input-helpers';
 import type { ChatMessage, SettingsCardKey } from '@/components/dorm-hub/ui-types';
 
-export function useDormHubPageModel() {
+export function useHubPageModelInternal() {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
-  const state = useDormHubState(pathname);
-  const refs = useDormHubRefs();
+  const state = useHubState(pathname);
+  const refs = useHubRefs();
 
   const toggleSettingsCard = useCallback((section: SettingsCardKey) => {
     state.setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   }, [state]);
 
-  const tryApplyLimitedInput = useCallback(
-    (key: string, value: string, max: number, message: string, apply: (safeValue: string) => void) => {
-      if (value.length > max) {
-        const now = Date.now();
-        const last = refs.limitToastRef.current[key] || 0;
-        if (now - last > 800) {
-          dispatchToast('error', message);
-          refs.limitToastRef.current[key] = now;
-        }
-        return false;
-      }
-      apply(value);
-      return true;
-    },
-    [refs.limitToastRef],
-  );
+  const tryApplyLimitedInput = useLimitedInputGuard(refs.limitToastRef);
 
   const queries = useDormQueries({
     notificationFilter: state.notificationFilter,
@@ -152,7 +140,7 @@ export function useDormHubPageModel() {
     chatForceBottomOnNextLayoutRef: refs.chatForceBottomOnNextLayoutRef,
   });
 
-  const chatRuntime = useDormHubChatRuntime({
+  const chatRuntime = useChatRuntime({
     activeTab: state.activeTab,
     liveMessages,
     setLiveMessages,
@@ -191,11 +179,7 @@ export function useDormHubPageModel() {
     lastSyncedMemberDescriptionsRef: refs.lastSyncedMemberDescriptionsRef,
   });
 
-  const noticeAuthMutations = useNoticeAuthMutations({
-    queryClient,
-    notificationFilter: state.notificationFilter,
-    socketRef: refs.socketRef,
-  });
+  const noticeAuthMutations = useNoticeAuthMutations({ queryClient, notificationFilter: state.notificationFilter, socketRef: refs.socketRef });
 
   const settingsSaveActions = useSettingsSaveActions({
     me,
@@ -237,6 +221,7 @@ export function useDormHubPageModel() {
     lastActiveTabRef: refs.lastActiveTabRef,
     onNavigateToNotifications: () => state.setNotificationFilter('unread'),
   });
+
   const scrollHandlers = useTabScrollHandlers({
     notificationsQuery: queries.notificationsQuery,
     billsQuery: queries.billsQuery,
@@ -245,194 +230,36 @@ export function useDormHubPageModel() {
     setShowAllDoneDuty: state.setShowAllDoneDuty,
   });
 
-  useDormHubLifecycleEffects({
-    activeTab: state.activeTab,
-    socketOptions: {
-      dormId: queries.meQuery.data?.dormId,
-      meId: queries.meQuery.data?.id,
-      queryClient,
-      socketRef: refs.socketRef,
-      lastActiveTabRef: refs.lastActiveTabRef,
-      chatAtBottomRef: refs.chatAtBottomRef,
-      chatForceBottomOnNextLayoutRef: refs.chatForceBottomOnNextLayoutRef,
-      pendingNewChatIdsRef: refs.pendingNewChatIdsRef,
-      setLiveMessages,
-      setNewChatHintCount: state.setNewChatHintCount,
-      setChatNewerCursor: chatRuntime.setChatNewerCursor,
-      setChatHasNewer: chatRuntime.setChatHasNewer,
-      setNoticePopup: state.setNoticePopup,
-      onBotStreamCommit: () => {
-        state.setChatContextMessageIds([]);
-      },
-      autoReadByTypeMutation: noticeAuthMutations.autoReadByTypeMutation,
-    },
-    settingsAutoSaveOptions: {
-      activeTab: state.activeTab,
-      isLeader: Boolean(me?.isLeader),
-      hasMe: Boolean(me),
-      botOtherEditing: state.botOtherEditing,
-      botOtherTextareaRef: refs.botOtherTextareaRef,
-      name: state.name,
-      language: state.language,
-      dormNameInput: state.dormNameInput,
-      botNameInput: state.botNameInput,
-      botMemoryWindowInput: state.botMemoryWindowInput,
-      botOtherContent: state.botOtherContent,
-      botSettingsInput: state.botSettingsInput,
-      memberDescriptionsInput: state.memberDescriptionsInput,
-      avatarFile: state.avatarFile,
-      botAvatarFile: state.botAvatarFile,
-      ...settingsSaveActions,
-    },
-    chatTabSyncOptions: {
-      activeTab: state.activeTab,
-      chatScrollRef: refs.chatScrollRef,
-      chatMessageRefs: refs.chatMessageRefs,
-      chatAutoScrolledRef: refs.chatAutoScrolledRef,
-      chatAtBottomRef: refs.chatAtBottomRef,
-      pendingNewChatIdsRef: refs.pendingNewChatIdsRef,
-      setNewChatHintCount: state.setNewChatHintCount,
-      resetChatToLatest: chatRuntime.resetChatToLatest,
-    },
-    tabAutoReadOptions: {
-      activeTab: state.activeTab,
-      lastAutoReadTabRef: refs.lastAutoReadTabRef,
-      mutate: (type: any) => noticeAuthMutations.autoReadByTypeMutation.mutate(type),
-    },
-    tabPrefetchOptions: {
-      billsHasNextPage: Boolean(queries.billsQuery.hasNextPage),
-      billsIsFetchingNextPage: queries.billsQuery.isFetchingNextPage,
-      fetchNextBills: () => queries.billsQuery.fetchNextPage(),
-      billsRowCount: view.billsRows.length,
-      unpaidBillCount: view.unpaidBillCount,
-      paidBillGroupCount: view.groupedPaidBills.length,
-      dutyHasNextPage: Boolean(queries.dutyAllQuery.hasNextPage),
-      dutyIsFetchingNextPage: queries.dutyAllQuery.isFetchingNextPage,
-      fetchNextDuty: () => queries.dutyAllQuery.fetchNextPage(),
-      pendingDutyGroupCount: view.groupedPendingDuties.length,
-      doneDutyGroupCount: view.groupedDoneDuties.length,
-      notificationRowCount: view.notificationRows.length,
-      noticeHasNextPage: Boolean(queries.notificationsQuery.hasNextPage),
-      noticeIsFetchingNextPage: queries.notificationsQuery.isFetchingNextPage,
-      fetchNextNotices: () => queries.notificationsQuery.fetchNextPage(),
-      unpaidListRef: refs.billUnpaidListRef,
-      paidListRef: refs.billPaidListRef,
-    },
+  const memory = useChatMemorySelection({
+    meId: me?.id,
+    dormId: me?.dormId,
+    botMemoryWindow: me?.botMemoryWindow,
+    t,
+    liveMessages,
+    selectedIds: state.chatContextMessageIds,
+    setSelectedIds: state.setChatContextMessageIds,
+    togglePrivacyMutation: domainMutations.toggleChatPrivacyMutation,
   });
 
-  const robotMemoryStorageKey = useMemo(() => {
-    if (!me?.id || !me?.dormId) return null;
-    return `chat-robot-memory-selection:${me.dormId}:${me.id}`;
-  }, [me?.dormId, me?.id]);
+  const abortBotStream = useCallback((messageId: number) => {
+    domainMutations.abortBotStreamMutation.mutate(messageId);
+  }, [domainMutations.abortBotStreamMutation]);
 
-  useEffect(() => {
-    if (!robotMemoryStorageKey || typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(robotMemoryStorageKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as number[];
-      if (!Array.isArray(parsed)) return;
-      const normalized = parsed.filter((id) => Number.isInteger(id) && id > 0);
-      state.setChatContextMessageIds(normalized);
-    } catch {
-      state.setChatContextMessageIds([]);
-    }
-  }, [robotMemoryStorageKey, state.setChatContextMessageIds]);
+  useHubLifecycleEffects(createLifecycleOptions({
+    state,
+    queries,
+    refs,
+    queryClient,
+    chatRuntime,
+    noticeAuthMutations,
+    settingsSaveActions,
+    view,
+    setLiveMessages,
+  }));
 
-  useEffect(() => {
-    if (!robotMemoryStorageKey || typeof window === 'undefined') return;
-    window.localStorage.setItem(robotMemoryStorageKey, JSON.stringify(state.chatContextMessageIds));
-  }, [robotMemoryStorageKey, state.chatContextMessageIds]);
+  const copyInviteCode = useInviteCodeCopy(me?.inviteCode, t.inviteCodeCopied, t.requestFailed);
 
-  const privateMessageIdSet = useMemo(
-    () => new Set(liveMessages.filter((item) => item.isPrivateForBot).map((item) => item.id)),
-    [liveMessages],
-  );
-
-  useEffect(() => {
-    if (!state.chatContextMessageIds.length) return;
-    const filtered = state.chatContextMessageIds.filter((id) => !privateMessageIdSet.has(id));
-    if (filtered.length === state.chatContextMessageIds.length) return;
-    state.setChatContextMessageIds(filtered);
-  }, [privateMessageIdSet, state.chatContextMessageIds, state.setChatContextMessageIds]);
-
-  const toggleChatContextMessage = useCallback(
-    (messageId: number) => {
-      if (privateMessageIdSet.has(messageId)) {
-        dispatchToast('error', t.privateMessageCannotJoinRobotMemory);
-        return;
-      }
-      const maxContext = Math.max(1, me?.botMemoryWindow || 10);
-      const prev = state.chatContextMessageIds;
-      const exists = prev.includes(messageId);
-      if (exists) {
-        state.setChatContextMessageIds(prev.filter((id) => id !== messageId));
-        return;
-      }
-      if (prev.length >= maxContext) {
-        dispatchToast('error', t.robotMemorySelectionLimitReached);
-        return;
-      }
-      state.setChatContextMessageIds([...prev, messageId]);
-    },
-    [
-      me?.botMemoryWindow,
-      privateMessageIdSet,
-      state.chatContextMessageIds,
-      state.setChatContextMessageIds,
-      t.privateMessageCannotJoinRobotMemory,
-      t.robotMemorySelectionLimitReached,
-    ],
-  );
-
-  const isChatContextSelected = useCallback(
-    (messageId: number) => state.chatContextMessageIds.includes(messageId),
-    [state.chatContextMessageIds],
-  );
-
-  const isChatMessagePrivateForBot = useCallback(
-    (messageId: number) => privateMessageIdSet.has(messageId),
-    [privateMessageIdSet],
-  );
-
-  const toggleChatPrivacy = useCallback(
-    (messageId: number) => {
-      const isPrivate = privateMessageIdSet.has(messageId);
-      if (!isPrivate && state.chatContextMessageIds.includes(messageId)) {
-        state.setChatContextMessageIds(state.chatContextMessageIds.filter((id) => id !== messageId));
-      }
-      domainMutations.toggleChatPrivacyMutation.mutate({ messageId, isPrivateForBot: !isPrivate });
-    },
-    [
-      domainMutations.toggleChatPrivacyMutation,
-      privateMessageIdSet,
-      state.chatContextMessageIds,
-      state.setChatContextMessageIds,
-    ],
-  );
-
-  const abortBotStream = useCallback(
-    (messageId: number) => {
-      domainMutations.abortBotStreamMutation.mutate(messageId);
-    },
-    [domainMutations.abortBotStreamMutation],
-  );
-
-  const copyInviteCode = async () => {
-    const code = me?.inviteCode;
-    if (!code || typeof window === 'undefined') return;
-    try {
-      if (!navigator.clipboard?.writeText) {
-        throw new Error('Clipboard API unavailable');
-      }
-      await navigator.clipboard.writeText(code);
-      window.dispatchEvent(new CustomEvent('app:toast', { detail: { type: 'success', message: t.inviteCodeCopied } }));
-    } catch {
-      window.dispatchEvent(new CustomEvent('app:toast', { detail: { type: 'error', message: t.requestFailed } }));
-    }
-  };
-
-  return createDormHubLayoutProps({
+  return createHubLayoutProps({
     state,
     settingsText,
     view,
@@ -463,10 +290,10 @@ export function useDormHubPageModel() {
       dormName: me?.dormName || t.dormTitle,
       notificationVisibleRows: view.notificationRows,
       dispatchToast,
-      toggleChatContextMessage,
-      isChatContextSelected,
-      isChatMessagePrivateForBot,
-      toggleChatPrivacy,
+      toggleChatContextMessage: memory.toggleMessage,
+      isChatContextSelected: memory.isSelected,
+      isChatMessagePrivateForBot: memory.isPrivate,
+      toggleChatPrivacy: memory.togglePrivacy,
       abortBotStream,
     },
   });

@@ -7,7 +7,7 @@ import { useChatLayoutSync } from '@/components/dorm-hub/hooks/use-chat-layout-s
 import { useChatWindow } from '@/components/dorm-hub/hooks/use-chat-window';
 import type { ChatMessage } from '@/components/dorm-hub/ui-types';
 
-export function useDormHubChatRuntime(options: {
+export function useChatRuntime(options: {
   activeTab: string;
   liveMessages: ChatMessage[];
   setLiveMessages: Dispatch<SetStateAction<ChatMessage[]>>;
