@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "reload:prisma": "npx prisma generate",
     "dev": "next dev --webpack -p 3000",
     "dev:user": "set NEXT_DIST_DIR=.next-user && next dev --webpack -p 3000",
     "dev:agent": "set NEXT_DIST_DIR=.next-agent && next dev --webpack -p 3011",
