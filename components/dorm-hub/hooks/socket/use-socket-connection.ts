@@ -30,8 +30,8 @@ type Input = {
   setChatNewerCursor: Dispatch<SetStateAction<number | null>>;
   setChatHasNewer: Dispatch<SetStateAction<boolean>>;
   setNoticePopup: Dispatch<SetStateAction<{ title: string; content: string } | null>>;
-  autoReadMutate: (type: AutoReadType) => void;
-  onBotStreamCommit: () => void;
+  autoReadMutateRef: MutableRefObject<(type: AutoReadType) => void>;
+  onBotStreamCommitRef: MutableRefObject<() => void>;
   connectedDormRef: MutableRefObject<number | null>;
   initCooldownUntilRef: MutableRefObject<number>;
 };
@@ -78,11 +78,25 @@ export function useSocketConnection(input: Input) {
     markAppNavigating(false);
 
     let mounted = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRetry = () => {
+      if (!mounted || retryTimer || input.socketRef.current) return;
+      const now = Date.now();
+      const waitMs = Math.max(SOCKET_INIT_COOLDOWN_MS, input.initCooldownUntilRef.current - now);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void init();
+      }, waitMs);
+    };
+
     const init = async () => {
+      if (!mounted || input.socketRef.current) return;
       const initOk = await initSocketServerEndpoint();
       if (!mounted) return;
       if (!initOk) {
         input.initCooldownUntilRef.current = Date.now() + SOCKET_INIT_COOLDOWN_MS;
+        scheduleRetry();
         return;
       }
 
@@ -101,8 +115,8 @@ export function useSocketConnection(input: Input) {
         setChatNewerCursor: input.setChatNewerCursor,
         setChatHasNewer: input.setChatHasNewer,
         setNoticePopup: input.setNoticePopup,
-        autoReadMutate: input.autoReadMutate,
-        onBotStreamCommit: input.onBotStreamCommit,
+        autoReadMutate: (type) => input.autoReadMutateRef.current(type),
+        onBotStreamCommit: () => input.onBotStreamCommitRef.current(),
         streamState: streamStateRef.current,
       });
       input.socketRef.current = socket;
@@ -111,6 +125,10 @@ export function useSocketConnection(input: Input) {
     void init();
     return () => {
       mounted = false;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       clearAllStreamEntries(streamStateRef.current);
       input.socketRef.current?.disconnect();
       input.socketRef.current = null;
@@ -132,7 +150,7 @@ export function useSocketConnection(input: Input) {
     input.setNoticePopup,
     input.socketRef,
     input.connectedDormRef,
-    input.autoReadMutate,
-    input.onBotStreamCommit,
+    input.autoReadMutateRef,
+    input.onBotStreamCommitRef,
   ]);
 }

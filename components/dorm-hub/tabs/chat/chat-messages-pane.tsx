@@ -70,6 +70,17 @@ function ChatMessageRow(props: ChatMessagesPaneProps & { message: ChatMessagesPa
   );
 }
 
+function progressCountToPercentage(count?: number): number {
+  return count ? (1 - Math.exp(-count / 1000)) * 100 : 0;
+}
+
+function formatProgressPercentage(value: number): string {
+  const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const fixed = safe.toFixed(3);
+  const [intPart, fracPart] = fixed.split('.');
+  return `${intPart.padStart(2, '0')}.${fracPart}`;
+}
+
 function ChatMessageBody(props: { t: any; message: ChatMessagesPaneProps['renderedLiveMessages'][number] }) {
   const msg = props.message;
   if (!msg.isBotMessage) {
@@ -79,9 +90,10 @@ function ChatMessageBody(props: { t: any; message: ChatMessagesPaneProps['render
     return <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>;
   }
   if (msg.isStreaming && !msg.content) {
+    const progress = progressCountToPercentage(Number.isFinite(msg.reasoningCount) ? msg.reasoningCount : 0);
     return (
       <p className="text-sm font-medium leading-relaxed text-muted whitespace-pre-wrap break-words">
-        {props.t.thinkingProgress}: {Number.isFinite(msg.reasoningCount) ? msg.reasoningCount : 0}
+        {props.t.thinkingProgress}: {formatProgressPercentage(progress)} %
       </p>
     );
   }

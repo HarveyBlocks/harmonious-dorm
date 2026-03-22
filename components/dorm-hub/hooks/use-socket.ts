@@ -40,8 +40,8 @@ export function useSocket(options: {
 
   useSocketConnection({
     ...options,
-    autoReadMutate: autoReadMutateRef.current,
-    onBotStreamCommit: onBotStreamCommitRef.current,
+    autoReadMutateRef,
+    onBotStreamCommitRef,
     connectedDormRef,
     initCooldownUntilRef,
   });
