@@ -48,3 +48,4 @@ docs/_settings_disabled_backup/
 
 # Local-only folders
 demo/
+/public/
