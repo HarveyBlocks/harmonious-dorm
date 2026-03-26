@@ -27,7 +27,7 @@ function toTextChunk(value: unknown): string {
 
 export function parseDeltaLine(input: { line: string; env?: string; preStatus: DeltaStatus }): DeltaLineResult {
   const { line, env, preStatus } = input;
-  if (env === 'test') {
+  if (env === 'local') {
     const json = JSON.parse(line) as { message?: { content?: unknown }; done?: boolean };
     if (json.done) return { status: 'done', content: '' };
     return { status: 'content', content: toTextChunk(json.message?.content) };

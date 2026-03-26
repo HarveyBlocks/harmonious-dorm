@@ -7,6 +7,8 @@ export enum NoticeMessageKey {
   BillPaymentReverted = 'notice.billPaymentReverted',
   BillFullyPaid = 'notice.billFullyPaid',
   BillAllParticipantsPaid = 'notice.billAllParticipantsPaid',
+  BillDeleted = 'notice.billDeleted',
+  BillDeletedContent = 'notice.billDeletedContent',
   MemberMarkedPaid = 'notice.memberMarkedPaid',
   MemberRevertedPaid = 'notice.memberRevertedPaid',
   DutyPublished = 'notice.dutyPublished',
@@ -41,6 +43,8 @@ const STATIC_TEXT: Record<NoticeMessageKey, MultiLangText> = {
   [NoticeMessageKey.BillPaymentReverted]: { 'zh-CN': '账单支付已撤销', 'zh-TW': '帳單支付已撤銷', fr: 'Paiement de facture annulé', en: 'Bill payment reverted' },
   [NoticeMessageKey.BillFullyPaid]: { 'zh-CN': '账单已全部支付', 'zh-TW': '帳單已全部支付', fr: 'Facture entièrement payée', en: 'Bill fully paid' },
   [NoticeMessageKey.BillAllParticipantsPaid]: { 'zh-CN': '该账单所有参与成员已完成支付', 'zh-TW': '該帳單所有參與成員已完成支付', fr: 'Tous les participants ont payé cette facture', en: 'All participants have completed payment' },
+  [NoticeMessageKey.BillDeleted]: { 'zh-CN': '\u8d26\u5355\u5df2\u5220\u9664', 'zh-TW': '\u5e33\u55ae\u5df2\u522a\u9664', fr: 'Facture supprimee', en: 'Bill deleted' },
+  [NoticeMessageKey.BillDeletedContent]: { 'zh-CN': '', 'zh-TW': '', fr: '', en: '' },
   [NoticeMessageKey.MemberMarkedPaid]: { 'zh-CN': '有成员标记了已支付', 'zh-TW': '有成員標記了已支付', fr: 'Un membre a marqué comme payé', en: 'A member marked as paid' },
   [NoticeMessageKey.MemberRevertedPaid]: { 'zh-CN': '有成员撤销了已支付', 'zh-TW': '有成員撤銷了已支付', fr: 'Un membre a annulé le paiement', en: 'A member reverted payment' },
   [NoticeMessageKey.DutyPublished]: { 'zh-CN': '值日安排已发布', 'zh-TW': '值日安排已發布', fr: 'Corvée assignée', en: 'Duty assignment published' },
@@ -98,6 +102,28 @@ const MESSAGE_FORMATTER_MAP: Partial<Record<NoticeMessageKey, LangFormatter>> = 
       const name = (params.name as string) || getNoticeStaticText('zh-CN', NoticeMessageKey.UntitledBill);
       const amount = String(params.amount || '');
       return `${name} · ¥${amount}`;
+    },
+  },
+  [NoticeMessageKey.BillDeletedContent]: {
+    en: (params) => {
+      const name = (params.name as string) || getNoticeStaticText('en', NoticeMessageKey.UntitledBill);
+      const amount = String(params.amount || '');
+      return `${name} ? ?${amount}`;
+    },
+    fr: (params) => {
+      const name = (params.name as string) || getNoticeStaticText('fr', NoticeMessageKey.UntitledBill);
+      const amount = String(params.amount || '');
+      return `${name} ? ?${amount}`;
+    },
+    'zh-TW': (params) => {
+      const name = (params.name as string) || getNoticeStaticText('zh-TW', NoticeMessageKey.UntitledBill);
+      const amount = String(params.amount || '');
+      return `${name} ? ?${amount}`;
+    },
+    'zh-CN': (params) => {
+      const name = (params.name as string) || getNoticeStaticText('zh-CN', NoticeMessageKey.UntitledBill);
+      const amount = String(params.amount || '');
+      return `${name} ? ?${amount}`;
     },
   },
   [NoticeMessageKey.ChatFrom]: {

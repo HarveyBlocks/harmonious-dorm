@@ -1,4 +1,4 @@
-import { logInfo } from '@/lib/logger';
+﻿import { logInfo } from '@/lib/logger';
 import type { ChatClientConfig } from '@/lib/ai/chat-types';
 import { buildRequestHeaders } from '@/lib/ai/chat-http';
 
@@ -169,7 +169,7 @@ export function splitEchoByToken(text: string): string[] {
 }
 
 export function logEchoHandled(config: ChatClientConfig, traceId: string, stream: boolean, body: Record<string, unknown>) {
-  logInfo('llm_echo_handled', {
+  logInfo('bot_model_echo_handled', {
     traceId,
     provider: config.provider,
     model: config.model,
@@ -178,3 +178,4 @@ export function logEchoHandled(config: ChatClientConfig, traceId: string, stream
     request: buildHttpRequestRaw(config, body),
   });
 }
+

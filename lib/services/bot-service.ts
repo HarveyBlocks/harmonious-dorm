@@ -12,10 +12,13 @@ import {
   BOT_MEMORY_WINDOW_DEFAULT,
   BOT_MEMORY_WINDOW_KEY,
   BOT_OTHER_CONTENT_KEY,
+  BOT_TOOL_PERMISSION_KEY_PREFIX,
   BOT_MEMORY_WINDOW_MIN,
   BOT_MEMORY_WINDOW_MAX,
   normalizeBotMemoryWindow,
+  normalizeToolPermission,
   replaceDormBotSettingsSafe,
+  toBotToolPermissionKey,
 } from './bot-settings-service';
 import { saveImageToPublic } from './media-service';
 import { pushDormNotification } from './notification-service';
@@ -109,7 +112,8 @@ export async function updateDormBotSettings(
   settings: Array<{ key: string; value: string }>,
   otherContent?: string,
   memoryWindow?: number,
-): Promise<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }> {
+  toolPermissions?: Record<string, 'allow' | 'deny'>,
+): Promise<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number; toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }> {
   const me = await ensureSessionUser(session);
   if (!me.isLeader) {
     throw new ApiError(403, '只有舍长可以设置机器人');
@@ -125,6 +129,7 @@ export async function updateDormBotSettings(
   }
 
   const normalized = settings
+    .filter((item) => !String(item.key || '').startsWith(BOT_TOOL_PERMISSION_KEY_PREFIX))
     .map((item) => ({
       key: normalizeName(item.key || ''),
       value: (item.value || '').trim(),
@@ -152,15 +157,27 @@ export async function updateDormBotSettings(
     finalSettings.push(item);
   }
 
+  const normalizedToolPermissions = Object.entries(toolPermissions || {})
+    .filter(([tool]) => Boolean(tool && tool.trim()))
+    .map(([tool, permission]) => ({ tool: tool.trim(), permission: normalizeToolPermission(permission) }));
+
   const toSave = [...finalSettings];
   toSave.push({ key: BOT_MEMORY_WINDOW_KEY, value: String(normalizedMemoryWindow) });
   if (normalizedOtherContent.length > 0) {
     toSave.push({ key: BOT_OTHER_CONTENT_KEY, value: normalizedOtherContent });
   }
+  for (const item of normalizedToolPermissions) {
+    toSave.push({ key: toBotToolPermissionKey(item.tool), value: item.permission });
+  }
 
   await replaceDormBotSettingsSafe(session.dormId, toSave);
   emitToDorm(session.dormId, 'settings:changed', { scope: 'bot-settings' });
 
-  return { settings: finalSettings, otherContent: normalizedOtherContent, memoryWindow: normalizedMemoryWindow };
+  return {
+    settings: finalSettings,
+    otherContent: normalizedOtherContent,
+    memoryWindow: normalizedMemoryWindow,
+    toolPermissions: normalizedToolPermissions,
+  };
 }
 

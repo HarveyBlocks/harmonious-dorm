@@ -1,4 +1,4 @@
-import { StreamAbortError } from '@/lib/errors';
+﻿import { StreamAbortError } from '@/lib/errors';
 import { logInfo } from '@/lib/logger';
 import {
   assertSuccessfulResponse,
@@ -22,13 +22,23 @@ function sleep(ms: number): Promise<void> {
 
 function setupAbort(input: StreamChatInput, timeoutMs: number) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const arm = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  };
+
   const onExternalAbort = () => controller.abort();
   input.abortSignal?.addEventListener('abort', onExternalAbort);
+  arm();
+
   return {
     controller,
+    touch: arm,
     clear: () => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
+      timer = null;
       input.abortSignal?.removeEventListener('abort', onExternalAbort);
     },
   };
@@ -54,8 +64,10 @@ async function runStreamingRequest(
   startedAt: number,
   body: Record<string, unknown>,
   controller: AbortController,
+  onActivity: () => void,
 ): Promise<string> {
   const resp = await requestUpstream(config, body, controller);
+  onActivity();
   await assertSuccessfulResponse(resp, config, traceId, startedAt);
   const reader = resp.body!.getReader();
   const decoder = new TextDecoder('utf-8');
@@ -69,6 +81,7 @@ async function runStreamingRequest(
     // eslint-disable-next-line no-await-in-loop
     const step = await reader.read();
     if (step.done) break;
+    onActivity();
     buffer += decoder.decode(step.value, { stream: true });
     const parsed = parseSsePayloadLines(buffer);
     buffer = parsed.rest;
@@ -89,13 +102,13 @@ async function runStreamingRequest(
       fullText += delta.content;
       if (firstChunkAt === null) {
         firstChunkAt = Date.now();
-        logInfo('llm_first_stream_chunk', { traceId, provider: config.provider, model: config.model, firstChunkLatencyMs: firstChunkAt - startedAt });
+        logInfo('bot_model_first_stream_chunk', { traceId, provider: config.provider, model: config.model, firstChunkLatencyMs: firstChunkAt - startedAt });
       }
       input.onDelta(delta.content);
     }
   }
 
-  logInfo('llm_stream_completed', {
+  logInfo('bot_model_stream_completed', {
     traceId,
     provider: config.provider,
     model: config.model,
@@ -123,7 +136,7 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
 
   logRequestStarted(config, traceId, input, true);
   try {
-    return await runStreamingRequest(config, input, traceId, startedAt, requestBody, abort.controller);
+    return await runStreamingRequest(config, input, traceId, startedAt, requestBody, abort.controller, abort.touch);
   } catch (error) {
     if (input.abortSignal?.aborted) throw new StreamAbortError('Stream aborted by user');
     return normalizeUnknownFailure(config, error);
@@ -132,7 +145,7 @@ export async function streamChatCompletion(config: ChatClientConfig, input: Stre
   }
 }
 
-export async function requestChatCompletion(config: ChatClientConfig, input: NonStreamChatInput): Promise<string> {
+export async function requestChatCompletionPayload(config: ChatClientConfig, input: NonStreamChatInput): Promise<unknown> {
   ensureConfig(config);
   const traceId = buildTraceId(config.provider);
   const startedAt = Date.now();
@@ -143,7 +156,7 @@ export async function requestChatCompletion(config: ChatClientConfig, input: Non
   if (config.env === 'echo') {
     logEchoHandled(config, traceId, false, requestBody);
     clearTimeout(timer);
-    return buildHttpRequestPreview(config, buildEchoPreviewBody(requestBody));
+    return { echoPreview: buildHttpRequestPreview(config, buildEchoPreviewBody(requestBody)) };
   }
 
   logRequestStarted(config, traceId, input, false);
@@ -152,7 +165,7 @@ export async function requestChatCompletion(config: ChatClientConfig, input: Non
     await assertSuccessfulResponse(resp, config, traceId, startedAt);
     const payload = (await resp.json()) as unknown;
     const text = extractNonStreamContent(payload).trim();
-    logInfo('llm_response_received', {
+    logInfo('bot_model_response_received', {
       traceId,
       provider: config.provider,
       model: config.model,
@@ -160,10 +173,18 @@ export async function requestChatCompletion(config: ChatClientConfig, input: Non
       estimatedOutputTokens: estimateTokens(text),
       outputChars: text.length,
     });
-    return text;
+    return payload;
   } catch (error) {
     return normalizeUnknownFailure(config, error);
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function requestChatCompletion(config: ChatClientConfig, input: NonStreamChatInput): Promise<string> {
+  const payload = await requestChatCompletionPayload(config, input);
+  if (payload && typeof payload === 'object' && 'echoPreview' in (payload as Record<string, unknown>)) {
+    return String((payload as Record<string, unknown>).echoPreview || '');
+  }
+  return extractNonStreamContent(payload).trim();
 }

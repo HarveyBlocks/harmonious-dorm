@@ -1,4 +1,3 @@
-
 import { Camera, CircleAlert, Plus, X } from 'lucide-react';
 import { LIMITS } from '@/lib/limits';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
@@ -6,6 +5,7 @@ import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { autoResizeTextarea, resetTextareaHeight, resolveAvatar } from '../ui-helpers';
 import { SettingsCard } from '../settings-card';
 import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
+import { AVAILABLE_BOT_TOOLS, ToolPermissionList } from '@/components/dorm-hub/tsx-tools/tools';
 
 export function BotSettingsCard(props: {
   me: any;
@@ -22,9 +22,14 @@ export function BotSettingsCard(props: {
   tryApplyLimitedInput: (key: string, value: string, max: number, message: string, apply: (safeValue: string) => void) => boolean;
   eText: any;
   botSettingsLabel: string;
+  botToolPermissionLabel: string;
+  toolPermissionAllowLabel: string;
+  toolPermissionDenyLabel: string;
   noFieldsYetText: string;
   botSettingsInput: Array<{ key: string; value: string }>;
   setBotSettingsInput: Dispatch<SetStateAction<Array<{ key: string; value: string }>>>;
+  botToolPermissionsInput: Array<{ tool: string; permission: 'allow' | 'deny' }>;
+  setBotToolPermissionsInput: Dispatch<SetStateAction<Array<{ tool: string; permission: 'allow' | 'deny' }>>>;
   addFieldLabel: string;
   removeFieldLabel: string;
   botSettingKeyLabel: string;
@@ -46,6 +51,12 @@ export function BotSettingsCard(props: {
   dispatchToast: (type: 'error' | 'success' | 'info', message: string) => void;
 }) {
   const p = props;
+  const permissionMap = new Map((p.botToolPermissionsInput || []).map((item) => [item.tool, item.permission] as const));
+  const toolPermissionRows = AVAILABLE_BOT_TOOLS.map((tool) => ({
+    tool: tool.name,
+    permission: (permissionMap.get(tool.name) || 'deny') as 'allow' | 'deny',
+  }));
+
   return (
     <SettingsCard title={p.title} folded={p.folded} onToggle={p.onToggle} toggleLabel={p.toggleLabel} className={`glass-card sleep-depth-mid rounded-3xl ${p.folded ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
       <div className="space-y-6 mt-6">
@@ -83,6 +94,29 @@ export function BotSettingsCard(props: {
             ))}
             {p.botSettingsInput.length === 0 ? <p className="text-xs text-muted">{p.noFieldsYetText}</p> : null}
           </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-200/20">
+          <ToolPermissionList
+            rows={toolPermissionRows}
+            title={p.botToolPermissionLabel}
+            allowLabel={p.toolPermissionAllowLabel}
+            denyLabel={p.toolPermissionDenyLabel}
+            canEdit={Boolean(p.me?.isLeader)}
+            language={p.me?.language || 'zh-CN'}
+            onChange={(tool, permission) => {
+              p.setBotToolPermissionsInput((prev) => {
+                const next = [...prev];
+                const idx = next.findIndex((item) => item.tool === tool);
+                if (idx >= 0) {
+                  next[idx] = { ...next[idx], permission };
+                } else {
+                  next.push({ tool, permission });
+                }
+                return next;
+              });
+            }}
+          />
         </div>
 
         <div className="pt-5 border-t border-slate-200/20 space-y-3">

@@ -41,6 +41,7 @@ export function createLifecycleOptions(input: {
       botMemoryWindowInput: input.state.botMemoryWindowInput,
       botOtherContent: input.state.botOtherContent,
       botSettingsInput: input.state.botSettingsInput,
+      botToolPermissionsInput: input.state.botToolPermissionsInput,
       memberDescriptionsInput: input.state.memberDescriptionsInput,
       avatarFile: input.state.avatarFile,
       botAvatarFile: input.state.botAvatarFile,

@@ -74,10 +74,14 @@ function bindChatEvents(deps: CommonDeps) {
     enqueueStreamDelta(deps.streamState, payload.streamId, payload.delta, deps.setLiveMessages);
   });
 
+  deps.socket.on('chat:stream:phase', (payload: { streamId: number; phase: 'requesting' | 'thinking' | 'tool_calling' | 'tool_result_thinking' | 'responding' }) => {
+    if (!payload?.streamId || !payload?.phase) return;
+    deps.setLiveMessages((prev) => prev.map((item) => (item.id === payload.streamId ? { ...item, streamPhase: payload.phase } : item)));
+  });
   deps.socket.on('chat:stream:reasoning', (payload: { streamId: number; reasoningCount: number }) => {
     if (!payload?.streamId) return;
     const safeCount = Number.isFinite(payload.reasoningCount) ? payload.reasoningCount : 0;
-    deps.setLiveMessages((prev) => prev.map((item) => (item.id === payload.streamId ? { ...item, reasoningCount: safeCount } : item)));
+    deps.setLiveMessages((prev) => prev.map((item) => (item.id === payload.streamId ? { ...item, reasoningCount: safeCount, streamPhase: item.streamPhase === 'tool_calling' ? 'tool_result_thinking' : 'thinking' } : item))); 
   });
 
   deps.socket.on('chat:stream:commit', (payload: { streamId: number; message: ChatMessage }) => {

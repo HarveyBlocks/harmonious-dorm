@@ -1,4 +1,3 @@
-
 import React, { useCallback } from 'react';
 
 import { LIMITS } from '@/lib/limits';
@@ -20,6 +19,7 @@ export function useSettingsSaveActions(options: {
   setBotMemoryWindowInput: (v: string) => void;
   botOtherContent: string;
   botSettingsInput: Array<{ key: string; value: string }>;
+  botToolPermissionsInput: Array<{ tool: string; permission: 'allow' | 'deny' }>;
   memberDescriptionsInput: Record<number, string>;
   avatarFile: File | null;
   botAvatarFile: File | null;
@@ -29,11 +29,12 @@ export function useSettingsSaveActions(options: {
   lastSyncedBotMemoryWindowRef: React.MutableRefObject<number>;
   lastSyncedBotOtherContentRef: React.MutableRefObject<string>;
   lastSyncedBotSettingsRef: React.MutableRefObject<Array<{ key: string; value: string }>>;
+  lastSyncedBotToolPermissionsRef: React.MutableRefObject<Array<{ tool: string; permission: 'allow' | 'deny' }>>;
   lastSyncedMemberDescriptionsRef: React.MutableRefObject<Record<number, string>>;
   updateProfileMutation: { isPending: boolean; mutate: (payload: { name: string; language: any }) => void };
   updateDormMutation: { isPending: boolean; mutate: (name: string) => void };
   updateBotMutation: { isPending: boolean; mutate: (name: string) => void };
-  updateBotSettingsMutation: { isPending: boolean; mutate: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }) => void };
+  updateBotSettingsMutation: { isPending: boolean; mutate: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number; toolPermissions: Record<string, 'allow' | 'deny'> }) => void };
   updateDescriptionsMutation: { isPending: boolean; mutate: (payload: Array<{ userId: number; description: string }>) => void };
   uploadAvatarMutation: { isPending: boolean; mutate: (file: File) => void };
   uploadBotAvatarMutation: { isPending: boolean; mutate: (file: File) => void };
@@ -51,6 +52,7 @@ export function useSettingsSaveActions(options: {
     setBotMemoryWindowInput,
     botOtherContent,
     botSettingsInput,
+    botToolPermissionsInput,
     memberDescriptionsInput,
     avatarFile,
     botAvatarFile,
@@ -60,6 +62,7 @@ export function useSettingsSaveActions(options: {
     lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
+    lastSyncedBotToolPermissionsRef,
     lastSyncedMemberDescriptionsRef,
     updateProfileMutation,
     updateDormMutation,
@@ -105,28 +108,50 @@ export function useSettingsSaveActions(options: {
     if (!me?.isLeader || updateBotSettingsMutation.isPending) return;
     const otherContent = botOtherContent.trim();
     if (otherContent.length > LIMITS.BOT_OTHER_CONTENT) return;
+
     const parsedMemoryWindow = Number(botMemoryWindowInput || BOT_MEMORY_WINDOW_DEFAULT);
     const normalizedMemoryWindow = Number.isFinite(parsedMemoryWindow) ? Math.floor(parsedMemoryWindow) : BOT_MEMORY_WINDOW_DEFAULT;
     const clampedMemoryWindow = Math.max(BOT_MEMORY_WINDOW_MIN, Math.min(BOT_MEMORY_WINDOW_MAX, normalizedMemoryWindow));
     if (String(clampedMemoryWindow) !== botMemoryWindowInput) {
       setBotMemoryWindowInput(String(clampedMemoryWindow));
     }
-    const normalized = botSettingsInput
+
+    const normalizedSettings = botSettingsInput
       .map((item) => ({ key: item.key.trim(), value: item.value }))
       .filter((item) => item.key.length > 0);
-    const old = JSON.stringify(lastSyncedBotSettingsRef.current);
-    const next = JSON.stringify(normalized);
+
+    const normalizedToolPermissions = botToolPermissionsInput
+      .map((item) => ({ tool: (item.tool || '').trim(), permission: (item.permission === 'allow' ? 'allow' : 'deny') as 'allow' | 'deny' }))
+      .filter((item) => item.tool.length > 0);
+
+    const oldSettings = JSON.stringify(lastSyncedBotSettingsRef.current);
+    const newSettings = JSON.stringify(normalizedSettings);
+    const oldTools = JSON.stringify(lastSyncedBotToolPermissionsRef.current);
+    const newTools = JSON.stringify(normalizedToolPermissions);
     const syncedOtherContent = lastSyncedBotOtherContentRef.current;
     const syncedMemoryWindow = lastSyncedBotMemoryWindowRef.current || BOT_MEMORY_WINDOW_DEFAULT;
-    if (old === next && otherContent === syncedOtherContent && clampedMemoryWindow === syncedMemoryWindow) return;
-    updateBotSettingsMutation.mutate({ settings: normalized, otherContent, memoryWindow: clampedMemoryWindow });
+
+    if (oldSettings === newSettings && oldTools === newTools && otherContent === syncedOtherContent && clampedMemoryWindow === syncedMemoryWindow) return;
+
+    const normalizedToolPermissionMap = Object.fromEntries(
+      normalizedToolPermissions.map((item) => [item.tool, item.permission] as const),
+    );
+
+    updateBotSettingsMutation.mutate({
+      settings: normalizedSettings,
+      otherContent,
+      memoryWindow: clampedMemoryWindow,
+      toolPermissions: normalizedToolPermissionMap,
+    });
   }, [
     botMemoryWindowInput,
     botOtherContent,
     botSettingsInput,
+    botToolPermissionsInput,
     lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
+    lastSyncedBotToolPermissionsRef,
     me?.isLeader,
     setBotMemoryWindowInput,
     updateBotSettingsMutation,

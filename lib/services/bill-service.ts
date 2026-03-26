@@ -162,6 +162,8 @@ export async function listBills(
     const totalCount = bill.participants.length;
     const paidCount = bill.participants.filter((item) => item.paid).length;
     const myShare = bill.participants.find((item) => item.userId === session.userId && item.actualAmount > 0);
+    const hasAnyPaid = bill.participants.some((item) => item.actualAmount > 0 && item.paid);
+    const canDelete = hasAnyPaid ? session.isLeader : session.isLeader || bill.createdBy === session.userId;
 
     return {
       id: bill.id,
@@ -174,6 +176,7 @@ export async function listBills(
       totalCount,
       myPaid: Boolean(myShare?.paid),
       myAmount: myShare?.actualAmount ?? 0,
+      canDelete,
     };
   });
 
@@ -284,3 +287,52 @@ export async function markBillPaid(
 
 
 
+
+
+export async function deleteBill(session: SessionUser, billId: number): Promise<{ success: true }> {
+  await ensureSessionUser(session);
+
+  const bill = await prisma.bill.findFirst({
+    where: {
+      id: billId,
+      dormId: session.dormId,
+    },
+    include: {
+      participants: {
+        where: { actualAmount: { gt: 0 } },
+        select: { userId: true, paid: true },
+      },
+    },
+  });
+
+  if (!bill) {
+    throw new ApiError(404, 'Bill not found');
+  }
+
+  const hasAnyPaid = bill.participants.some((item) => item.paid);
+  const canDelete = hasAnyPaid ? session.isLeader : session.isLeader || bill.createdBy === session.userId;
+  if (!canDelete) {
+    throw new ApiError(403, hasAnyPaid ? 'Only leader can delete after someone paid' : 'Only creator or leader can delete');
+  }
+
+  await prisma.bill.delete({
+    where: { id: bill.id },
+  });
+
+  await pushDormNotification({
+    dormId: session.dormId,
+    type: 'bill',
+    title: encodeMessageToken(NoticeMessageKey.BillDeleted),
+    content: encodeMessageToken(NoticeMessageKey.BillDeletedContent, {
+      name: bill.customCategory || bill.description || '',
+      amount: bill.totalAmount.toFixed(2),
+    }),
+    targetPath: '/wallet',
+    groupKey: `bill-delete-${bill.id}`,
+    actorUserId: session.userId,
+  });
+
+  emitToDorm(session.dormId, 'bill:changed', { billId: bill.id, deleted: true });
+
+  return { success: true };
+}

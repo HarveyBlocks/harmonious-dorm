@@ -1,10 +1,28 @@
-import { AI_CHAT_CONFIG, isAiChatConfigured } from '@/lib/config/ai';
+﻿import { AI_CHAT_CONFIG, isAiChatConfigured } from '@/lib/config/ai';
 import { ApiError } from '@/lib/errors';
-import { requestChatCompletion, streamChatCompletion } from '@/lib/ai/stream-chat-client';
+import { requestChatCompletion, requestChatCompletionPayload, streamChatCompletion, type ChatClientConfig, type LlmMessage } from '@/lib/ai/stream-chat-client';
 
 type DeltaHandler = (delta: string) => void;
 
-// GLM streaming adapter built on top of shared AI chat client.
+function buildGlmClientConfig(): ChatClientConfig {
+  return {
+    provider: 'glm',
+    model: AI_CHAT_CONFIG.model || '',
+    baseUrl: AI_CHAT_CONFIG.baseUrl,
+    apiKey: AI_CHAT_CONFIG.apiKey || '',
+    timeoutMs: AI_CHAT_CONFIG.timeoutMs,
+    maxOutputTokens: AI_CHAT_CONFIG.maxOutputTokens,
+    echoStreamDelayMs: AI_CHAT_CONFIG.echoStreamDelayMs,
+    env: AI_CHAT_CONFIG.env,
+  };
+}
+
+function ensureGlmConfigured() {
+  if (!isAiChatConfigured()) {
+    throw new ApiError(500, 'AI chat config missing');
+  }
+}
+
 export async function streamGlmReply(input: {
   systemPrompt: string;
   userPrompt: string;
@@ -13,21 +31,9 @@ export async function streamGlmReply(input: {
   onProgressDelta?: (step: number) => void;
   abortSignal?: AbortSignal;
 }): Promise<string> {
-  if (!isAiChatConfigured()) {
-    throw new ApiError(500, 'AI chat config missing');
-  }
-
+  ensureGlmConfigured();
   return streamChatCompletion(
-    {
-      provider: 'glm',
-      model: AI_CHAT_CONFIG.model || '',
-      baseUrl: AI_CHAT_CONFIG.baseUrl,
-      apiKey: AI_CHAT_CONFIG.apiKey || '',
-      timeoutMs: AI_CHAT_CONFIG.timeoutMs,
-      maxOutputTokens: AI_CHAT_CONFIG.maxOutputTokens,
-      echoStreamDelayMs: AI_CHAT_CONFIG.echoStreamDelayMs,
-      env: AI_CHAT_CONFIG.env,
-    },
+    buildGlmClientConfig(),
     {
       messages: [
         { role: 'system', content: input.systemPrompt },
@@ -41,31 +47,45 @@ export async function streamGlmReply(input: {
   );
 }
 
-// GLM non-stream adapter for future reuse in non-chat scenarios.
+export async function streamGlmMessages(input: {
+  messages: LlmMessage[];
+  extraBody?: Record<string, unknown>;
+  onDelta: DeltaHandler;
+  onReasoningDelta?: DeltaHandler;
+  onProgressDelta?: (step: number) => void;
+  abortSignal?: AbortSignal;
+}): Promise<string> {
+  ensureGlmConfigured();
+  return streamChatCompletion(buildGlmClientConfig(), {
+    messages: input.messages,
+    extraBody: input.extraBody,
+    onDelta: input.onDelta,
+    onReasoningDelta: input.onReasoningDelta,
+    onProgressDelta: input.onProgressDelta,
+    abortSignal: input.abortSignal,
+  });
+}
+
 export async function requestGlmReply(input: {
   systemPrompt: string;
   userPrompt: string;
 }): Promise<string> {
-  if (!isAiChatConfigured()) {
-    throw new ApiError(500, 'AI chat config missing');
-  }
+  ensureGlmConfigured();
+  return requestChatCompletion(buildGlmClientConfig(), {
+    messages: [
+      { role: 'system', content: input.systemPrompt },
+      { role: 'user', content: input.userPrompt },
+    ],
+  });
+}
 
-  return requestChatCompletion(
-    {
-      provider: 'glm',
-      model: AI_CHAT_CONFIG.model || '',
-      baseUrl: AI_CHAT_CONFIG.baseUrl,
-      apiKey: AI_CHAT_CONFIG.apiKey || '',
-      timeoutMs: AI_CHAT_CONFIG.timeoutMs,
-      maxOutputTokens: AI_CHAT_CONFIG.maxOutputTokens,
-      echoStreamDelayMs: AI_CHAT_CONFIG.echoStreamDelayMs,
-      env: AI_CHAT_CONFIG.env,
-    },
-    {
-      messages: [
-        { role: 'system', content: input.systemPrompt },
-        { role: 'user', content: input.userPrompt },
-      ],
-    },
-  );
+export async function requestGlmPayload(input: {
+  messages: LlmMessage[];
+  extraBody?: Record<string, unknown>;
+}): Promise<unknown> {
+  ensureGlmConfigured();
+  return requestChatCompletionPayload(buildGlmClientConfig(), {
+    messages: input.messages,
+    extraBody: input.extraBody,
+  });
 }

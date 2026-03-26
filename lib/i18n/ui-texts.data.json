@@ -366,10 +366,10 @@
     "en": "Loading, progress"
   },
   "thinkingProgress": {
-    "zh-CN": "思考中，思考进度",
-    "zh-TW": "思考中，思考進度",
-    "fr": "Reflexion en cours, progression",
-    "en": "Thinking, progress"
+    "zh-CN": "思考进度",
+    "zh-TW": "思考進度",
+    "fr": "Progression",
+    "en": "Progress"
   },
   "privateMessageCannotJoinRobotMemory": {
     "zh-CN": "隐私消息不会发给机器人",
@@ -540,6 +540,57 @@
     "en": "Network request failed, please try again later"
   },
   "requestFailed": {
-    "zh-CN": "请求失败", "zh-TW": "請求失敗", "fr": "Échec de la requête", "en": "Request failed"
+    "zh-CN": "请求失败",
+    "zh-TW": "請求失敗",
+    "fr": "Échec de la requête",
+    "en": "Request failed"
+  },
+  "deleteBill": {
+    "zh-CN": "删除账单",
+    "zh-TW": "刪除帳單",
+    "fr": "Supprimer la facture",
+    "en": "Delete Bill"
+  },
+  "botToolPermissionLabel": {
+    "zh-CN": "机器人工具权限",
+    "zh-TW": "機器人工具權限",
+    "fr": "Autorisations des outils du robot",
+    "en": "Bot Tool Permissions"
+  },
+  "toolPermissionAllowLabel": {
+    "zh-CN": "总是允许",
+    "zh-TW": "總是允許",
+    "fr": "Toujours autoriser",
+    "en": "Always Allow"
+  },
+  "toolPermissionDenyLabel": {
+    "zh-CN": "总是禁止",
+    "zh-TW": "總是禁止",
+    "fr": "Toujours interdire",
+    "en": "Always Deny"
+  },
+  "botRequesting": {
+    "zh-CN": "正在为你发起请求，请稍候...",
+    "zh-TW": "正在為你發起請求，請稍候...",
+    "fr": "Requete en cours, merci de patienter...",
+    "en": "Sending your request, please wait..."
+  },
+  "botThinking": {
+    "zh-CN": "机器人正在认真思考中...",
+    "zh-TW": "機器人正在認真思考中...",
+    "fr": "Le robot reflechit attentivement...",
+    "en": "The bot is thinking carefully..."
+  },
+  "botToolCalling": {
+    "zh-CN": "思考完成，正在调用工具...",
+    "zh-TW": "思考完成，正在呼叫工具...",
+    "fr": "Analyse terminee, appel de l outil...",
+    "en": "Reasoning done, invoking tool..."
+  },
+  "botToolDoneThinking": {
+    "zh-CN": "工具执行完成，正在整理最终回复...",
+    "zh-TW": "工具執行完成，正在整理最終回覆...",
+    "fr": "Outil termine, preparation de la reponse finale...",
+    "en": "Tool finished, preparing the final answer..."
   }
 }

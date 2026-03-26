@@ -1,4 +1,13 @@
-export type LlmMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+﻿export type LlmToolCall = {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+};
+
+export type LlmMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string; tool_calls?: LlmToolCall[] }
+  | { role: 'tool'; content: string; tool_call_id: string; name?: string };
 
 export type ChatClientConfig = {
   provider: string;
@@ -24,3 +33,4 @@ export type StreamChatInput = BaseChatInput & {
 };
 
 export type NonStreamChatInput = BaseChatInput;
+

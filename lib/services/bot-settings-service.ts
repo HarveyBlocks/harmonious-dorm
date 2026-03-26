@@ -7,9 +7,26 @@ export interface BotSettingPair {
 
 export const BOT_OTHER_CONTENT_KEY = '__bot_other_content__';
 export const BOT_MEMORY_WINDOW_KEY = '__bot_memory_window__';
+export const BOT_TOOL_PERMISSION_KEY_PREFIX = '__bot_tool_permission__:';
 export const BOT_MEMORY_WINDOW_MIN = 1;
 export const BOT_MEMORY_WINDOW_MAX = 35;
 export const BOT_MEMORY_WINDOW_DEFAULT = 10;
+
+export type BotToolPermission = 'allow' | 'deny';
+
+export function toBotToolPermissionKey(toolName: string): string {
+  return `${BOT_TOOL_PERMISSION_KEY_PREFIX}${toolName}`;
+}
+
+export function parseToolNameFromPermissionKey(key: string): string | null {
+  if (!key.startsWith(BOT_TOOL_PERMISSION_KEY_PREFIX)) return null;
+  const toolName = key.slice(BOT_TOOL_PERMISSION_KEY_PREFIX.length).trim();
+  return toolName || null;
+}
+
+export function normalizeToolPermission(raw: unknown): BotToolPermission {
+  return String(raw || '').trim().toLowerCase() === 'allow' ? 'allow' : 'deny';
+}
 
 export function normalizeBotMemoryWindow(raw: unknown): number {
   const parsed = Number(raw);

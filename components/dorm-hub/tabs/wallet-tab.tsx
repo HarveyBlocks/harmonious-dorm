@@ -1,5 +1,5 @@
 
-import { ArrowDownLeft, ArrowUpRight, CreditCard } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BILL_CATEGORY_COLOR } from '@/lib/theme/status-colors';
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from 'react';
@@ -26,6 +26,7 @@ export function WalletTab(props: {
   onBillUnpaidListScroll: (event: UIEvent<HTMLDivElement>) => void;
   onBillPaidListScroll: (event: UIEvent<HTMLDivElement>) => void;
   togglePaidMutation: any;
+  deleteBillMutation: any;
   billTotal: string;
   setBillTotal: (v: string) => void;
   billCategory: string;
@@ -119,6 +120,11 @@ export function WalletTab(props: {
                       <div className="flex items-center gap-2">
                         <p className="text-lg font-black">¥{bill.total.toFixed(2)}</p>
                         <button onClick={() => p.togglePaidMutation.mutate({ billId: bill.id, paid: true })} className="px-3 py-2 accent-bg rounded-xl text-xs font-bold">{p.t.markPaid}</button>
+                        {bill.canDelete ? (
+                          <button onClick={() => p.deleteBillMutation.mutate(bill.id)} className="p-2 rounded-lg glass-card text-rose-500" title={p.t.deleteBill}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -142,6 +148,11 @@ export function WalletTab(props: {
                       <div className="flex items-center gap-2">
                         <p className="text-lg font-black">¥{bill.total.toFixed(2)}</p>
                         <button onClick={() => p.togglePaidMutation.mutate({ billId: bill.id, paid: false })} className="px-3 py-2 accent-bg rounded-xl text-xs font-bold">{p.t.resetUnpaid}</button>
+                        {bill.canDelete ? (
+                          <button onClick={() => p.deleteBillMutation.mutate(bill.id)} className="p-2 rounded-lg glass-card text-rose-500" title={p.t.deleteBill}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ))}

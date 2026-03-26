@@ -1,11 +1,12 @@
-import { prisma } from '@/lib/db';
+﻿import { prisma } from '@/lib/db';
 import { BOT_RUNTIME_CONFIG } from '@/lib/config/bot-runtime';
-import { StreamAbortError } from '@/lib/errors';
+import { StreamAbortError, UpstreamServiceError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import type { SessionUser } from '@/lib/types';
 
 import { emitToDorm } from '@/lib/socket-server';
+import { listAllowedTools } from '@/lib/tools';
 import { ensureDormBotUser, isBotEmail } from './bot-service';
 import { buildDormBotPrompt } from './chat-bot-prompt';
 import { fetchRecentMessagesForBotMemory } from './chat-bot-memory';
@@ -15,8 +16,10 @@ import {
   BOT_OTHER_CONTENT_KEY,
   listDormBotSettingsSafe,
   normalizeBotMemoryWindow,
+  normalizeToolPermission,
+  parseToolNameFromPermissionKey,
 } from './bot-settings-service';
-import { streamGlmReply } from './glm-service';
+import { runBotReplyWithToolCall } from './chat-bot-tool-call';
 import { pushDormNotification } from './notification-service';
 import { listDormUserDescriptions } from './user-description-service';
 
@@ -62,6 +65,7 @@ async function loadBotConfig(dormId: number) {
   const allSettings = await listDormBotSettingsSafe(dormId);
   let botOtherContent = '';
   let botMemoryWindow = BOT_MEMORY_WINDOW_DEFAULT;
+  const toolPermissions: Record<string, 'allow' | 'deny'> = {};
   const botSettings = allSettings.filter((item) => {
     if (item.key === BOT_OTHER_CONTENT_KEY) {
       botOtherContent = item.value || '';
@@ -71,9 +75,14 @@ async function loadBotConfig(dormId: number) {
       botMemoryWindow = normalizeBotMemoryWindow(item.value);
       return false;
     }
+    const toolName = parseToolNameFromPermissionKey(item.key);
+    if (toolName) {
+      toolPermissions[toolName] = normalizeToolPermission(item.value);
+      return false;
+    }
     return true;
   });
-  return { botOtherContent, botMemoryWindow, botSettings };
+  return { botOtherContent, botMemoryWindow, botSettings, toolPermissions };
 }
 
 function normalizeExplicitContextIds(explicitIds: number[] | undefined, max: number) {
@@ -145,6 +154,7 @@ function emitStreamStart(dormId: number, streamId: number, streamOrder: number, 
       isPrivateForBot: false,
       abortableByUserId: userId,
       reasoningCount: 0,
+      streamPhase: 'requesting',
     },
   });
 }
@@ -153,6 +163,9 @@ async function streamAndPersistReply(input: {
   dormId: number;
   streamId: number;
   prompt: { systemPrompt: string; userPrompt: string };
+  toolPermissions?: Record<string, 'allow' | 'deny'>;
+  callerUserId: number;
+  callerIsLeader: boolean;
   abortSignal?: AbortSignal;
 }) {
   let streamedContent = '';
@@ -169,9 +182,11 @@ async function streamAndPersistReply(input: {
   let botReply = '';
   let abortedByUser = false;
   try {
-    botReply = await streamGlmReply({
+    botReply = await runBotReplyWithToolCall({
       systemPrompt: input.prompt.systemPrompt,
       userPrompt: input.prompt.userPrompt,
+      toolPermissions: input.toolPermissions || {},
+      caller: { callerUserId: input.callerUserId, callerIsLeader: input.callerIsLeader },
       abortSignal: input.abortSignal,
       onDelta: (delta) => {
         streamedContent += delta;
@@ -180,6 +195,9 @@ async function streamAndPersistReply(input: {
           queuePersist();
         }
       },
+      onPhase: (phase) => {
+        emitToDorm(input.dormId, 'chat:stream:phase', { streamId: input.streamId, phase });
+      },
       onProgressDelta: (step) => {
         const safeStep = Number.isFinite(step) ? Math.max(1, Math.floor(step)) : 1;
         reasoningCount += safeStep;
@@ -187,8 +205,14 @@ async function streamAndPersistReply(input: {
       },
     });
   } catch (error) {
-    if (error instanceof StreamAbortError) abortedByUser = true;
-    else throw error;
+    if (error instanceof StreamAbortError) {
+      abortedByUser = true;
+    } else if (error instanceof UpstreamServiceError && streamedContent.trim().length > 0) {
+      // Keep partial streamed content instead of overriding it with a hard failure message.
+      botReply = streamedContent;
+    } else {
+      throw error;
+    }
   }
   await persistChain;
   if (abortedByUser) {
@@ -253,12 +277,13 @@ export async function replyByDormBotIfMentioned(session: SessionUser, content: s
   if (!dorm) return;
 
   const descriptionMap = await listDormUserDescriptions(session.dormId);
-  const { botOtherContent, botMemoryWindow, botSettings } = await loadBotConfig(session.dormId);
+  const { botOtherContent, botMemoryWindow, botSettings, toolPermissions } = await loadBotConfig(session.dormId);
   const explicitContextMessageIds = normalizeExplicitContextIds(options?.explicitContextMessageIds, botMemoryWindow);
   const recentMessages = await loadRecentMessages({ dormId: session.dormId, anchorMessageId, botMemoryWindow, explicitContextMessageIds });
 
   const sender = dorm.users.find((item) => item.id === session.userId);
   const memberRows = dorm.users.filter((item) => !isBotEmail(item.email)).map((item) => ({ id: item.id, name: item.name, isLeader: item.isLeader, state: item.status?.state || 'out' }));
+  const allowedTools = listAllowedTools(toolPermissions);
   const prompt = buildDormBotPrompt({
     botName: bot.name,
     dormName: dorm.dormName,
@@ -272,6 +297,7 @@ export async function replyByDormBotIfMentioned(session: SessionUser, content: s
     senderUserId: session.userId,
     senderUserName: sender?.name || 'unknown-user',
     botUserId: bot.id,
+    availableTools: allowedTools,
   });
 
   const stream = await ensureStreamMessage(session.dormId, bot.id, options?.streamId, options?.streamOrder);
@@ -281,9 +307,16 @@ export async function replyByDormBotIfMentioned(session: SessionUser, content: s
     dormId: session.dormId,
     streamId: stream.streamId,
     prompt,
+    toolPermissions,
+    callerUserId: session.userId,
+    callerIsLeader: session.isLeader,
     abortSignal: options?.abortSignal,
   });
 
   await prisma.chatMessage.update({ where: { id: stream.streamId }, data: { content: finalContent } });
   await finalizeAndNotify(session.dormId, stream.streamId, bot.name);
 }
+
+
+
+

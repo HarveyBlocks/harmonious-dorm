@@ -1,4 +1,3 @@
-
 import { useMutation, type QueryClient } from '@tanstack/react-query';
 import type { MutableRefObject } from 'react';
 
@@ -23,6 +22,7 @@ export function useSettingsMutations(options: {
   lastSyncedBotMemoryWindowRef: MutableRefObject<number>;
   lastSyncedBotOtherContentRef: MutableRefObject<string>;
   lastSyncedBotSettingsRef: MutableRefObject<Array<{ key: string; value: string }>>;
+  lastSyncedBotToolPermissionsRef: MutableRefObject<Array<{ tool: string; permission: 'allow' | 'deny' }>>;
   lastSyncedMemberDescriptionsRef: MutableRefObject<Record<number, string>>;
 }) {
   const {
@@ -37,6 +37,7 @@ export function useSettingsMutations(options: {
     lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
+    lastSyncedBotToolPermissionsRef,
     lastSyncedMemberDescriptionsRef,
   } = options;
 
@@ -74,17 +75,20 @@ export function useSettingsMutations(options: {
   });
 
   const updateBotSettingsMutation = useMutation({
-    mutationFn: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }) =>
-      apiRequest<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number }>('/api/dorm/bot/settings', {
+    mutationFn: (payload: { settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number; toolPermissions: Record<string, 'allow' | 'deny'> }) =>
+      apiRequest<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number; toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }>('/api/dorm/bot/settings', {
         method: 'PUT',
         body: JSON.stringify(payload),
       }),
-    onSuccess: (_, payload) => {
-      lastSyncedBotSettingsRef.current = payload.settings
+    onSuccess: (data) => {
+      lastSyncedBotSettingsRef.current = (data.settings || [])
         .map((item) => ({ key: item.key.trim(), value: item.value }))
         .filter((item) => item.key.length > 0);
-      lastSyncedBotOtherContentRef.current = payload.otherContent.trim();
-      lastSyncedBotMemoryWindowRef.current = payload.memoryWindow;
+      lastSyncedBotToolPermissionsRef.current = (data.toolPermissions || [])
+        .map((item) => ({ tool: (item.tool || '').trim(), permission: (item.permission === 'allow' ? 'allow' : 'deny') as 'allow' | 'deny' }))
+        .filter((item) => item.tool.length > 0);
+      lastSyncedBotOtherContentRef.current = (data.otherContent || '').trim();
+      lastSyncedBotMemoryWindowRef.current = data.memoryWindow;
       void queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });

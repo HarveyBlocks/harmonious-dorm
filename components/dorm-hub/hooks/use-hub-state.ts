@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 
 import type { LanguageCode } from '@/lib/i18n';
 import type { DormState } from '@/lib/types';
@@ -108,12 +108,14 @@ function useHubSettingsDraftState() {
   const [botNameInput, setBotNameInput] = useState('');
   const [botMemoryWindowInput, setBotMemoryWindowInput] = useState('10');
   const [botSettingsInput, setBotSettingsInput] = useState<Array<{ key: string; value: string }>>([]);
+  const [botToolPermissionsInput, setBotToolPermissionsInput] = useState<Array<{ tool: string; permission: 'allow' | 'deny' }>>([]);
   const [botOtherContent, setBotOtherContent] = useState('');
   const [botOtherEditing, setBotOtherEditing] = useState(false);
   const [memberDescriptionsInput, setMemberDescriptionsInput] = useState<Record<number, string>>({});
   const [targetLeaderId, setTargetLeaderId] = useState<number | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [botAvatarFile, setBotAvatarFile] = useState<File | null>(null);
+
   return {
     name,
     setName,
@@ -127,6 +129,8 @@ function useHubSettingsDraftState() {
     setBotMemoryWindowInput,
     botSettingsInput,
     setBotSettingsInput,
+    botToolPermissionsInput,
+    setBotToolPermissionsInput,
     botOtherContent,
     setBotOtherContent,
     botOtherEditing,

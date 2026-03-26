@@ -54,13 +54,6 @@ function taskIdOf(dormId: number, anchorMessageId: number): string {
   return `${dormId}-${anchorMessageId}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function backoffMs(attempt: number): number {
-  return Math.min(12000, 1000 * 2 ** Math.max(0, attempt - 1));
-}
 
 async function runDormQueue(dormId: number): Promise<void> {
   const state = queueStateOf(dormId);
@@ -91,23 +84,15 @@ async function runDormQueue(dormId: number): Promise<void> {
           continue;
         }
         const isRetryable = error instanceof UpstreamServiceError && error.retryable;
-        if (isRetryable && task.attempts < task.maxAttempts) {
-          task.attempts += 1;
-          const delayMs = backoffMs(task.attempts);
-          logWarn('dorm_bot_task_retry', {
+        if (isRetryable) {
+          logWarn('dorm_bot_task_retry_suppressed', {
             dormId: task.dormId,
             taskId: task.id,
-            attempt: task.attempts,
-            maxAttempts: task.maxAttempts,
-            delayMs,
             reason: error.message,
             upstreamStatus: error.upstreamStatus,
             upstreamCode: error.upstreamCode,
-            report: error.report,
+            policy: 'no_auto_retry',
           });
-          await sleep(delayMs);
-          state.items.unshift(task);
-          continue;
         }
 
         logError('dorm_bot_task_failed', error, {
@@ -184,6 +169,7 @@ export async function enqueueDormBotTaskIfMentioned(input: {
       isPrivateForBot: false,
       abortableByUserId: input.session.userId,
       reasoningCount: 0,
+      streamPhase: 'requesting',
     },
   });
 
@@ -205,7 +191,7 @@ export async function enqueueDormBotTaskIfMentioned(input: {
       actorUserId: input.session.userId,
     },
     attempts: 0,
-    maxAttempts: 3,
+    maxAttempts: 1,
   };
 
   const state = queueStateOf(input.dormId);

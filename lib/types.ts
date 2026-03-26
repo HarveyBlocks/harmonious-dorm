@@ -34,6 +34,7 @@ export interface BillSummary {
   totalCount: number;
   myPaid: boolean;
   myAmount: number;
+  canDelete: boolean;
 }
 
 export interface DormMember {
@@ -54,6 +55,7 @@ export interface MePayload {
   botName: string;
   botAvatarPath: string | null;
   botSettings: Array<{ key: string; value: string }>;
+  botToolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }>;
   botOtherContent: string;
   botMemoryWindow: number;
   language: 'zh-CN' | 'zh-TW' | 'fr' | 'en';

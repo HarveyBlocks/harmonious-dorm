@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+﻿import { useRef } from 'react';
 import type { Socket } from 'socket.io-client';
 
 import type { LanguageCode } from '@/lib/i18n';
@@ -57,6 +57,7 @@ function useHubSyncedDraftRefs() {
   const lastSyncedBotMemoryWindowRef = useRef<number>(10);
   const lastSyncedBotOtherContentRef = useRef<string>('');
   const lastSyncedBotSettingsRef = useRef<Array<{ key: string; value: string }>>([]);
+  const lastSyncedBotToolPermissionsRef = useRef<Array<{ tool: string; permission: 'allow' | 'deny' }>>([]);
   const lastSyncedMemberDescriptionsRef = useRef<Record<number, string>>({});
   return {
     lastSyncedProfileRef,
@@ -65,6 +66,7 @@ function useHubSyncedDraftRefs() {
     lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
+    lastSyncedBotToolPermissionsRef,
     lastSyncedMemberDescriptionsRef,
   };
 }

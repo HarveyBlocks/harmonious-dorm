@@ -1,5 +1,4 @@
-
-import React, { useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef } from 'react';
 
 import { autoResizeTextarea } from '../ui-helpers';
 import type { ActiveTab } from '../ui-types';
@@ -17,6 +16,7 @@ export function useSettingsAutoSave(options: {
   botMemoryWindowInput: string;
   botOtherContent: string;
   botSettingsInput: Array<{ key: string; value: string }>;
+  botToolPermissionsInput: Array<{ tool: string; permission: 'allow' | 'deny' }>;
   memberDescriptionsInput: Record<number, string>;
   avatarFile: File | null;
   botAvatarFile: File | null;
@@ -41,6 +41,7 @@ export function useSettingsAutoSave(options: {
     botMemoryWindowInput,
     botOtherContent,
     botSettingsInput,
+    botToolPermissionsInput,
     memberDescriptionsInput,
     avatarFile,
     botAvatarFile,
@@ -120,7 +121,7 @@ export function useSettingsAutoSave(options: {
         botSettingsSaveTimerRef.current = null;
       }
     };
-  }, [INPUT_DEBOUNCE_MS, activeTab, botMemoryWindowInput, botOtherContent, botSettingsInput, isLeader, saveBotSettingsNow]);
+  }, [INPUT_DEBOUNCE_MS, activeTab, botMemoryWindowInput, botOtherContent, botSettingsInput, botToolPermissionsInput, isLeader, saveBotSettingsNow]);
 
   useEffect(() => {
     if (activeTab !== 'settings' || !hasMe) return;

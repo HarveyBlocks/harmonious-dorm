@@ -12,6 +12,7 @@ export type ChatMessage = {
   isPrivateForBot?: boolean;
   abortableByUserId?: number;
   reasoningCount?: number;
+  streamPhase?: 'requesting' | 'thinking' | 'tool_calling' | 'tool_result_thinking' | 'responding';
 };
 
 export type RenderedChatMessage = ChatMessage & {

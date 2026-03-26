@@ -14,6 +14,15 @@ function sameSettingsItems(a: Array<{ key: string; value: string }>, b: Array<{ 
   return true;
 }
 
+function sameToolPermissions(a: Array<{ tool: string; permission: 'allow' | 'deny' }>, b: Array<{ tool: string; permission: 'allow' | 'deny' }>): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i]?.tool !== b[i]?.tool) return false;
+    if (a[i]?.permission !== b[i]?.permission) return false;
+  }
+  return true;
+}
+
 function sameDescriptionMap(a: Record<number, string>, b: Record<number, string>): boolean {
   const aKeys = Object.keys(a);
   const bKeys = Object.keys(b);
@@ -37,6 +46,7 @@ export function useMeSyncState(options: {
   setBotNameInput: (value: string) => void;
   setBotMemoryWindowInput: (value: string) => void;
   setBotSettingsInput: (value: Array<{ key: string; value: string }>) => void;
+  setBotToolPermissionsInput: (value: Array<{ tool: string; permission: 'allow' | 'deny' }>) => void;
   setBotOtherContent: (value: string) => void;
   setMemberDescriptionsInput: (value: Record<number, string>) => void;
   lastSyncedProfileRef: React.MutableRefObject<{ name: string; language: LanguageCode } | null>;
@@ -45,6 +55,7 @@ export function useMeSyncState(options: {
   lastSyncedBotMemoryWindowRef: React.MutableRefObject<number>;
   lastSyncedBotOtherContentRef: React.MutableRefObject<string>;
   lastSyncedBotSettingsRef: React.MutableRefObject<Array<{ key: string; value: string }>>;
+  lastSyncedBotToolPermissionsRef: React.MutableRefObject<Array<{ tool: string; permission: 'allow' | 'deny' }>>;
   lastSyncedMemberDescriptionsRef: React.MutableRefObject<Record<number, string>>;
   name: string;
   language: LanguageCode;
@@ -52,6 +63,7 @@ export function useMeSyncState(options: {
   botNameInput: string;
   botMemoryWindowInput: string;
   botSettingsInput: Array<{ key: string; value: string }>;
+  botToolPermissionsInput: Array<{ tool: string; permission: 'allow' | 'deny' }>;
   botOtherContent: string;
   memberDescriptionsInput: Record<number, string>;
   targetLeaderId: number | null;
@@ -71,6 +83,7 @@ export function useMeSyncState(options: {
     setBotNameInput,
     setBotMemoryWindowInput,
     setBotSettingsInput,
+    setBotToolPermissionsInput,
     setBotOtherContent,
     setMemberDescriptionsInput,
     lastSyncedProfileRef,
@@ -79,6 +92,7 @@ export function useMeSyncState(options: {
     lastSyncedBotMemoryWindowRef,
     lastSyncedBotOtherContentRef,
     lastSyncedBotSettingsRef,
+    lastSyncedBotToolPermissionsRef,
     lastSyncedMemberDescriptionsRef,
     name,
     language,
@@ -86,6 +100,7 @@ export function useMeSyncState(options: {
     botNameInput,
     botMemoryWindowInput,
     botSettingsInput,
+    botToolPermissionsInput,
     botOtherContent,
     memberDescriptionsInput,
     targetLeaderId,
@@ -111,6 +126,7 @@ export function useMeSyncState(options: {
     const botMemoryDirty = Number(botMemoryWindowInput || 0) !== Number(lastSyncedBotMemoryWindowRef.current || 0);
     const botOtherDirty = botOtherContent !== lastSyncedBotOtherContentRef.current;
     const botSettingsDirty = !sameSettingsItems(botSettingsInput || [], lastSyncedBotSettingsRef.current || []);
+    const botToolPermissionsDirty = !sameToolPermissions(botToolPermissionsInput || [], lastSyncedBotToolPermissionsRef.current || []);
     const memberDescDirty = !sameDescriptionMap(memberDescriptionsInput || {}, lastSyncedMemberDescriptionsRef.current || {});
 
     if (!editingSettings || !profileDirty) {
@@ -134,6 +150,12 @@ export function useMeSyncState(options: {
         setBotSettingsInput(incomingBotSettings);
       }
     }
+    if (!editingSettings || !botToolPermissionsDirty) {
+      const incomingToolPermissions = me.botToolPermissions || [];
+      if (!sameToolPermissions(botToolPermissionsInput || [], incomingToolPermissions)) {
+        setBotToolPermissionsInput(incomingToolPermissions);
+      }
+    }
     if (!editingSettings || !botOtherDirty) {
       const incomingOther = me.botOtherContent || '';
       if (botOtherContent !== incomingOther) setBotOtherContent(incomingOther);
@@ -150,6 +172,7 @@ export function useMeSyncState(options: {
     lastSyncedBotMemoryWindowRef.current = me.botMemoryWindow || 10;
     lastSyncedBotOtherContentRef.current = me.botOtherContent || '';
     lastSyncedBotSettingsRef.current = me.botSettings || [];
+    lastSyncedBotToolPermissionsRef.current = me.botToolPermissions || [];
     lastSyncedMemberDescriptionsRef.current = incomingDescriptions;
     if (!targetLeaderId) {
       const candidate = me.members.find((item) => !item.isLeader);
@@ -171,11 +194,13 @@ export function useMeSyncState(options: {
     botNameInput,
     botMemoryWindowInput,
     botSettingsInput,
+    botToolPermissionsInput,
     botOtherContent,
     memberDescriptionsInput,
     setBotNameInput,
     setBotOtherContent,
     setBotSettingsInput,
+    setBotToolPermissionsInput,
     setBotMemoryWindowInput,
     setDormNameInput,
     setLanguage,

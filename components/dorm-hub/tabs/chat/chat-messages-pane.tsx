@@ -81,6 +81,13 @@ function formatProgressPercentage(value: number): string {
   return `${intPart.padStart(2, '0')}.${fracPart}`;
 }
 
+function phaseText(t: any, phase?: string): string {
+  if (phase === 'tool_calling') return t.botToolCalling || '思考完成，正在调用工具...';
+  if (phase === 'tool_result_thinking') return t.botToolDoneThinking || '工具执行完成，正在整理最终回复...';
+  if (phase === 'thinking') return t.botThinking || '机器人正在认真思考中...';
+  return t.botRequesting || '正在为你发起请求，请稍候...';
+}
+
 function ChatMessageBody(props: { t: any; message: ChatMessagesPaneProps['renderedLiveMessages'][number] }) {
   const msg = props.message;
   if (!msg.isBotMessage) {
@@ -89,14 +96,28 @@ function ChatMessageBody(props: { t: any; message: ChatMessagesPaneProps['render
   if (isI18nToken(msg.content)) {
     return <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.localizedContent}</p>;
   }
+
   if (msg.isStreaming && !msg.content) {
-    const progress = progressCountToPercentage(Number.isFinite(msg.reasoningCount) ? msg.reasoningCount : 0);
+    const safeCount = Number.isFinite(msg.reasoningCount) ? Number(msg.reasoningCount) : 0;
+    const title = phaseText(props.t, msg.streamPhase);
+
+    if (msg.streamPhase === 'tool_calling') {
+      return <p className="text-sm font-medium leading-relaxed text-muted whitespace-pre-wrap break-words">{title}</p>;
+    }
+
+    if (safeCount <= 0) {
+      const requesting = props.t.botRequesting || '正在为你发起请求，请稍候...';
+      return <p className="text-sm font-medium leading-relaxed text-muted whitespace-pre-wrap break-words">{requesting}</p>;
+    }
+
+    const progress = progressCountToPercentage(safeCount);
     return (
       <p className="text-sm font-medium leading-relaxed text-muted whitespace-pre-wrap break-words">
-        {props.t.thinkingProgress}: {formatProgressPercentage(progress)} %
+        {title} {props.t.thinkingProgress || '思考进度'}: {formatProgressPercentage(progress)} %
       </p>
     );
   }
+
   return (
     <div className={`bot-markdown text-lg leading-relaxed max-w-full min-w-0 ${isEchoPreview(msg.content) ? 'echo-preview-markdown' : ''}`}>
       <MarkdownRenderer content={msg.content} />

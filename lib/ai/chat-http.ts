@@ -1,4 +1,4 @@
-import { ApiError, UpstreamServiceError } from '@/lib/errors';
+﻿import { ApiError, UpstreamServiceError } from '@/lib/errors';
 import { logInfo, logWarn } from '@/lib/logger';
 import { estimateTokens } from '@/lib/ai/chat-parse';
 import type { BaseChatInput, ChatClientConfig } from '@/lib/ai/chat-types';
@@ -64,7 +64,7 @@ export async function assertSuccessfulResponse(
   const upstream = parseUpstreamErrorPayload(detail);
   const upstreamRequestId = resp.headers.get('x-request-id') || resp.headers.get('request-id') || undefined;
   const isRateLimit = resp.status === 429 || upstream.code === '1302';
-  logWarn('llm_request_rejected', {
+  logWarn('bot_model_request_rejected', {
     traceId,
     provider: config.provider,
     model: config.model,
@@ -79,7 +79,7 @@ export async function assertSuccessfulResponse(
     upstreamService: config.provider,
     upstreamStatus: resp.status,
     upstreamCode: upstream.code,
-    retryable: isRateLimit,
+    retryable: false,
     report: { upstreamMessage: upstream.message || detail || '', upstreamRequestId },
   });
 }
@@ -90,7 +90,7 @@ export function logRequestStarted(
   input: BaseChatInput,
   stream: boolean,
 ) {
-  logInfo('llm_request_started', {
+  logInfo('bot_model_request_started', {
     traceId,
     provider: config.provider,
     model: config.model,
@@ -110,13 +110,14 @@ export function normalizeUnknownFailure(config: ChatClientConfig, error: unknown
       message: 'AI service timeout',
       upstreamService: config.provider,
       upstreamStatus: 504,
-      retryable: true,
+      retryable: false,
     });
   }
   throw new UpstreamServiceError({
     status: 502,
     message: 'AI service request failed',
     upstreamService: config.provider,
-    retryable: true,
+    retryable: false,
   });
 }
+
