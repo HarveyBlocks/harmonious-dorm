@@ -1,4 +1,4 @@
-﻿
+
 import { useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
 
@@ -100,7 +100,7 @@ export function PieChartCard({
         </div>
       )}
       {hovered ? (
-        <div className="light-tooltip pointer-events-none absolute z-20 rounded-xl shadow-xl border px-3 py-2 text-xs font-bold" style={{ left: hovered.x + 12, top: hovered.y + 12, background: darkMode ? "rgba(6, 12, 22, 0.96)" : "rgba(255,255,255,0.96)", color: darkMode ? "#e2e8f0" : "#0f172a", borderColor: darkMode ? "rgba(148,163,184,0.35)" : "#e2e8f0" }}>
+        <div className="light-tooltip pointer-events-none absolute z-20 rounded-xl shadow-xl border px-3 py-2 text-xs font-bold pie-dark-tooltip" style={{ left: hovered.x + 12, top: hovered.y + 12, background: darkMode ? "rgba(6, 12, 22, 0.96)" : "rgba(255,255,255,0.96)", color: darkMode ? "#e2e8f0" : "#0f172a", borderColor: darkMode ? "rgba(148,163,184,0.35)" : "#e2e8f0" }}>
           <div>{hovered.label}</div>
           <div>{currency ? `¥${hovered.value.toFixed(2)}` : hovered.value}</div>
           <div>{total > 0 ? `${((hovered.value / total) * 100).toFixed(2)}%` : '0%'}</div>

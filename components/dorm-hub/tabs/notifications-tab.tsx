@@ -1,4 +1,4 @@
-
+﻿
 import { Check, MoreHorizontal } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { LanguageCode } from '@/lib/i18n';
@@ -69,7 +69,7 @@ export function NotificationsTab(props: {
             <MoreHorizontal className="w-5 h-5" />
           </button>
           {notificationMenuOpen ? (
-            <div className="absolute right-0 top-12 z-50 w-56 rounded-xl glass-card p-2 shadow-2xl space-y-1">
+            <div className="absolute right-0 top-12 z-50 w-56 rounded-xl glass-card p-2 shadow-2xl space-y-1 floating-menu">
               <button type="button" onClick={() => { onSelectAll(); onCloseMenu(); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold">{t.selectAll}</button>
               <button type="button" disabled={markSelectedDisabled} onClick={() => { onMarkSelectedRead(); onCloseMenu(); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold disabled:opacity-50">{t.markSelectedRead}</button>
               <button type="button" disabled={deleteSelectedDisabled} onClick={() => { onDeleteSelected(); onCloseMenu(); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100/15 text-sm font-bold text-rose-500 disabled:opacity-50">{t.deleteSelected}</button>
@@ -112,3 +112,4 @@ export function NotificationsTab(props: {
     </motion.div>
   );
 }
+

@@ -21,7 +21,6 @@ const GROUP_ORDER: ToolGroupKey[] = ['query', 'member', 'selfOrLeader', 'leader'
 type ToolMetaKeyMap = { nameKey: string; descKey: string };
 
 const TOOL_TEXT_KEYS: Record<string, ToolMetaKeyMap> = {
-  multiply: { nameKey: 'toolMultiplyName', descKey: 'toolMultiplyDesc' },
   bill_create: { nameKey: 'toolBillCreateName', descKey: 'toolBillCreateDesc' },
   bill_delete: { nameKey: 'toolBillDeleteName', descKey: 'toolBillDeleteDesc' },
   bill_list: { nameKey: 'toolBillListName', descKey: 'toolBillListDesc' },
@@ -206,4 +205,5 @@ export function ToolPermissionList(props: {
     </div>
   );
 }
+
 

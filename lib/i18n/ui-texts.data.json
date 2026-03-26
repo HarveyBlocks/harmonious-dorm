@@ -641,18 +641,6 @@
     "fr": "Actions sensibles a activer avec prudence.",
     "en": "Sensitive actions. Enable carefully."
   },
-  "toolMultiplyName": {
-    "zh-CN": "乘法计算",
-    "zh-TW": "乘法計算",
-    "fr": "Multiplication",
-    "en": "Multiplication"
-  },
-  "toolMultiplyDesc": {
-    "zh-CN": "计算两个数字的乘积。",
-    "zh-TW": "計算兩個數字的乘積。",
-    "fr": "Calcule le produit de deux nombres.",
-    "en": "Calculate product of two numbers."
-  },
   "toolBillCreateName": {
     "zh-CN": "发布账单",
     "zh-TW": "發佈帳單",
@@ -894,3 +882,4 @@
     "en": "Update dorm name."
   }
 }
+

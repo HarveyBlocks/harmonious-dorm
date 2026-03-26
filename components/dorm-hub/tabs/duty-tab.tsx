@@ -1,10 +1,10 @@
-
-import { CheckCircle2, Circle, Trash2 } from 'lucide-react';
+import { CheckCircle2, Circle, CalendarDays, List, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import React, { useMemo, useState } from 'react';
 
 import { LineChartCard, PieChartCard } from '../charts';
 import type { LineGranularity, PeriodType } from '../ui-types';
-import React from "react";
+import { DutyCalendarView } from './duty/duty-calendar-view';
 
 export function DutyTab(props: {
   t: any;
@@ -45,62 +45,95 @@ export function DutyTab(props: {
   dutyMemberLineSeries: any[];
 }) {
   const p = props;
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const now = new Date();
+  const [calendarMonthKey, setCalendarMonthKey] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+
   const canToggleDuty = (userId: number) => Boolean(p.me?.isLeader || userId === p.meId);
+  const calendarRows = useMemo(
+    () => [...p.groupedPendingDuties.flatMap(([, items]) => items), ...p.groupedDoneDuties.flatMap(([, items]) => items)],
+    [p.groupedDoneDuties, p.groupedPendingDuties],
+  );
+
+  const switchTitle = viewMode === 'calendar' ? p.pText.dutySwitchToList : p.pText.dutySwitchToCalendar;
 
   return (
     <motion.div key="duty" animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className={`${p.me?.isLeader ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-8`}>
         <div className="glass-card sleep-depth-mid p-8 rounded-2xl">
-          <h3 className="text-2xl font-black mb-4">{p.t.dutyBoard}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="min-h-[42vh]">
-              <p className="font-black mb-3">{p.pText.pendingTasks}</p>
-              <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onPendingDutyScroll}>
-                {p.groupedPendingDuties.map(([weekKey, items]) => (
-                  <div key={weekKey} className="space-y-3">
-                    <p className="mx-4 text-xs font-black text-muted">{weekKey}</p>
-                    {items.map((item) => (
-                      <div key={item.dutyId} className={`mx-4 flex items-center justify-between p-4 glass-card rounded-2xl ${canToggleDuty(item.userId) ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (canToggleDuty(item.userId)) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: true }); }}>
-                        <div>
-                          <p className="font-black">{item.date}</p>
-                          <p className="text-sm text-muted">{item.userName}</p>
-                          <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Circle className="w-5 h-5 text-amber-500" />
-                          {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="min-h-[42vh]">
-              <p className="font-black mb-3">{p.pText.doneList}</p>
-              <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onDoneDutyScroll}>
-                {p.groupedDoneDuties.map(([weekKey, items]) => (
-                  <div key={weekKey} className="space-y-3">
-                    <p className="mx-4 text-xs font-black text-muted">{weekKey}</p>
-                    {items.map((item) => (
-                      <div key={item.dutyId} className={`mx-4 flex items-center justify-between p-4 glass-card rounded-2xl ${canToggleDuty(item.userId) ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (canToggleDuty(item.userId)) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: false }); }}>
-                        <div>
-                          <p className="font-black">{item.date}</p>
-                          <p className="text-sm text-muted">{item.userName}</p>
-                          <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                          {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <h3 className="text-2xl font-black">{p.t.dutyBoard}</h3>
+            <button
+              type="button"
+              title={switchTitle}
+              aria-label={switchTitle}
+              onClick={() => setViewMode((prev) => (prev === 'calendar' ? 'list' : 'calendar'))}
+              className="h-10 w-10 rounded-xl glass-card inline-flex items-center justify-center hover:scale-[1.03] transition"
+            >
+              {viewMode === 'calendar' ? <List className="w-5 h-5" /> : <CalendarDays className="w-5 h-5" />}
+            </button>
           </div>
+
+          {viewMode === 'calendar' ? (
+            <DutyCalendarView
+              rows={calendarRows}
+              members={p.me?.members || []}
+              language={p.me?.language}
+              legendTitle={p.pText.dutyCalendarLegend}
+              monthKey={calendarMonthKey}
+              onMonthKeyChange={setCalendarMonthKey}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="min-h-[42vh]">
+                <p className="font-black mb-3">{p.pText.pendingTasks}</p>
+                <div className="space-y-4 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onPendingDutyScroll}>
+                  {p.groupedPendingDuties.map(([weekKey, items]) => (
+                    <div key={weekKey} className="space-y-3">
+                      <p className="mx-4 text-xs font-black text-muted">{weekKey}</p>
+                      {items.map((item) => (
+                        <div key={item.dutyId} className={`mx-4 flex items-center justify-between p-4 glass-card rounded-2xl ${canToggleDuty(item.userId) ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (canToggleDuty(item.userId)) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: true }); }}>
+                          <div>
+                            <p className="font-black">{item.date}</p>
+                            <p className="text-sm text-muted">{item.userName}</p>
+                            <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Circle className="w-5 h-5 text-amber-500" />
+                            {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="min-h-[42vh]">
+                <p className="font-black mb-3">{p.pText.doneList}</p>
+                <div className="space-y-3 max-h-[48vh] overflow-y-auto pr-1" onScroll={p.onDoneDutyScroll}>
+                  {p.groupedDoneDuties.map(([weekKey, items]) => (
+                    <div key={weekKey} className="space-y-3">
+                      <p className="mx-4 text-xs font-black text-muted">{weekKey}</p>
+                      {items.map((item) => (
+                        <div key={item.dutyId} className={`mx-4 flex items-center justify-between p-4 glass-card rounded-2xl ${canToggleDuty(item.userId) ? 'cursor-pointer hover:scale-[1.01]' : ''}`} onClick={() => { if (canToggleDuty(item.userId)) p.toggleDutyMutation.mutate({ dutyId: item.dutyId, completed: false }); }}>
+                          <div>
+                            <p className="font-black">{item.date}</p>
+                            <p className="text-sm text-muted">{item.userName}</p>
+                            <p className="text-sm font-semibold mt-1">{item.task || '-'}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            {p.me?.isLeader ? <button onClick={(e) => { e.stopPropagation(); p.deleteDutyMutation.mutate(item.dutyId); }} className="p-2 rounded-lg glass-card text-rose-500" title="Delete"><Trash2 className="w-4 h-4" /></button> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -67,6 +67,9 @@ type PanelText = {
   splitWeight: string;
   billWeight: string;
   dutyTaskPlaceholder: string;
+  dutySwitchToCalendar: string;
+  dutySwitchToList: string;
+  dutyCalendarLegend: string;
 };
 
 type SettingsText = {
@@ -121,6 +124,9 @@ const PANEL_TEXT_MAP: Record<keyof PanelText, LangMap> = {
   splitWeight: { 'zh-CN': '按权重分摊', 'zh-TW': '按權重分攤', fr: 'Partage par poids', en: 'Split by weight' },
   billWeight: { 'zh-CN': '权重', 'zh-TW': '權重', fr: 'Poids', en: 'Weight' },
   dutyTaskPlaceholder: { 'zh-CN': '值日任务（例如：拖地）', 'zh-TW': '值日任務（例如：拖地）', fr: 'Tache (ex: laver le sol)', en: 'Duty task (e.g. mop floor)' },
+  dutySwitchToCalendar: { 'zh-CN': '切换到日历', 'zh-TW': '切換到日曆', fr: 'Basculer vers le calendrier', en: 'Switch to calendar' },
+  dutySwitchToList: { 'zh-CN': '切换到列表', 'zh-TW': '切換到列表', fr: 'Basculer vers la liste', en: 'Switch to list' },
+  dutyCalendarLegend: { 'zh-CN': '成员颜色图例', 'zh-TW': '成員顏色圖例', fr: 'Legende des couleurs des membres', en: 'Member color legend' },
 };
 
 export function buildPanelText(language: LanguageCode | undefined): PanelText {

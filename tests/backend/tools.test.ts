@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 
 import { loginOrRegister } from '@/lib/services';
 import { executeTool, listDormToolRows, setDormToolPermissions } from '@/lib/tools';
@@ -17,21 +17,6 @@ describe('tool functions', () => {
     const rows = await listDormToolRows(leader.dormId);
     expect(rows.length).toBeGreaterThan(5);
     expect(rows.some((item) => item.name === 'bill_create')).toBe(true);
-  });
-
-  it('runs multiply with leader-only permission check', async () => {
-    const leader = await loginOrRegister('Leader', 'tool2-leader@campus.edu');
-    const member = await loginOrRegister('Member', 'tool2-member@campus.edu', leader.inviteCode);
-
-    await setDormToolPermissions(leader.dormId, { multiply: 'allow' });
-
-    const ok = await executeTool('multiply', { a: 6, b: 7 }, ctx(leader));
-    expect(ok.ok).toBe(true);
-    if (ok.ok) expect(ok.output).toMatchObject({ result: 42 });
-
-    const denied = await executeTool('multiply', { a: 2, b: 3 }, ctx(member));
-    expect(denied.ok).toBe(false);
-    if (!denied.ok) expect(denied.errorCode).toBe('permission_required_leader');
   });
 
   it('runs bill and duty tools with service-level checks', async () => {
@@ -125,3 +110,5 @@ describe('tool functions', () => {
     expect(setDorm.ok).toBe(true);
   });
 });
+
+

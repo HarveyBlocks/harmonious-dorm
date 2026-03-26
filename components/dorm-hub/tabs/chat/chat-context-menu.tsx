@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { createPortal } from 'react-dom';
 
 import type { ChatContextMenuProps } from './types';
@@ -12,7 +12,7 @@ export const ChatContextMenu = React.memo(function ChatContextMenu(props: ChatCo
   return createPortal(
     <div
       key={`${menu.messageId}-${menu.x}-${menu.y}`}
-      className="fixed z-[120] min-w-[220px] rounded-xl glass-card p-2 shadow-2xl transition-none"
+      className="fixed z-[120] min-w-[220px] rounded-xl glass-card p-2 shadow-2xl transition-none floating-menu"
       style={{ left: menu.x, top: menu.y }}
       onClick={(event) => event.stopPropagation()}
     >
@@ -43,3 +43,4 @@ export const ChatContextMenu = React.memo(function ChatContextMenu(props: ChatCo
     document.body,
   );
 });
+

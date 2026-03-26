@@ -1,4 +1,4 @@
-import { ApiError } from '@/lib/errors';
+﻿import { ApiError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import {
@@ -22,7 +22,6 @@ import {
 import { listDormBotSettingsSafe } from '@/lib/services/bot-settings-service';
 import type { SessionUser } from '@/lib/types';
 
-import { runMultiplyTool } from './multiply-tool';
 import { TOOL_DESCRIPTOR_MAP } from './registry';
 import type { ToolExecuteFailure, ToolExecuteSuccess, ToolExecutionContext, ToolPermission } from './types';
 
@@ -96,12 +95,6 @@ async function notifyToolActionToOthers(name: string, args: Record<string, unkno
 }
 
 async function runTool(name: string, args: Record<string, unknown>, session: SessionUser): Promise<unknown> {
-  if (name === 'multiply') {
-    const a = Number(args.a);
-    const b = Number(args.b);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) throw new ApiError(400, 'a and b must be numbers');
-    return runMultiplyTool({ a, b });
-  }
   if (name === 'bill_create') {
     return createBill(session, {
       total: Number(args.total),
@@ -194,3 +187,4 @@ export async function executeTool(name: string, rawArgs: unknown, context: ToolE
 export async function listBotSettingsRaw(dormId: number): Promise<Array<{ key: string; value: string }>> {
   return listDormBotSettingsSafe(dormId);
 }
+

@@ -1,21 +1,6 @@
-import type { ToolDescriptor } from './types';
+﻿import type { ToolDescriptor } from './types';
 
 export const BOT_TOOL_REGISTRY: ToolDescriptor[] = [
-  {
-    name: 'multiply',
-    displayName: 'Multiplication',
-    description: 'Calculate the product of two numbers.',
-    operationScope: 'leader',
-    argumentSchema: {
-      type: 'object',
-      properties: {
-        a: { type: 'number', description: 'First number' },
-        b: { type: 'number', description: 'Second number' },
-      },
-      required: ['a', 'b'],
-      additionalProperties: false,
-    },
-  },
   {
     name: 'bill_create',
     displayName: 'Create Bill',
@@ -309,3 +294,4 @@ export const BOT_TOOL_REGISTRY: ToolDescriptor[] = [
 ];
 
 export const TOOL_DESCRIPTOR_MAP = new Map(BOT_TOOL_REGISTRY.map((item) => [item.name, item] as const));
+
