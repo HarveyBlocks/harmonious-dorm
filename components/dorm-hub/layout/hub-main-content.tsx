@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react';
+﻿import { AnimatePresence, motion } from 'motion/react';
 
 import {
   BotSettingsCard,
@@ -33,7 +33,7 @@ export function HubMainContent(props: any) {
           {p.activeTab === 'wallet' && <WalletTab {...buildWalletProps(p)} />}
           {p.activeTab === 'notifications' && <NotificationsTab {...buildNotificationProps(p)} />}
           {p.activeTab === 'settings' && (
-            <motion.div key="settings" animate={{ opacity: 1 }} className="space-y-10">
+            <motion.div key="settings" animate={{ opacity: 1 }} className="settings-panel space-y-10">
               <UserSettingsCard {...buildUserSettingsProps(p)} />
               <DormSettingsCard {...buildDormSettingsProps(p)} />
               <MemberSettingsCard {...buildMemberSettingsProps(p)} />
@@ -169,3 +169,4 @@ function buildSecuritySettingsProps(p: any) {
     logoutMutation: p.logoutMutation, deleteAccountMutation: p.deleteAccountMutation,
   };
 }
+

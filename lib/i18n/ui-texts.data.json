@@ -592,5 +592,305 @@
     "zh-TW": "工具執行完成，正在整理最終回覆...",
     "fr": "Outil termine, preparation de la reponse finale...",
     "en": "Tool finished, preparing the final answer..."
+  },
+  "toolGroupQueryTitle": {
+    "zh-CN": "查看与查询",
+    "zh-TW": "查看與查詢",
+    "fr": "Lecture et consultation",
+    "en": "Read and query"
+  },
+  "toolGroupQueryDesc": {
+    "zh-CN": "只读取数据，不会修改记录。",
+    "zh-TW": "只讀取資料，不會修改記錄。",
+    "fr": "Lecture seule, sans modification.",
+    "en": "Read-only actions without data changes."
+  },
+  "toolGroupMemberTitle": {
+    "zh-CN": "日常操作",
+    "zh-TW": "日常操作",
+    "fr": "Operations courantes",
+    "en": "Daily actions"
+  },
+  "toolGroupMemberDesc": {
+    "zh-CN": "一般成员常用的操作权限。",
+    "zh-TW": "一般成員常用的操作權限。",
+    "fr": "Permissions courantes pour les membres.",
+    "en": "Common permissions for members."
+  },
+  "toolGroupSelfOrLeaderTitle": {
+    "zh-CN": "本人或舍长操作",
+    "zh-TW": "本人或舍長操作",
+    "fr": "Soi ou chef",
+    "en": "Self or leader actions"
+  },
+  "toolGroupSelfOrLeaderDesc": {
+    "zh-CN": "涉及个人或协作管理的操作。",
+    "zh-TW": "涉及個人或協作管理的操作。",
+    "fr": "Actions personnelles ou de collaboration.",
+    "en": "Personal or collaborative management actions."
+  },
+  "toolGroupLeaderTitle": {
+    "zh-CN": "舍长专属操作",
+    "zh-TW": "舍長專屬操作",
+    "fr": "Chef uniquement",
+    "en": "Leader-only actions"
+  },
+  "toolGroupLeaderDesc": {
+    "zh-CN": "高权限操作，建议按需开启。",
+    "zh-TW": "高權限操作，建議按需開啟。",
+    "fr": "Actions sensibles a activer avec prudence.",
+    "en": "Sensitive actions. Enable carefully."
+  },
+  "toolMultiplyName": {
+    "zh-CN": "乘法计算",
+    "zh-TW": "乘法計算",
+    "fr": "Multiplication",
+    "en": "Multiplication"
+  },
+  "toolMultiplyDesc": {
+    "zh-CN": "计算两个数字的乘积。",
+    "zh-TW": "計算兩個數字的乘積。",
+    "fr": "Calcule le produit de deux nombres.",
+    "en": "Calculate product of two numbers."
+  },
+  "toolBillCreateName": {
+    "zh-CN": "发布账单",
+    "zh-TW": "發佈帳單",
+    "fr": "Creer facture",
+    "en": "Create bill"
+  },
+  "toolBillCreateDesc": {
+    "zh-CN": "在宿舍内新建一条账单。",
+    "zh-TW": "在宿舍內新增一筆帳單。",
+    "fr": "Cree une nouvelle facture du dortoir.",
+    "en": "Create a new bill in this dorm."
+  },
+  "toolBillDeleteName": {
+    "zh-CN": "删除账单",
+    "zh-TW": "刪除帳單",
+    "fr": "Supprimer facture",
+    "en": "Delete bill"
+  },
+  "toolBillDeleteDesc": {
+    "zh-CN": "删除指定的账单记录。",
+    "zh-TW": "刪除指定帳單記錄。",
+    "fr": "Supprime une facture ciblee.",
+    "en": "Delete a selected bill record."
+  },
+  "toolBillListName": {
+    "zh-CN": "查看账单",
+    "zh-TW": "查看帳單",
+    "fr": "Lister factures",
+    "en": "List bills"
+  },
+  "toolBillListDesc": {
+    "zh-CN": "查询当前宿舍的账单列表。",
+    "zh-TW": "查詢目前宿舍的帳單列表。",
+    "fr": "Affiche les factures du dortoir.",
+    "en": "Read bill list in current dorm."
+  },
+  "toolBillMarkPaidName": {
+    "zh-CN": "设为已支付",
+    "zh-TW": "設為已支付",
+    "fr": "Marquer paye",
+    "en": "Mark paid"
+  },
+  "toolBillMarkPaidDesc": {
+    "zh-CN": "把未支付账单标记为已支付。",
+    "zh-TW": "將未支付帳單標記為已支付。",
+    "fr": "Marque une facture comme payee.",
+    "en": "Mark an unpaid bill as paid."
+  },
+  "toolBillMarkUnpaidName": {
+    "zh-CN": "恢复未支付",
+    "zh-TW": "恢復未支付",
+    "fr": "Marquer impaye",
+    "en": "Mark unpaid"
+  },
+  "toolBillMarkUnpaidDesc": {
+    "zh-CN": "把已支付账单恢复为未支付。",
+    "zh-TW": "將已支付帳單恢復為未支付。",
+    "fr": "Remet une facture en impayee.",
+    "en": "Restore a paid bill to unpaid."
+  },
+  "toolDutyCreateName": {
+    "zh-CN": "发布任务",
+    "zh-TW": "發佈任務",
+    "fr": "Creer tache",
+    "en": "Create duty task"
+  },
+  "toolDutyCreateDesc": {
+    "zh-CN": "新建一条值日任务。",
+    "zh-TW": "新增一筆值日任務。",
+    "fr": "Cree une nouvelle tache de service.",
+    "en": "Create a new duty task."
+  },
+  "toolDutyDeleteName": {
+    "zh-CN": "删除任务",
+    "zh-TW": "刪除任務",
+    "fr": "Supprimer tache",
+    "en": "Delete duty task"
+  },
+  "toolDutyDeleteDesc": {
+    "zh-CN": "删除指定值日任务。",
+    "zh-TW": "刪除指定值日任務。",
+    "fr": "Supprime une tache de service.",
+    "en": "Delete selected duty task."
+  },
+  "toolDutyListName": {
+    "zh-CN": "查看任务",
+    "zh-TW": "查看任務",
+    "fr": "Lister taches",
+    "en": "List duty tasks"
+  },
+  "toolDutyListDesc": {
+    "zh-CN": "查看宿舍的值日任务列表。",
+    "zh-TW": "查看宿舍的值日任務列表。",
+    "fr": "Affiche les taches de service.",
+    "en": "Read duty task list."
+  },
+  "toolDutyMarkCompletedName": {
+    "zh-CN": "设为已完成",
+    "zh-TW": "設為已完成",
+    "fr": "Marquer termine",
+    "en": "Mark completed"
+  },
+  "toolDutyMarkCompletedDesc": {
+    "zh-CN": "把任务标记为已完成。",
+    "zh-TW": "將任務標記為已完成。",
+    "fr": "Marque la tache comme terminee.",
+    "en": "Mark duty task as completed."
+  },
+  "toolDutyMarkUncompletedName": {
+    "zh-CN": "恢复未完成",
+    "zh-TW": "恢復未完成",
+    "fr": "Marquer non termine",
+    "en": "Mark uncompleted"
+  },
+  "toolDutyMarkUncompletedDesc": {
+    "zh-CN": "把已完成任务恢复为未完成。",
+    "zh-TW": "將已完成任務恢復為未完成。",
+    "fr": "Remet la tache en non terminee.",
+    "en": "Restore completed task to uncompleted."
+  },
+  "toolBotSettingsReadName": {
+    "zh-CN": "查看机器人设置",
+    "zh-TW": "查看機器人設定",
+    "fr": "Lire reglages bot",
+    "en": "Read bot settings"
+  },
+  "toolBotSettingsReadDesc": {
+    "zh-CN": "查看宿舍机器人的当前设置。",
+    "zh-TW": "查看宿舍機器人的目前設定。",
+    "fr": "Lire la configuration actuelle du bot du dortoir.",
+    "en": "Read current bot settings in dorm."
+  },
+  "toolBotSettingsUpdateMemoryWindowName": {
+    "zh-CN": "修改记忆窗口",
+    "zh-TW": "修改記憶視窗",
+    "fr": "Modifier memoire bot",
+    "en": "Update bot memory window"
+  },
+  "toolBotSettingsUpdateMemoryWindowDesc": {
+    "zh-CN": "修改机器人的短期记忆长度。",
+    "zh-TW": "修改機器人的短期記憶長度。",
+    "fr": "Modifier la longueur de memoire du bot.",
+    "en": "Update bot memory window length."
+  },
+  "toolBotSettingsUpdateNameName": {
+    "zh-CN": "修改机器人名称",
+    "zh-TW": "修改機器人名稱",
+    "fr": "Modifier nom du bot",
+    "en": "Update bot name"
+  },
+  "toolBotSettingsUpdateNameDesc": {
+    "zh-CN": "修改宿舍机器人的显示名称。",
+    "zh-TW": "修改宿舍機器人的顯示名稱。",
+    "fr": "Modifier le nom affiche du bot.",
+    "en": "Update bot display name."
+  },
+  "toolBotSettingsAddFieldName": {
+    "zh-CN": "新增机器人设定字段",
+    "zh-TW": "新增機器人設定欄位",
+    "fr": "Ajouter champ bot",
+    "en": "Add bot setting field"
+  },
+  "toolBotSettingsAddFieldDesc": {
+    "zh-CN": "向机器人设定新增一组键值对。",
+    "zh-TW": "向機器人設定新增一組鍵值對。",
+    "fr": "Ajouter une paire cle-valeur au bot.",
+    "en": "Add one key-value field in bot settings."
+  },
+  "toolBotSettingsRemoveFieldName": {
+    "zh-CN": "删除机器人设定字段",
+    "zh-TW": "刪除機器人設定欄位",
+    "fr": "Supprimer champ bot",
+    "en": "Remove bot setting field"
+  },
+  "toolBotSettingsRemoveFieldDesc": {
+    "zh-CN": "从机器人设定中删除指定键。",
+    "zh-TW": "從機器人設定中刪除指定鍵。",
+    "fr": "Supprimer une cle dans la configuration du bot.",
+    "en": "Remove one key from bot settings."
+  },
+  "toolUserSetNicknameName": {
+    "zh-CN": "修改昵称",
+    "zh-TW": "修改暱稱",
+    "fr": "Modifier pseudo",
+    "en": "Set user nickname"
+  },
+  "toolUserSetNicknameDesc": {
+    "zh-CN": "修改当前用户的昵称。",
+    "zh-TW": "修改目前使用者的暱稱。",
+    "fr": "Mettre a jour le pseudo de l utilisateur courant.",
+    "en": "Set nickname for current user."
+  },
+  "toolUserSetLanguageName": {
+    "zh-CN": "修改语言",
+    "zh-TW": "修改語言",
+    "fr": "Modifier langue",
+    "en": "Set user language"
+  },
+  "toolUserSetLanguageDesc": {
+    "zh-CN": "修改当前用户的语言。",
+    "zh-TW": "修改目前使用者的語言。",
+    "fr": "Mettre a jour la langue de l utilisateur courant.",
+    "en": "Set language for current user."
+  },
+  "toolUserSetDescriptionName": {
+    "zh-CN": "修改个人描述",
+    "zh-TW": "修改個人描述",
+    "fr": "Modifier description",
+    "en": "Set user description"
+  },
+  "toolUserSetDescriptionDesc": {
+    "zh-CN": "修改个人描述（或舍长为成员修改）。",
+    "zh-TW": "修改個人描述（或舍長為成員修改）。",
+    "fr": "Mettre a jour la description personnelle.",
+    "en": "Set description for self or by leader for any member."
+  },
+  "toolLeaderTransferName": {
+    "zh-CN": "移交舍长",
+    "zh-TW": "移交舍長",
+    "fr": "Transferer chef",
+    "en": "Transfer leader"
+  },
+  "toolLeaderTransferDesc": {
+    "zh-CN": "将舍长权限移交给指定成员。",
+    "zh-TW": "將舍長權限移交給指定成員。",
+    "fr": "Transferer le role de chef a un membre cible.",
+    "en": "Transfer leader role to target member."
+  },
+  "toolLeaderUpdateDormNameName": {
+    "zh-CN": "修改宿舍名称",
+    "zh-TW": "修改宿舍名稱",
+    "fr": "Modifier nom du dortoir",
+    "en": "Update dorm name"
+  },
+  "toolLeaderUpdateDormNameDesc": {
+    "zh-CN": "修改当前宿舍名称。",
+    "zh-TW": "修改目前宿舍名稱。",
+    "fr": "Mettre a jour le nom du dortoir.",
+    "en": "Update dorm name."
   }
 }
