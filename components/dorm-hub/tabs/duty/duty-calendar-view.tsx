@@ -233,7 +233,7 @@ export function DutyCalendarView({ rows, members, language, legendTitle, monthKe
           </button>
           <DatePicker
             selected={selectedMonthDate}
-            onChange={(date) => {
+            onChange={(date: Date | null) => {
               if (!date) return;
               onMonthKeyChange(formatMonthKey(date.getFullYear(), date.getMonth() + 1));
             }}
