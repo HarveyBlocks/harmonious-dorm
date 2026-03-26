@@ -103,7 +103,7 @@ async function runDormQueue(dormId: number): Promise<void> {
         });
         await prisma.chatMessage.update({
           where: { id: task.placeholderMessageId },
-          data: { content: 'Bot request failed. Please try again.' },
+          data: { content: 'Bot request failed. Please try again.', messageType: "bot_event", excludeFromBotMemory: true },
         });
         emitToDorm(task.dormId, 'chat:stream:commit', {
           streamId: task.streamId,
@@ -147,6 +147,8 @@ export async function enqueueDormBotTaskIfMentioned(input: {
       dormId: input.dormId,
       userId: bot.id,
       content: '',
+      messageType: "bot_stream",
+      excludeFromBotMemory: false,
     },
     select: {
       id: true,
@@ -229,7 +231,7 @@ export async function abortDormBotStream(input: {
     queueState.items.splice(pendingIndex, 1);
     const aborted = await prisma.chatMessage.update({
       where: { id: pending.placeholderMessageId },
-      data: { content: encodeMessageToken(NoticeMessageKey.BotReplyStoppedBeforeStart) },
+      data: { content: encodeMessageToken(NoticeMessageKey.BotReplyStoppedBeforeStart), messageType: "bot_event", excludeFromBotMemory: true },
       select: { id: true, createdAt: true },
     });
     emitToDorm(session.dormId, 'chat:stream:commit', {

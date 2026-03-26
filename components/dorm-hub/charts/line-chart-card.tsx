@@ -1,4 +1,4 @@
-
+﻿
 import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
@@ -83,7 +83,7 @@ export function LineChartCard({
 
   const renderChart = (isFullscreen: boolean) => (
     <div className={`glass-card rounded-2xl relative ${isFullscreen ? 'h-full p-6 md:p-8 flex flex-col' : 'p-6'}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-cyan-500/10 pointer-events-none rounded-2xl" />
+      <div className="absolute inset-0 card-overlay-surface pointer-events-none rounded-2xl" />
       <div className="relative z-10 flex items-center justify-between mb-4">
         <h4 className="font-black">{title}</h4>
         <button type="button" onClick={() => setFullscreen((prev) => !prev)} className="glass-card p-2 rounded-lg">{isFullscreen ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}</button>
@@ -99,3 +99,4 @@ export function LineChartCard({
     </>
   );
 }
+

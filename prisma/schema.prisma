@@ -17,9 +17,40 @@ model Dorm {
   chats      ChatMessage[]
   notifications Notification[]
   botSettings DormBotSetting[]
+  botToolPermissions DormBotToolPermission[]
   createdAt  DateTime @default(now())
 
   @@map("dorms")
+}
+
+
+model ToolDefinition {
+  id             Int                     @id @default(autoincrement())
+  name           String                  @unique
+  displayName    String                  @map("display_name")
+  description    String
+  argumentSchema String                  @map("argument_schema")
+  operationScope String                  @map("operation_scope")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  botPermissions DormBotToolPermission[]
+
+  @@map("tool_definitions")
+}
+
+model DormBotToolPermission {
+  id         Int            @id @default(autoincrement())
+  dormId     Int            @map("dorm_id")
+  dorm       Dorm           @relation(fields: [dormId], references: [id], onDelete: Cascade)
+  toolId     Int            @map("tool_id")
+  tool       ToolDefinition @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  permission String         @default("deny")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  @@unique([dormId, toolId])
+  @@index([dormId, permission])
+  @@map("dorm_bot_tool_permissions")
 }
 
 model DormBotSetting {
@@ -127,10 +158,13 @@ model ChatMessage {
   userId    Int      @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   String
+  messageType String @default("chat") @map("message_type")
+  excludeFromBotMemory Boolean @default(false) @map("exclude_from_bot_memory")
   isPrivateForBot Boolean @default(false) @map("is_private_for_bot")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([dormId, createdAt])
+  @@index([dormId, excludeFromBotMemory, id])
   @@map("chat_messages")
 }
 

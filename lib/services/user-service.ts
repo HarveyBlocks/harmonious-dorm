@@ -14,14 +14,13 @@ import {
   BOT_OTHER_CONTENT_KEY,
   listDormBotSettingsSafe,
   normalizeBotMemoryWindow,
-  normalizeToolPermission,
-  parseToolNameFromPermissionKey,
 } from './bot-settings-service';
 import { ensureSessionUser, normalizeName } from './helpers';
 import { saveImageToPublic } from './media-service';
 import { pushDormNotification } from './notification-service';
 import { listDormUserDescriptions, upsertUserDescriptions } from './user-description-service';
 import { emitToDorm } from '@/lib/socket-server';
+import { listDormToolRows } from '@/lib/tools';
 
 export async function getMe(session: SessionUser): Promise<MePayload> {
   await ensureSessionUser(session);
@@ -52,7 +51,7 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
 
   let botOtherContent = '';
   let botMemoryWindow = BOT_MEMORY_WINDOW_DEFAULT;
-  const botToolPermissionMap: Record<string, 'allow' | 'deny'> = {};
+  const toolRows = await listDormToolRows(me.dormId);
   const botSettings = rawBotSettings.filter((item) => {
     if (item.key === BOT_OTHER_CONTENT_KEY) {
       botOtherContent = item.value || '';
@@ -60,11 +59,6 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
     }
     if (item.key === BOT_MEMORY_WINDOW_KEY) {
       botMemoryWindow = normalizeBotMemoryWindow(item.value);
-      return false;
-    }
-    const toolName = parseToolNameFromPermissionKey(item.key);
-    if (toolName) {
-      botToolPermissionMap[toolName] = normalizeToolPermission(item.value);
       return false;
     }
     return true;
@@ -79,7 +73,13 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
     botName: bot.name,
     botAvatarPath: bot.avatarPath,
     botSettings,
-    botToolPermissions: Object.entries(botToolPermissionMap).map(([tool, permission]) => ({ tool, permission })),
+    botToolPermissions: toolRows.map((item) => ({ tool: item.name, permission: item.permission })),
+    botTools: toolRows.map((item) => ({
+      tool: item.name,
+      displayName: item.displayName,
+      description: item.description,
+      operationScope: item.operationScope,
+    })),
     botOtherContent,
     botMemoryWindow,
     language: (me.language as 'zh-CN' | 'zh-TW' | 'fr' | 'en') || 'zh-CN',

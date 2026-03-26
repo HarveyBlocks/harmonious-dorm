@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+﻿import { motion } from 'motion/react';
 import type React from 'react';
 
 import { ChatComposer } from './chat-composer';
@@ -19,7 +19,7 @@ type Props = ChatTabProps & {
 export function ChatTabPanel(props: Props) {
   return (
     <motion.div key="chat" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid rounded-2xl overflow-hidden flex flex-col h-[78vh] shadow-2xl relative">
-      <div className="h-8 border-b border-white/10 bg-gradient-to-b from-white/12 via-white/6 to-transparent backdrop-blur-[2px]" />
+      <div className="h-8 chat-topbar-surface" />
 
       <ChatMessagesPane
         t={props.t}
@@ -68,3 +68,4 @@ export function ChatTabPanel(props: Props) {
     </motion.div>
   );
 }
+

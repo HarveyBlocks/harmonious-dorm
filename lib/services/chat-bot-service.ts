@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/db';
 import { BOT_RUNTIME_CONFIG } from '@/lib/config/bot-runtime';
 import { StreamAbortError, UpstreamServiceError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
@@ -6,7 +6,7 @@ import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import type { SessionUser } from '@/lib/types';
 
 import { emitToDorm } from '@/lib/socket-server';
-import { listAllowedTools } from '@/lib/tools';
+import { getDormToolPermissionMap, listAllowedTools } from '@/lib/tools';
 import { ensureDormBotUser, isBotEmail } from './bot-service';
 import { buildDormBotPrompt } from './chat-bot-prompt';
 import { fetchRecentMessagesForBotMemory } from './chat-bot-memory';
@@ -16,8 +16,6 @@ import {
   BOT_OTHER_CONTENT_KEY,
   listDormBotSettingsSafe,
   normalizeBotMemoryWindow,
-  normalizeToolPermission,
-  parseToolNameFromPermissionKey,
 } from './bot-settings-service';
 import { runBotReplyWithToolCall } from './chat-bot-tool-call';
 import { pushDormNotification } from './notification-service';
@@ -37,8 +35,6 @@ type ReplyOptions = {
   abortSignal?: AbortSignal;
 };
 
-const STATUS_CHAT_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.ChatStatusChanged}"`;
-const ABORTED_BEFORE_START_TOKEN_PREFIX = `__i18n__:{"key":"${NoticeMessageKey.BotReplyStoppedBeforeStart}"`;
 const PERSIST_INTERVAL_MS = BOT_RUNTIME_CONFIG.streamPersistIntervalMs;
 const PERSIST_MIN_GROWTH = BOT_RUNTIME_CONFIG.streamPersistMinGrowth;
 
@@ -65,7 +61,6 @@ async function loadBotConfig(dormId: number) {
   const allSettings = await listDormBotSettingsSafe(dormId);
   let botOtherContent = '';
   let botMemoryWindow = BOT_MEMORY_WINDOW_DEFAULT;
-  const toolPermissions: Record<string, 'allow' | 'deny'> = {};
   const botSettings = allSettings.filter((item) => {
     if (item.key === BOT_OTHER_CONTENT_KEY) {
       botOtherContent = item.value || '';
@@ -75,13 +70,9 @@ async function loadBotConfig(dormId: number) {
       botMemoryWindow = normalizeBotMemoryWindow(item.value);
       return false;
     }
-    const toolName = parseToolNameFromPermissionKey(item.key);
-    if (toolName) {
-      toolPermissions[toolName] = normalizeToolPermission(item.value);
-      return false;
-    }
     return true;
   });
+  const toolPermissions = await getDormToolPermissionMap(dormId);
   return { botOtherContent, botMemoryWindow, botSettings, toolPermissions };
 }
 
@@ -102,10 +93,7 @@ async function loadRecentMessages(input: {
       where: {
         dormId: input.dormId,
         isPrivateForBot: false,
-        NOT: [
-          { content: { startsWith: STATUS_CHAT_TOKEN_PREFIX } },
-          { content: { startsWith: ABORTED_BEFORE_START_TOKEN_PREFIX } },
-        ],
+        excludeFromBotMemory: false,
         id: {
           in: input.explicitContextMessageIds,
           lt: Number.isFinite(input.anchorMessageId) ? Number(input.anchorMessageId) : Number.MAX_SAFE_INTEGER,
@@ -121,8 +109,6 @@ async function loadRecentMessages(input: {
     dormId: input.dormId,
     anchorMessageId: input.anchorMessageId,
     botMemoryWindow: input.botMemoryWindow,
-    statusTokenPrefix: STATUS_CHAT_TOKEN_PREFIX,
-    abortedTokenPrefix: ABORTED_BEFORE_START_TOKEN_PREFIX,
   });
 }
 
@@ -186,7 +172,7 @@ async function streamAndPersistReply(input: {
       systemPrompt: input.prompt.systemPrompt,
       userPrompt: input.prompt.userPrompt,
       toolPermissions: input.toolPermissions || {},
-      caller: { callerUserId: input.callerUserId, callerIsLeader: input.callerIsLeader },
+      caller: { callerUserId: input.callerUserId, callerIsLeader: input.callerIsLeader, dormId: input.dormId },
       abortSignal: input.abortSignal,
       onDelta: (delta) => {
         streamedContent += delta;
@@ -313,9 +299,10 @@ export async function replyByDormBotIfMentioned(session: SessionUser, content: s
     abortSignal: options?.abortSignal,
   });
 
-  await prisma.chatMessage.update({ where: { id: stream.streamId }, data: { content: finalContent } });
+  await prisma.chatMessage.update({ where: { id: stream.streamId }, data: { content: finalContent, messageType: "bot_reply", excludeFromBotMemory: false } });
   await finalizeAndNotify(session.dormId, stream.streamId, bot.name);
 }
+
 
 
 

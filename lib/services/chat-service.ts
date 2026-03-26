@@ -212,6 +212,8 @@ export async function sendChatMessage(
       dormId: session.dormId,
       userId: session.userId,
       content: trimmed,
+      messageType: "chat",
+      excludeFromBotMemory: false,
     },
   });
 

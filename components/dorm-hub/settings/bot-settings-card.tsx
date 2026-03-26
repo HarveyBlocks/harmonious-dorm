@@ -1,11 +1,11 @@
-import { Camera, CircleAlert, Plus, X } from 'lucide-react';
+﻿import { Camera, CircleAlert, Plus, X } from 'lucide-react';
 import { LIMITS } from '@/lib/limits';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import { autoResizeTextarea, resetTextareaHeight, resolveAvatar } from '../ui-helpers';
 import { SettingsCard } from '../settings-card';
 import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
-import { AVAILABLE_BOT_TOOLS, ToolPermissionList } from '@/components/dorm-hub/tsx-tools/tools';
+import { ToolPermissionList } from '@/components/dorm-hub/tsx-tools/tools';
 
 export function BotSettingsCard(props: {
   me: any;
@@ -52,9 +52,12 @@ export function BotSettingsCard(props: {
 }) {
   const p = props;
   const permissionMap = new Map((p.botToolPermissionsInput || []).map((item) => [item.tool, item.permission] as const));
-  const toolPermissionRows = AVAILABLE_BOT_TOOLS.map((tool) => ({
-    tool: tool.name,
-    permission: (permissionMap.get(tool.name) || 'deny') as 'allow' | 'deny',
+  const toolPermissionRows = (p.me?.botTools || []).map((tool: any) => ({
+    tool: tool.tool,
+    displayName: tool.displayName,
+    description: tool.description,
+    operationScope: tool.operationScope,
+    permission: (permissionMap.get(tool.tool) || 'deny') as 'allow' | 'deny',
   }));
 
   return (
@@ -114,6 +117,16 @@ export function BotSettingsCard(props: {
                   next.push({ tool, permission });
                 }
                 return next;
+              });
+            }}
+            onBatchChange={(updates) => {
+              if (!updates.length) return;
+              p.setBotToolPermissionsInput((prev) => {
+                const map = new Map(prev.map((item) => [item.tool, item.permission] as const));
+                for (const item of updates) {
+                  map.set(item.tool, item.permission);
+                }
+                return Array.from(map.entries()).map(([tool, permission]) => ({ tool, permission }));
               });
             }}
           />
@@ -195,3 +208,4 @@ export function BotSettingsCard(props: {
     </SettingsCard>
   );
 }
+

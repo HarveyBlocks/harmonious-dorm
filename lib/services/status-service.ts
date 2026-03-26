@@ -54,6 +54,8 @@ export async function updateStatus(session: SessionUser, state: DormStateCode) {
         userName: me.name,
         state: normalizedState,
       }),
+      messageType: "status_event",
+      excludeFromBotMemory: true,
     },
   });
   emitToDorm(session.dormId, 'chat:new', {

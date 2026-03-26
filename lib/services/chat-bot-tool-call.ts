@@ -1,5 +1,5 @@
 ﻿import { streamGlmMessages, streamGlmReply, requestGlmPayload } from '@/lib/services/glm-service';
-import { executeTool, listAllowedTools, type ToolDescriptor, type ToolExecutionContext, type ToolName } from '@/lib/tools';
+import { executeTool, listAllowedTools, type ToolDescriptor, type ToolExecutionContext } from '@/lib/tools';
 import { logInfo, logWarn } from '@/lib/logger';
 import type { LlmMessage, LlmToolCall } from '@/lib/ai/chat-types';
 
@@ -15,7 +15,7 @@ export type ToolExecutionRecord = {
 
 type NativeToolCall = {
   id: string;
-  name: ToolName;
+  name: string;
   args: Record<string, unknown>;
 };
 
@@ -87,7 +87,7 @@ function parseFirstAssistant(payload: unknown): { content: string; toolCalls: Na
     });
     toolCalls.push({
       id,
-      name: functionName as ToolName,
+      name: functionName,
       args: normalizeArgs(argumentsRaw),
     });
   }
@@ -95,11 +95,11 @@ function parseFirstAssistant(payload: unknown): { content: string; toolCalls: Na
   return { content, toolCalls, assistantToolCalls };
 }
 
-function executeNativeToolCalls(
+async function executeNativeToolCalls(
   calls: NativeToolCall[],
   caller: ToolExecutionContext,
   toolTraceId: string,
-): { executions: ToolExecutionRecord[]; toolMessages: LlmMessage[] } {
+): Promise<{ executions: ToolExecutionRecord[]; toolMessages: LlmMessage[] }> {
   const executions: ToolExecutionRecord[] = [];
   const toolMessages: LlmMessage[] = [];
 
@@ -115,7 +115,7 @@ function executeNativeToolCalls(
       callerIsLeader: caller.callerIsLeader,
     });
 
-    const result = executeTool(call.name, call.args, caller);
+    const result = await executeTool(call.name, call.args, caller);
 
     if (result.ok) {
       logInfo('bot_tool_invoked', {
@@ -241,7 +241,7 @@ export async function runBotReplyWithToolCall(input: {
   }
 
   input.onPhase?.('tool_calling');
-  const { executions, toolMessages } = executeNativeToolCalls(first.toolCalls, input.caller, toolTraceId);
+  const { executions, toolMessages } = await executeNativeToolCalls(first.toolCalls, input.caller, toolTraceId);
   logInfo('bot_tool_execution_batch_completed', { toolTraceId, executionCount: executions.length });
 
   input.onPhase?.('tool_result_thinking');

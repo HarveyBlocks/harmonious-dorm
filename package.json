@@ -16,14 +16,15 @@
     "start:standalone": "npm run prepare:standalone && node .next/standalone/server.js",
     "clean:next": "node -e \"const fs=require('fs'); const p=process.env.NEXT_DIST_DIR||'.next'; fs.rmSync(p,{recursive:true,force:true})\"",
     "clean:next:all": "node -e \"const fs=require('fs'); ['.next','.next-user','.next-agent'].forEach((p)=>fs.rmSync(p,{recursive:true,force:true}))\"",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "typecheck": "npm run check:i18n && tsc --noEmit -p tsconfig.typecheck.json",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "seed:large": "node scripts/seed-large-data.cjs",
     "seed:d0003": "node scripts/seed-d0003-heavy.cjs",
-    "test:backend": "vitest run tests/backend",
+    "test:backend": "vitest run tests/backend --maxWorkers=1",
     "test:backend:watch": "vitest tests/backend",
-    "migrate:enum-values": "node scripts/migrate-enum-values.cjs"
+    "migrate:enum-values": "node scripts/migrate-enum-values.cjs",
+    "check:i18n": "node scripts/check-i18n-integrity.cjs"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",

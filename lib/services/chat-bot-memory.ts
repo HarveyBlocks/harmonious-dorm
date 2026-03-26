@@ -5,8 +5,6 @@ type MemoryQueryInput = {
   dormId: number;
   anchorMessageId?: number;
   botMemoryWindow: number;
-  statusTokenPrefix: string;
-  abortedTokenPrefix: string;
   batchSize?: number;
 };
 
@@ -24,11 +22,8 @@ export async function fetchRecentMessagesForBotMemory(input: MemoryQueryInput) {
       where: {
         dormId: input.dormId,
         isPrivateForBot: false,
+        excludeFromBotMemory: false,
         id: { lt: cursorId },
-        NOT: [
-          { content: { startsWith: input.statusTokenPrefix } },
-          { content: { startsWith: input.abortedTokenPrefix } },
-        ],
       },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { id: 'desc' },

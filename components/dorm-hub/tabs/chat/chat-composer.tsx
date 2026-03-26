@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+﻿import React, { useCallback, useState } from 'react';
 import { Send } from 'lucide-react';
 
 import type { ChatComposerProps } from './types';
@@ -12,7 +12,7 @@ export const ChatComposer = React.memo(function ChatComposer(props: ChatComposer
   }, [draft, props]);
 
   return (
-    <div className="p-3 bg-white/20 border-t border-slate-200/20">
+    <div className="p-3 chat-composer-surface">
       <div className="flex gap-2">
         <textarea
           ref={props.chatInputRef}
@@ -36,3 +36,5 @@ export const ChatComposer = React.memo(function ChatComposer(props: ChatComposer
     </div>
   );
 });
+
+

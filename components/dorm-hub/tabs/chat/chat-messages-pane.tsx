@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { BookMarked, EyeOff, Pause } from 'lucide-react';
 
 import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
@@ -14,7 +14,7 @@ function isI18nToken(text: string): boolean {
 
 export const ChatMessagesPane = React.memo(function ChatMessagesPane(props: ChatMessagesPaneProps) {
   return (
-    <div ref={props.chatScrollRef} onScroll={props.onChatListScroll} className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-50/30">
+    <div ref={props.chatScrollRef} onScroll={props.onChatListScroll} className="flex-1 p-6 overflow-y-auto space-y-6 chat-pane-surface">
       {props.lastPositionChatId && props.unreadChatCount > 20 ? (
         <div className="flex justify-end">
           <button type="button" onClick={props.jumpToLastPosition} className="px-3 py-2 rounded-xl glass-card text-xs font-bold">
@@ -27,7 +27,7 @@ export const ChatMessagesPane = React.memo(function ChatMessagesPane(props: Chat
         <div key={msg.id} ref={(node) => { props.chatMessageRefs.current[msg.id] = node; }}>
           {msg.isStatusMessage ? (
             <div className="flex justify-center">
-              <p className="px-4 py-1.5 rounded-full bg-slate-500/15 text-xs font-bold text-muted">{msg.localizedContent}</p>
+              <p className="px-4 py-1.5 rounded-full status-chip text-xs font-bold text-muted">{msg.localizedContent}</p>
             </div>
           ) : (
             <ChatMessageRow message={msg} {...props} />

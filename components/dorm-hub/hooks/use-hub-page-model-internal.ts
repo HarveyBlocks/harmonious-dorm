@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -214,6 +214,7 @@ export function useHubPageModelInternal() {
     updateDormMutation: settingsMutations.updateDormMutation,
     updateBotMutation: settingsMutations.updateBotMutation,
     updateBotSettingsMutation: settingsMutations.updateBotSettingsMutation,
+    updateBotToolPermissionsBatchMutation: settingsMutations.updateBotToolPermissionsBatchMutation,
     updateDescriptionsMutation: settingsMutations.updateDescriptionsMutation,
     uploadAvatarMutation: settingsMutations.uploadAvatarMutation,
     uploadBotAvatarMutation: settingsMutations.uploadBotAvatarMutation,

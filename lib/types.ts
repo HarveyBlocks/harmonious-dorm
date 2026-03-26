@@ -56,6 +56,7 @@ export interface MePayload {
   botAvatarPath: string | null;
   botSettings: Array<{ key: string; value: string }>;
   botToolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }>;
+  botTools: Array<{ tool: string; displayName: string; description: string; operationScope: string }>;
   botOtherContent: string;
   botMemoryWindow: number;
   language: 'zh-CN' | 'zh-TW' | 'fr' | 'en';

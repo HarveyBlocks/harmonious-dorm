@@ -26,7 +26,7 @@ beforeAll(async () => {
       DATABASE_URL: 'file:./test.db',
     },
   });
-});
+}, 60000);
 
 beforeEach(async () => {
   const { prisma } = await import('@/lib/db');

@@ -1,4 +1,4 @@
-
+﻿
 import { LIMITS } from '@/lib/limits';
 
 import { SettingsCard } from '../settings-card';
@@ -21,7 +21,7 @@ export function DormSettingsCard(props: {
   const { t, me, folded, toggleLabel, onToggle, copyInviteCode, dormNameInput, setDormNameInput, tryApplyLimitedInput, eText, targetLeaderId, setTargetLeaderId, transferMutation } = props;
 
   return (
-    <SettingsCard title={t.dormInfo} folded={folded} onToggle={onToggle} toggleLabel={toggleLabel} className={`glass-card sleep-depth-deep rounded-3xl ${folded ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
+    <SettingsCard title={t.dormInfo} folded={folded} onToggle={onToggle} toggleLabel={toggleLabel} className={`glass-card sleep-depth-mid rounded-3xl ${folded ? 'px-7 py-4 md:px-8 md:py-4' : 'p-7 md:p-8'}`}>
       <div className="space-y-6 mt-6">
         <div className="glass-card rounded-2xl px-5 py-5 md:py-6 w-[96%] md:w-[92%] mx-auto">
           <p className="text-xs text-muted mb-2">{t.inviteCodeLabel}</p>
@@ -52,3 +52,4 @@ export function DormSettingsCard(props: {
     </SettingsCard>
   );
 }
+

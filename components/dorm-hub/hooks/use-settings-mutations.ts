@@ -1,4 +1,4 @@
-import { useMutation, type QueryClient } from '@tanstack/react-query';
+﻿import { useMutation, type QueryClient } from '@tanstack/react-query';
 import type { MutableRefObject } from 'react';
 
 import { apiRequest } from '@/lib/client-api';
@@ -93,6 +93,20 @@ export function useSettingsMutations(options: {
     },
   });
 
+  const updateBotToolPermissionsBatchMutation = useMutation({
+    mutationFn: (payload: { toolPermissions: Record<string, 'allow' | 'deny'> }) =>
+      apiRequest<{ toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }>('/api/dorm/bot/tool-permissions/batch', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data) => {
+      lastSyncedBotToolPermissionsRef.current = (data.toolPermissions || [])
+        .map((item) => ({ tool: (item.tool || '').trim(), permission: (item.permission === 'allow' ? 'allow' : 'deny') as 'allow' | 'deny' }))
+        .filter((item) => item.tool.length > 0);
+      void queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+
   const updateDescriptionsMutation = useMutation({
     mutationFn: (items: Array<{ userId: number; description: string }>) =>
       apiRequest<{ success: true }>('/api/users/descriptions', {
@@ -157,6 +171,7 @@ export function useSettingsMutations(options: {
     updateDormMutation,
     updateBotMutation,
     updateBotSettingsMutation,
+    updateBotToolPermissionsBatchMutation,
     updateDescriptionsMutation,
     transferMutation,
     uploadAvatarMutation,

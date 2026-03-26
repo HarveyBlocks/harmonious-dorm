@@ -1,4 +1,4 @@
-import path from 'node:path';
+﻿import path from 'node:path';
 
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
@@ -12,17 +12,16 @@ import {
   BOT_MEMORY_WINDOW_DEFAULT,
   BOT_MEMORY_WINDOW_KEY,
   BOT_OTHER_CONTENT_KEY,
-  BOT_TOOL_PERMISSION_KEY_PREFIX,
   BOT_MEMORY_WINDOW_MIN,
   BOT_MEMORY_WINDOW_MAX,
   normalizeBotMemoryWindow,
   normalizeToolPermission,
   replaceDormBotSettingsSafe,
-  toBotToolPermissionKey,
 } from './bot-settings-service';
 import { saveImageToPublic } from './media-service';
 import { pushDormNotification } from './notification-service';
 import { emitToDorm } from '@/lib/socket-server';
+import { setDormToolPermissions } from '@/lib/tools';
 
 export const BOT_EMAIL_DOMAIN = process.env.BOT_EMAIL_DOMAIN || 'harmonious.bot';
 
@@ -129,7 +128,6 @@ export async function updateDormBotSettings(
   }
 
   const normalized = settings
-    .filter((item) => !String(item.key || '').startsWith(BOT_TOOL_PERMISSION_KEY_PREFIX))
     .map((item) => ({
       key: normalizeName(item.key || ''),
       value: (item.value || '').trim(),
@@ -166,18 +164,37 @@ export async function updateDormBotSettings(
   if (normalizedOtherContent.length > 0) {
     toSave.push({ key: BOT_OTHER_CONTENT_KEY, value: normalizedOtherContent });
   }
-  for (const item of normalizedToolPermissions) {
-    toSave.push({ key: toBotToolPermissionKey(item.tool), value: item.permission });
-  }
 
   await replaceDormBotSettingsSafe(session.dormId, toSave);
+  const persistedToolPermissions = await setDormToolPermissions(session.dormId, Object.fromEntries(normalizedToolPermissions.map((item) => [item.tool, item.permission] as const)));
   emitToDorm(session.dormId, 'settings:changed', { scope: 'bot-settings' });
 
   return {
     settings: finalSettings,
     otherContent: normalizedOtherContent,
     memoryWindow: normalizedMemoryWindow,
-    toolPermissions: normalizedToolPermissions,
+    toolPermissions: persistedToolPermissions,
   };
 }
 
+export async function updateDormBotToolPermissionsBatch(
+  session: SessionUser,
+  toolPermissions: Record<string, 'allow' | 'deny'>,
+): Promise<{ toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }> {
+  const me = await ensureSessionUser(session);
+  if (!me.isLeader) {
+    throw new ApiError(403, '只有舍长可以设置机器人');
+  }
+
+  const normalizedToolPermissions = Object.entries(toolPermissions || {})
+    .filter(([tool]) => Boolean(tool && tool.trim()))
+    .map(([tool, permission]) => ({ tool: tool.trim(), permission: normalizeToolPermission(permission) }));
+
+  const persistedToolPermissions = await setDormToolPermissions(
+    session.dormId,
+    Object.fromEntries(normalizedToolPermissions.map((item) => [item.tool, item.permission] as const)),
+  );
+
+  emitToDorm(session.dormId, 'settings:changed', { scope: 'bot-tools' });
+  return { toolPermissions: persistedToolPermissions };
+}

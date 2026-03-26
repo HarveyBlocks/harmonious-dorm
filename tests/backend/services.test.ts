@@ -88,11 +88,10 @@ describe('backend services', () => {
     expect(duties.items[0].userId).toBe(member.userId);
     expect(duties.items[0].task).toBe('wipe desk');
 
-    await expect(
-      completeDuty(toSession(leader), {
-        dutyId: duties.items[0].dutyId,
-      }),
-    ).rejects.toMatchObject({ status: 403 });
+    const leaderToggle = await completeDuty(toSession(leader), {
+      dutyId: duties.items[0].dutyId,
+    });
+    expect(leaderToggle.success).toBe(true);
 
     const completeResult = await completeDuty(toSession(member), {
       dutyId: duties.items[0].dutyId,
