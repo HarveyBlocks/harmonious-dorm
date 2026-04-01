@@ -9,7 +9,7 @@ import type { SessionUser } from '@/lib/types';
 export async function requireSessionOrThrow(): Promise<SessionUser> {
   const session = await getServerSession();
   if (!session) {
-    throw new ApiError(401, '请先登录');
+    throw new ApiError(401, 'Login required', { code: 'auth.login.required' });
   }
   return session;
 }

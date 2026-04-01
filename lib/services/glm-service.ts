@@ -1,4 +1,4 @@
-﻿import { AI_CHAT_CONFIG, isAiChatConfigured } from '@/lib/config/ai';
+﻿﻿import { AI_CHAT_CONFIG, isAiChatConfigured } from '@/lib/config/ai';
 import { ApiError } from '@/lib/errors';
 import { requestChatCompletion, requestChatCompletionPayload, streamChatCompletion, type ChatClientConfig, type LlmMessage } from '@/lib/ai/stream-chat-client';
 
@@ -19,7 +19,7 @@ function buildGlmClientConfig(): ChatClientConfig {
 
 function ensureGlmConfigured() {
   if (!isAiChatConfigured()) {
-    throw new ApiError(500, 'AI chat config missing');
+    throw new ApiError(500, 'AI chat config missing', { code: 'ai.config.missing' });
   }
 }
 
@@ -76,6 +76,17 @@ export async function requestGlmReply(input: {
       { role: 'system', content: input.systemPrompt },
       { role: 'user', content: input.userPrompt },
     ],
+  });
+}
+
+export async function requestGlmMessages(input: {
+  messages: LlmMessage[];
+  extraBody?: Record<string, unknown>;
+}): Promise<string> {
+  ensureGlmConfigured();
+  return requestChatCompletion(buildGlmClientConfig(), {
+    messages: input.messages,
+    extraBody: input.extraBody,
   });
 }
 

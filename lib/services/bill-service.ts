@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import { allocateAmounts, normalizeWeights, validateWeights } from '@/lib/share-allocation';
@@ -51,7 +51,7 @@ export async function createBill(
 
   const participants = [...new Set(input.participants)];
   if (participants.length === 0) {
-    throw new ApiError(400, '至少选择一位参与人');
+    throw new ApiError(400, 'At least one participant required', { code: 'bill.participants.required' });
   }
 
   const users = await prisma.user.findMany({
@@ -63,17 +63,17 @@ export async function createBill(
   });
 
   if (users.length !== participants.length) {
-    throw new ApiError(400, '参与人必须属于当前宿舍');
+    throw new ApiError(400, 'Participants must belong to dorm', { code: 'bill.participants.invalid_member' });
   }
 
   const normalizedWeights = normalizeWeights(participants, input.participantWeights);
   if (!validateWeights(normalizedWeights)) {
-    throw new ApiError(400, '权重不能小于 0');
+    throw new ApiError(400, 'Weight cannot be negative', { code: 'bill.weight.negative' });
   }
 
   const amountMap = allocateAmounts(input.total, participants, normalizedWeights);
   if (amountMap.size !== participants.length) {
-    throw new ApiError(400, '至少一位成员需要支付');
+    throw new ApiError(400, 'At least one payable participant required', { code: 'bill.payable.required' });
   }
 
   const payableParticipants = participants
@@ -81,7 +81,7 @@ export async function createBill(
     .filter((item) => item.actualAmount > 0);
 
   if (payableParticipants.length === 0) {
-    throw new ApiError(400, '至少一位成员需要支付');
+    throw new ApiError(400, 'At least one payable participant required', { code: 'bill.payable.required' });
   }
 
   const normalizedCategory = normalizeBillCategory(input.category?.trim());
@@ -196,7 +196,7 @@ export async function markBillPaid(
 
   const effectiveUserId = userId ?? session.userId;
   if (effectiveUserId !== session.userId) {
-    throw new ApiError(403, '只能标记自己的支付状态');
+    throw new ApiError(403, 'Can only mark own payment status', { code: 'bill.payment.self_only' });
   }
 
   const bill = await prisma.bill.findFirst({
@@ -214,7 +214,7 @@ export async function markBillPaid(
   });
 
   if (!bill) {
-    throw new ApiError(404, '账单不存在');
+    throw new ApiError(404, 'Bill not found', { code: 'bill.not_found' });
   }
 
   const share = await prisma.billParticipant.findUnique({
@@ -227,7 +227,7 @@ export async function markBillPaid(
   });
 
   if (!share || share.actualAmount <= 0) {
-    throw new ApiError(400, '你不在该账单参与列表中');
+    throw new ApiError(400, 'You are not in bill participants', { code: 'bill.participant.not_found' });
   }
 
   await prisma.billParticipant.update({
@@ -306,13 +306,17 @@ export async function deleteBill(session: SessionUser, billId: number): Promise<
   });
 
   if (!bill) {
-    throw new ApiError(404, 'Bill not found');
+    throw new ApiError(404, 'Bill not found', { code: 'bill.not_found' });
   }
 
   const hasAnyPaid = bill.participants.some((item) => item.paid);
   const canDelete = hasAnyPaid ? session.isLeader : session.isLeader || bill.createdBy === session.userId;
   if (!canDelete) {
-    throw new ApiError(403, hasAnyPaid ? 'Only leader can delete after someone paid' : 'Only creator or leader can delete');
+    throw new ApiError(
+      403,
+      hasAnyPaid ? 'Only leader can delete after someone paid' : 'Only creator or leader can delete',
+      { code: hasAnyPaid ? 'bill.delete.leader_required_after_paid' : 'bill.delete.creator_or_leader_required' },
+    );
   }
 
   await prisma.bill.delete({

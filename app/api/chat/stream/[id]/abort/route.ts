@@ -13,7 +13,7 @@ export async function POST(
     const { id } = await context.params;
     const streamId = Number(id);
     if (!Number.isInteger(streamId) || streamId <= 0) {
-      throw new ApiError(400, '当前消息无法停止');
+      throw new ApiError(400, 'Cannot stop this message', { code: 'chat.stream.stop_invalid_target' });
     }
     const result = await abortDormBotStream({ session, streamId });
     return NextResponse.json(result);

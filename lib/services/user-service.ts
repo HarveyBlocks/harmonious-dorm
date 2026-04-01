@@ -42,7 +42,7 @@ export async function getMe(session: SessionUser): Promise<MePayload> {
   });
 
   if (!me) {
-    throw new ApiError(404, '用户不存在');
+    throw new ApiError(404, 'User not found', { code: 'user.not_found' });
   }
   const bot = await ensureDormBotUser(me.dormId);
   const rawBotSettings = await listDormBotSettingsSafe(me.dormId);
@@ -107,7 +107,7 @@ export async function updateMyName(
   const language = payload.language;
 
   if (!name && !language) {
-    throw new ApiError(400, '缺少可更新字段');
+    throw new ApiError(400, 'No updatable fields provided', { code: 'user.update_fields.missing' });
   }
 
   await prisma.user.update({
@@ -133,7 +133,7 @@ export async function updateMemberDescriptions(
     if (!Number.isInteger(userId) || userId <= 0) continue;
     const normalizedDescription = (item.description || '').trim();
     if (normalizedDescription.length > LIMITS.MEMBER_DESCRIPTION) {
-      throw new ApiError(400, `成员描述不能超过 ${LIMITS.MEMBER_DESCRIPTION} 字`);
+      throw new ApiError(400, 'Member description too long', { code: 'member.description.too_long', report: { max: LIMITS.MEMBER_DESCRIPTION } });
     }
     uniqueDescriptions.set(userId, normalizedDescription);
   }
@@ -160,7 +160,7 @@ export async function updateMemberDescriptions(
   }
 
   if (!me.isLeader && validItems.some((item) => item.userId !== me.id)) {
-    throw new ApiError(403, '仅舍长可以修改其他成员描述');
+    throw new ApiError(403, 'Leader required to edit others description', { code: 'member.description.edit_others_leader_required' });
   }
 
   await upsertUserDescriptions(validItems);

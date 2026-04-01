@@ -92,6 +92,14 @@ type SettingsText = {
   addFieldLabel: string;
   removeFieldLabel: string;
   noFieldsYet: string;
+  botChatSummaryLabel: string;
+  botChatSummaryCountLabel: string;
+  botChatSummaryHint: string;
+  botChatSummarySubmitLabel: string;
+  botChatSummaryPendingLabel: string;
+  botChatSummaryQueuedToast: string;
+  botChatSummaryModalTitle: string;
+  botChatSummaryModalCloseLabel: string;
 };
 
 const DEFAULT_LANG: LanguageCode = 'zh-CN';
@@ -210,6 +218,14 @@ const SETTINGS_TEXT_MAP: Record<keyof SettingsText, LangMap> = {
   addFieldLabel: { 'zh-CN': '新增字段', 'zh-TW': '新增欄位', fr: 'Ajouter un champ', en: 'Add field' },
   removeFieldLabel: { 'zh-CN': '删除', 'zh-TW': '刪除', fr: 'Supprimer', en: 'Remove' },
   noFieldsYet: { 'zh-CN': '暂无字段', 'zh-TW': '暫無欄位', fr: 'Aucun champ', en: 'No fields yet' },
+  botChatSummaryLabel: { 'zh-CN': '总结聊天记录', 'zh-TW': '總結聊天記錄', fr: 'Resumer le chat', en: 'Summarize Chat History' },
+  botChatSummaryCountLabel: { 'zh-CN': '最近聊天条数', 'zh-TW': '最近聊天條數', fr: 'Nombre de messages recents', en: 'Recent Message Count' },
+  botChatSummaryHint: { 'zh-CN': '范围 0-100，步长 10', 'zh-TW': '範圍 0-100，步長 10', fr: 'Plage 0-100, pas 10', en: 'Range 0-100, step 10' },
+  botChatSummarySubmitLabel: { 'zh-CN': '开始总结', 'zh-TW': '開始總結', fr: 'Lancer le resume', en: 'Start Summary' },
+  botChatSummaryPendingLabel: { 'zh-CN': '发送总结请求中, 请耐心等待', 'zh-TW': '發送總結請求中，請耐心等待', fr: 'Envoi de la demande de resume, merci de patienter', en: 'Sending summary request, please wait' },
+  botChatSummaryQueuedToast: { 'zh-CN': '已提交总结请求，请耐心等待通知', 'zh-TW': '已提交總結請求，請耐心等待通知', fr: 'Demande envoyee, veuillez attendre la notification', en: 'Summary request submitted, please wait for notification' },
+  botChatSummaryModalTitle: { 'zh-CN': '聊天记录总结', 'zh-TW': '聊天記錄總結', fr: 'Resume du chat', en: 'Chat Summary' },
+  botChatSummaryModalCloseLabel: { 'zh-CN': '关闭', 'zh-TW': '關閉', fr: 'Fermer', en: 'Close' },
 };
 
 export function buildSettingsText(language: LanguageCode | undefined): SettingsText {

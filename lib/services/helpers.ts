@@ -23,7 +23,7 @@ export async function ensureSessionUser(session: SessionUser) {
   });
 
   if (!user) {
-    throw new ApiError(401, '登录状态失效，请重新登录');
+    throw new ApiError(401, 'Session invalid', { code: 'auth.session.invalid' });
   }
 
   return user;
@@ -40,7 +40,7 @@ export function toDateText(date: Date): string {
 export function weekRange(anchor?: string): { start: string; end: string } {
   const base = anchor ? new Date(`${anchor}T00:00:00`) : new Date();
   if (Number.isNaN(base.getTime())) {
-    throw new ApiError(400, 'week 参数格式错误，应为 YYYY-MM-DD');
+    throw new ApiError(400, 'Invalid week param format', { code: 'stats.week_param.invalid_format' });
   }
 
   const day = base.getDay();

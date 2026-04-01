@@ -1,4 +1,4 @@
-﻿import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import {
   BotSettingsCard,
@@ -102,8 +102,14 @@ function buildNotificationProps(p: any) {
     deleteSelectedDisabled: p.selectedCount === 0 || p.deleteSelectedNoticeMutation.isPending,
     notificationFilter: p.notificationFilter, onFilterChange: p.setNotificationFilter, notificationListRef: p.notificationListRef,
     onNoticeListScroll: p.onNoticeListScroll, notices: p.notificationVisibleRows, onToggleSelect: p.toggleSelect, isChecked: p.isChecked,
+    chatSummaryModal: p.chatSummaryModal, chatSummaryModalTitle: p.botChatSummaryModalTitle, chatSummaryModalCloseLabel: p.botChatSummaryModalCloseLabel,
+    onCloseChatSummaryModal: () => p.setChatSummaryModal(null),
     onOpenNotice: (notice: any) => {
       if (!notice.isRead) p.readNoticeMutation.mutate(notice.id);
+      if (notice.type === 'bot_summary') {
+        p.setChatSummaryModal({ title: p.botChatSummaryModalTitle, content: notice.content || '' });
+        return;
+      }
       if (!notice.targetPath) return;
       const tab = p.mapPathToTab(notice.targetPath);
       const targetPath = p.mapTabToPath(tab);
@@ -158,7 +164,16 @@ function buildBotSettingsProps(p: any) {
     botMemoryWindowHintHeavy: p.botMemoryWindowHintHeavy, botMemoryWindowHintTech: p.botMemoryWindowHintTech,
     botMemoryWindowHintHyper: p.botMemoryWindowHintHyper, botOtherContentLabel: p.botOtherContentLabel, botOtherEditing: p.botOtherEditing,
     setBotOtherEditing: p.setBotOtherEditing, botOtherTextareaRef: p.botOtherTextareaRef, botOtherContent: p.botOtherContent,
-    setBotOtherContent: p.setBotOtherContent, botOtherContentPlaceholder: p.botOtherContentPlaceholder, dispatchToast: p.dispatchToast,
+    setBotOtherContent: p.setBotOtherContent, botOtherContentPlaceholder: p.botOtherContentPlaceholder,
+    botChatSummaryLabel: p.botChatSummaryLabel, botChatSummaryCountLabel: p.botChatSummaryCountLabel,
+    botChatSummaryHint: p.botChatSummaryHint, botChatSummarySubmitLabel: p.botChatSummarySubmitLabel,
+    botChatSummaryPendingLabel: p.botChatSummaryPendingLabel, chatSummaryMessageCount: p.chatSummaryMessageCount,
+    setChatSummaryMessageCount: p.setChatSummaryMessageCount, requestChatSummaryPending: p.requestChatSummaryMutation.isPending,
+    requestChatSummary: () => p.requestChatSummaryMutation.mutate(
+      { messageCount: Number(p.chatSummaryMessageCount || '0') },
+      { onSuccess: () => p.dispatchToast('info', p.botChatSummaryQueuedToast) },
+    ),
+    dispatchToast: p.dispatchToast,
   };
 }
 

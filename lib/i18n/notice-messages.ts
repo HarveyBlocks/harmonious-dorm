@@ -31,6 +31,9 @@ export enum NoticeMessageKey {
   DutyAssignedContent = 'notice.dutyAssignedContent',
   BotNameChanged = 'notice.botNameChanged',
   BotReplyStoppedBeforeStart = 'notice.botReplyStoppedBeforeStart',
+  BotChatSummaryReady = 'notice.botChatSummaryReady',
+  BotChatSummaryFailed = 'notice.botChatSummaryFailed',
+  BotChatSummaryFailedContent = 'notice.botChatSummaryFailedContent',
 }
 
 type MultiLangText = Record<LanguageCode, string>;
@@ -72,6 +75,19 @@ const STATIC_TEXT: Record<NoticeMessageKey, MultiLangText> = {
     fr: 'La reponse du robot est arretee',
     en: 'Robot reply stopped',
   },
+  [NoticeMessageKey.BotChatSummaryReady]: {
+    'zh-CN': '聊天记录总结已完成',
+    'zh-TW': '聊天記錄總結已完成',
+    fr: 'Le resume du chat est pret',
+    en: 'Chat summary is ready',
+  },
+  [NoticeMessageKey.BotChatSummaryFailed]: {
+    'zh-CN': '聊天记录总结失败',
+    'zh-TW': '聊天記錄總結失敗',
+    fr: 'Echec du resume du chat',
+    en: 'Chat summary failed',
+  },
+  [NoticeMessageKey.BotChatSummaryFailedContent]: { 'zh-CN': '', 'zh-TW': '', fr: '', en: '' },
 };
 
 const STATE_LABEL: Record<LanguageCode, Record<string, string>> = {
@@ -80,6 +96,61 @@ const STATE_LABEL: Record<LanguageCode, Record<string, string>> = {
   'zh-TW': { study: '學習', sleep: '睡覺', game: '遊戲', out: '外出' },
   'zh-CN': { study: '学习', sleep: '睡觉', game: '游戏', out: '外出' },
 };
+
+const SUMMARY_FAIL_REASON_LABEL: Record<LanguageCode, Record<string, string>> = {
+  en: {
+    network: 'network interruption',
+    timeout: 'request timeout',
+    rate_limit: 'request frequency limited',
+    quota: 'quota limit reached',
+    llm_rejected: 'LLM rejected request',
+    llm_interrupted: 'LLM interrupted response',
+    unknown: 'unknown reason',
+  },
+  fr: {
+    network: 'interruption reseau',
+    timeout: 'delai depasse',
+    rate_limit: 'frequence limitee',
+    quota: 'quota atteint',
+    llm_rejected: 'requete rejetee par le LLM',
+    llm_interrupted: 'reponse du LLM interrompue',
+    unknown: 'raison inconnue',
+  },
+  'zh-TW': {
+    network: '網路中斷',
+    timeout: '請求超時',
+    rate_limit: '請求頻率受限',
+    quota: '額度上限',
+    llm_rejected: 'LLM 拒絕請求',
+    llm_interrupted: 'LLM 回覆中斷',
+    unknown: '未知原因',
+  },
+  'zh-CN': {
+    network: '网络中断',
+    timeout: '请求超时',
+    rate_limit: '请求频率受限',
+    quota: '额度上限',
+    llm_rejected: 'LLM 拒绝请求',
+    llm_interrupted: 'LLM 回复中断',
+    unknown: '未知原因',
+  },
+};
+
+function formatSummaryFailedContent(lang: LanguageCode, params: TokenParams): string {
+  const reasonKey = String(params.reason || 'unknown');
+  const reasonLabel = SUMMARY_FAIL_REASON_LABEL[lang]?.[reasonKey] || SUMMARY_FAIL_REASON_LABEL[lang]?.unknown || SUMMARY_FAIL_REASON_LABEL['zh-CN'].unknown;
+  const detail = String(params.detail || '').trim();
+  if (!detail) {
+    if (lang === 'en') return `Summary failed: ${reasonLabel}.`;
+    if (lang === 'fr') return `Echec du resume : ${reasonLabel}.`;
+    if (lang === 'zh-TW') return `總結失敗：${reasonLabel}。`;
+    return `总结失败：${reasonLabel}。`;
+  }
+  if (lang === 'en') return `Summary failed: ${reasonLabel}. Detail: ${detail}`;
+  if (lang === 'fr') return `Echec du resume : ${reasonLabel}. Détail : ${detail}`;
+  if (lang === 'zh-TW') return `總結失敗：${reasonLabel}。詳情：${detail}`;
+  return `总结失败：${reasonLabel}。详情：${detail}`;
+}
 
 const MESSAGE_FORMATTER_MAP: Partial<Record<NoticeMessageKey, LangFormatter>> = {
   [NoticeMessageKey.BillSummary]: {
@@ -161,6 +232,12 @@ const MESSAGE_FORMATTER_MAP: Partial<Record<NoticeMessageKey, LangFormatter>> = 
     fr: (params) => `${String(params.userName || '')} est maintenant en mode ${STATE_LABEL.fr[String(params.state || '')] || ''}`,
     'zh-TW': (params) => `${String(params.userName || '')} 現在是 ${STATE_LABEL['zh-TW'][String(params.state || '')] || ''} 狀態`,
     'zh-CN': (params) => `${String(params.userName || '')}现在是${STATE_LABEL['zh-CN'][String(params.state || '')] || ''}状态`,
+  },
+  [NoticeMessageKey.BotChatSummaryFailedContent]: {
+    en: (params) => formatSummaryFailedContent('en', params),
+    fr: (params) => formatSummaryFailedContent('fr', params),
+    'zh-TW': (params) => formatSummaryFailedContent('zh-TW', params),
+    'zh-CN': (params) => formatSummaryFailedContent('zh-CN', params),
   },
 };
 

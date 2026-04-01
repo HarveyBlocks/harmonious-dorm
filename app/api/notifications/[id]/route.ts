@@ -14,7 +14,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     const { id: rawId } = await params;
     const id = Number(rawId);
     if (!Number.isInteger(id) || id <= 0) {
-      throw new ApiError(400, '通知 ID 无效');
+      throw new ApiError(400, 'Invalid notification id', { code: 'notification.id.invalid' });
     }
 
     await deleteNotification(session.dormId, session.userId, id);

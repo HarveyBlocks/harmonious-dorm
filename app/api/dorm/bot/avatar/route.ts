@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get('avatar');
     if (!(file instanceof File)) {
-      throw new ApiError(400, '缺少头像文件');
+      throw new ApiError(400, 'Avatar file missing', { code: 'media.avatar.file_missing' });
     }
     const result = await updateDormBotAvatar(session, file);
     return NextResponse.json(result, { status: 201 });

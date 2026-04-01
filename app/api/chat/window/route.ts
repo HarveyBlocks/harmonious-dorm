@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       const before = Number(searchParams.get('before') || '10');
       const after = Number(searchParams.get('after') || '10');
       if (!Number.isInteger(anchorId) || anchorId <= 0) {
-        throw new ApiError(400, '请求参数校验失败');
+        throw new ApiError(400, 'Invalid request params', { code: 'chat.window.anchor_id.invalid' });
       }
       const payload = await getChatWindowAround(session, {
         anchorId,
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       const cursor = Number(searchParams.get('cursor') || '');
       const limit = Number(searchParams.get('limit') || '20');
       if (!Number.isInteger(cursor) || cursor <= 0) {
-        throw new ApiError(400, '请求参数校验失败');
+        throw new ApiError(400, 'Invalid request params', { code: 'chat.window.cursor.invalid' });
       }
       const payload = await listOlderChatMessages(session, {
         cursor,
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       const cursor = Number(searchParams.get('cursor') || '');
       const limit = Number(searchParams.get('limit') || '20');
       if (!Number.isInteger(cursor) || cursor <= 0) {
-        throw new ApiError(400, '请求参数校验失败');
+        throw new ApiError(400, 'Invalid request params', { code: 'chat.window.cursor.invalid' });
       }
       const payload = await listNewerChatMessages(session, {
         cursor,
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       return NextResponse.json(payload);
     }
 
-    throw new ApiError(400, '请求参数校验失败');
+    throw new ApiError(400, 'Invalid request params', { code: 'chat.window.mode.invalid' });
   });
 }
 

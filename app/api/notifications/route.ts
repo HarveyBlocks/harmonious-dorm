@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const status = (searchParams.get('status') || 'all') as 'all' | 'unread' | 'read';
     if (!['all', 'unread', 'read'].includes(status)) {
-      throw new ApiError(400, 'status 参数错误');
+      throw new ApiError(400, 'Invalid status param', { code: 'notification.status.invalid' });
     }
 
     const limit = Number(searchParams.get('limit') || '20');

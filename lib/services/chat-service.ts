@@ -87,7 +87,7 @@ export async function getChatWindowAround(
     include: { user: { select: { id: true, name: true } } },
   });
   if (!anchor) {
-    throw new ApiError(404, '消息不存在');
+    throw new ApiError(404, 'Message not found', { code: 'chat.message.not_found' });
   }
 
   const [olderRows, newerRows] = await Promise.all([
@@ -172,7 +172,7 @@ export async function findChatAnchorByTime(session: SessionUser, fromIso: string
   await ensureSessionUser(session);
   const fromDate = new Date(fromIso);
   if (Number.isNaN(fromDate.getTime())) {
-    throw new ApiError(400, '时间参数错误');
+    throw new ApiError(400, 'Invalid time param', { code: 'chat.time_param.invalid' });
   }
 
   const row = await prisma.chatMessage.findFirst({
@@ -201,10 +201,10 @@ export async function sendChatMessage(
   const user = await ensureSessionUser(session);
   const trimmed = content.trim();
   if (!trimmed) {
-    throw new ApiError(400, '消息不能为空');
+    throw new ApiError(400, 'Message cannot be empty', { code: 'chat.message.empty' });
   }
   if (trimmed.length > LIMITS.CHAT_USER_CONTENT) {
-    throw new ApiError(400, `消息不能超过 ${LIMITS.CHAT_USER_CONTENT} 字`);
+    throw new ApiError(400, 'Message too long', { code: 'chat.message.too_long', report: { max: LIMITS.CHAT_USER_CONTENT } });
   }
 
   const message = await prisma.chatMessage.create({
@@ -273,7 +273,7 @@ export async function toggleChatMessagePrivacy(
     where: { id: messageId, dormId: session.dormId },
     select: { id: true },
   });
-  if (!target) throw new ApiError(404, '消息不存在');
+  if (!target) throw new ApiError(404, 'Message not found', { code: 'chat.message.not_found' });
 
   const updated = await prisma.chatMessage.update({
     where: { id: messageId },

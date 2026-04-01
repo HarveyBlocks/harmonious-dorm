@@ -11,7 +11,7 @@ import { pushDormNotification } from './notification-service';
 export async function updateDormName(session: SessionUser, name: string) {
   const user = await ensureSessionUser(session);
   if (!user.isLeader) {
-    throw new ApiError(403, '只有舍长可以修改宿舍名称');
+    throw new ApiError(403, 'Leader required to update dorm name', { code: 'dorm.name.update.leader_required' });
   }
 
   const dorm = await prisma.dorm.update({
@@ -36,18 +36,18 @@ export async function updateDormName(session: SessionUser, name: string) {
 export async function transferLeader(session: SessionUser, targetUserId: number) {
   const user = await ensureSessionUser(session);
   if (!user.isLeader) {
-    throw new ApiError(403, '只有舍长可以移交权限');
+    throw new ApiError(403, 'Leader required to transfer leader', { code: 'dorm.leader.transfer.leader_required' });
   }
 
   const target = await prisma.user.findFirst({
     where: { id: targetUserId, dormId: session.dormId },
   });
   if (!target) {
-    throw new ApiError(404, '目标用户不存在');
+    throw new ApiError(404, 'Target user not found', { code: 'dorm.leader.transfer.target_not_found' });
   }
 
   if (target.id === user.id) {
-    throw new ApiError(400, '不能移交给自己');
+    throw new ApiError(400, 'Cannot transfer to self', { code: 'dorm.leader.transfer.self_forbidden' });
   }
 
   await prisma.$transaction([

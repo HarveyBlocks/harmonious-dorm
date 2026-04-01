@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 
 import type { LanguageCode } from '@/lib/i18n';
 import type { DormState } from '@/lib/types';
@@ -11,6 +11,7 @@ function useHubTabState(pathname: string | null) {
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('unread');
   const [showAllDoneDuty, setShowAllDoneDuty] = useState(false);
   const [noticePopup, setNoticePopup] = useState<{ title: string; content: string } | null>(null);
+  const [chatSummaryModal, setChatSummaryModal] = useState<{ title: string; content: string } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<SettingsCardKey, boolean>>({
     user: false,
     dorm: true,
@@ -29,6 +30,8 @@ function useHubTabState(pathname: string | null) {
     setShowAllDoneDuty,
     noticePopup,
     setNoticePopup,
+    chatSummaryModal,
+    setChatSummaryModal,
     collapsedSections,
     setCollapsedSections,
   };
@@ -115,6 +118,7 @@ function useHubSettingsDraftState() {
   const [targetLeaderId, setTargetLeaderId] = useState<number | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [botAvatarFile, setBotAvatarFile] = useState<File | null>(null);
+  const [chatSummaryMessageCount, setChatSummaryMessageCount] = useState('30');
 
   return {
     name,
@@ -143,6 +147,8 @@ function useHubSettingsDraftState() {
     setAvatarFile,
     botAvatarFile,
     setBotAvatarFile,
+    chatSummaryMessageCount,
+    setChatSummaryMessageCount,
   };
 }
 

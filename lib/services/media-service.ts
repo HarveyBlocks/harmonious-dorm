@@ -20,11 +20,11 @@ export async function saveImageToPublic(input: {
 }): Promise<string> {
   const { file, prefix, relativeDir } = input;
   if (file.size <= 0 || file.size > MAX_IMAGE_SIZE) {
-    throw new ApiError(400, '头像文件大小必须在 0-5MB');
+    throw new ApiError(400, 'Avatar size invalid', { code: 'media.avatar.size_invalid', report: { minMb: 0, maxMb: 5 } });
   }
   const ext = imageExtByMime(file.type);
   if (!ext) {
-    throw new ApiError(400, '头像仅支持 PNG/JPG/WEBP');
+    throw new ApiError(400, 'Avatar mime unsupported', { code: 'media.avatar.mime_unsupported' });
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -37,4 +37,3 @@ export async function saveImageToPublic(input: {
   await fs.writeFile(absolutePath, bytes);
   return relativePath;
 }
-

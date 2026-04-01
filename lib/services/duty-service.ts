@@ -1,4 +1,4 @@
-﻿import { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
@@ -81,15 +81,15 @@ export async function assignDuty(
   await ensureSessionUser(session);
 
   if (!session.isLeader) {
-    throw new ApiError(403, '只有舍长可以分配值日');
+    throw new ApiError(403, 'Leader required to assign duty', { code: 'duty.assign.leader_required' });
   }
 
   const task = input.task.trim();
   if (!task) {
-    throw new ApiError(400, '任务内容不能为空');
+    throw new ApiError(400, 'Duty task cannot be empty', { code: 'duty.task.empty' });
   }
   if (task.length > LIMITS.DUTY_TASK) {
-    throw new ApiError(400, `任务内容最多 ${LIMITS.DUTY_TASK} 字`);
+    throw new ApiError(400, 'Duty task too long', { code: 'duty.task.too_long', report: { max: LIMITS.DUTY_TASK } });
   }
 
   const targetUser = await prisma.user.findFirst({
@@ -101,7 +101,7 @@ export async function assignDuty(
   });
 
   if (!targetUser) {
-    throw new ApiError(400, '被分配用户不在当前宿舍');
+    throw new ApiError(400, 'Assigned user not in dorm', { code: 'duty.assignee.not_in_dorm' });
   }
 
   try {
@@ -117,7 +117,7 @@ export async function assignDuty(
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ApiError(409, '相同日期和任务已存在');
+      throw new ApiError(409, 'Same date and task already exists', { code: 'duty.duplicate' });
     }
     throw error;
   }
@@ -161,12 +161,12 @@ export async function completeDuty(
   });
 
   if (!duty) {
-    throw new ApiError(404, '值日记录不存在');
+    throw new ApiError(404, 'Duty not found', { code: 'duty.not_found' });
   }
 
   const canToggle = session.isLeader || duty.userId === session.userId;
   if (!canToggle) {
-    throw new ApiError(403, '成员只能完成自己的值日任务');
+    throw new ApiError(403, 'Only owner or leader can update duty', { code: 'duty.complete.permission_denied' });
   }
 
   await prisma.duty.update({
@@ -207,7 +207,7 @@ export async function completeDuty(
 export async function deleteDuty(session: SessionUser, dutyId: number): Promise<{ success: true }> {
   await ensureSessionUser(session);
   if (!session.isLeader) {
-    throw new ApiError(403, '只有舍长可以删除值日任务');
+    throw new ApiError(403, 'Leader required to delete duty', { code: 'duty.delete.leader_required' });
   }
 
   const duty = await prisma.duty.findFirst({
@@ -217,7 +217,7 @@ export async function deleteDuty(session: SessionUser, dutyId: number): Promise<
     },
   });
   if (!duty) {
-    throw new ApiError(404, '值日记录不存在');
+    throw new ApiError(404, 'Duty not found', { code: 'duty.not_found' });
   }
 
   await prisma.duty.delete({

@@ -35,3 +35,24 @@ export function localizeServerText(lang: LanguageCode, text: string): string {
   if (tokenText !== null) return tokenText;
   return text;
 }
+
+function stripMarkdownToPlainText(content: string): string {
+  return (content || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/^>\s?/gm, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[*_~]/g, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function buildNoticePreviewText(lang: LanguageCode, text: string, maxLength = 120): string {
+  const localized = localizeServerText(lang, text);
+  const plain = stripMarkdownToPlainText(localized);
+  if (plain.length <= maxLength) return plain;
+  return `${plain.slice(0, maxLength).trimEnd()}…`;
+}

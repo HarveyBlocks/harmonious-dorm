@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { ApiError } from '@/lib/errors';
 import { requireSessionOrThrow, withApiGuard } from '@/lib/route';
@@ -16,7 +16,7 @@ export async function DELETE(_: Request, { params }: Params) {
     const { id } = await params;
     const billId = Number(id);
     if (!Number.isInteger(billId) || billId <= 0) {
-      throw new ApiError(400, '账单 ID 无效');
+      throw new ApiError(400, 'Invalid bill id', { code: 'bill.id.invalid' });
     }
     const result = await deleteBill(session, billId);
     return NextResponse.json(result);

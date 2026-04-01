@@ -8,3 +8,4 @@ export * from './status-service';
 export * from './user-service';
 export * from './stats-service';
 export * from './bot-service';
+export * from './chat-summary-service';

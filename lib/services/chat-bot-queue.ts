@@ -208,13 +208,13 @@ export async function abortDormBotStream(input: {
 }): Promise<{ aborted: boolean }> {
   const { session, streamId } = input;
   if (!Number.isInteger(streamId) || streamId <= 0) {
-    throw new ApiError(400, '当前消息无法停止');
+    throw new ApiError(400, 'Cannot stop this message', { code: 'chat.stream.stop_invalid_target' });
   }
 
   const running = runningStreamAbortMap.get(streamId);
   if (running && running.dormId === session.dormId) {
     if (running.actorUserId !== session.userId) {
-      throw new ApiError(403, '只有发起这次提问的人可以停止');
+      throw new ApiError(403, 'Only stream owner can abort', { code: 'chat.stream.abort_owner_required' });
     }
     emitToDorm(session.dormId, 'chat:stream:stop-requested', { streamId });
     running.abort();
@@ -226,7 +226,7 @@ export async function abortDormBotStream(input: {
   if (pendingIndex >= 0) {
     const pending = queueState.items[pendingIndex];
     if (pending.meta.actorUserId !== session.userId) {
-      throw new ApiError(403, '只有发起这次提问的人可以停止');
+      throw new ApiError(403, 'Only stream owner can abort', { code: 'chat.stream.abort_owner_required' });
     }
     queueState.items.splice(pendingIndex, 1);
     const aborted = await prisma.chatMessage.update({
@@ -249,5 +249,5 @@ export async function abortDormBotStream(input: {
     return { aborted: true };
   }
 
-  throw new ApiError(404, '这条回复已结束');
+  throw new ApiError(404, 'Reply already finished', { code: 'chat.stream.reply_finished' });
 }

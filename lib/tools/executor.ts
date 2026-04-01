@@ -1,4 +1,4 @@
-﻿import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors';
 import { encodeMessageToken } from '@/lib/i18n/message-token';
 import { NoticeMessageKey } from '@/lib/i18n/notice-messages';
 import {
@@ -163,7 +163,7 @@ async function runTool(name: string, args: Record<string, unknown>, session: Ses
   if (name === 'leader_transfer') return transferLeader(session, Number(args.targetUserId));
   if (name === 'leader_update_dorm_name') return updateDormName(session, String(args.name || ''));
 
-  throw new ApiError(400, 'Unsupported tool');
+  throw new ApiError(400, 'Unsupported tool', { code: 'tool.unsupported' });
 }
 
 export async function executeTool(name: string, rawArgs: unknown, context: ToolExecutionContext): Promise<ToolExecuteSuccess | ToolExecuteFailure> {

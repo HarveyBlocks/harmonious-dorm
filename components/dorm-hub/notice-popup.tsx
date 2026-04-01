@@ -1,7 +1,7 @@
 
 import { motion, AnimatePresence } from 'motion/react';
 
-import { localizeServerText } from './i18n-adapter';
+import { buildNoticePreviewText, localizeServerText } from './i18n-adapter';
 import type { LanguageCode } from '@/lib/i18n';
 
 export function NoticePopup(props: {
@@ -23,7 +23,7 @@ export function NoticePopup(props: {
         >
           <p className="text-xs text-muted mb-1">{p.popupLabel}</p>
           <p className="font-black">{localizeServerText(p.language, p.popup.title)}</p>
-          <p className="text-sm text-muted mt-1">{localizeServerText(p.language, p.popup.content)}</p>
+          <p className="text-sm text-muted mt-1">{buildNoticePreviewText(p.language, p.popup.content, 100)}</p>
           <button className="mt-3 text-xs font-bold accent-text" onClick={p.onClose}>
             OK
           </button>

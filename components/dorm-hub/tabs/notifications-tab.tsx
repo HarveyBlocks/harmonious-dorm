@@ -1,14 +1,17 @@
-﻿
-import { Check, MoreHorizontal } from 'lucide-react';
+
+import { Check, MoreHorizontal, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { LanguageCode } from '@/lib/i18n';
+import { createPortal } from 'react-dom';
 
-import { localizeServerText } from '../i18n-adapter';
+import { buildNoticePreviewText, localizeServerText } from '../i18n-adapter';
 import type { NotificationFilter } from '../ui-types';
+import { MarkdownRenderer } from '@/components/dorm-hub/markdown-renderer';
 import React from "react";
 
 type NoticeItem = {
   id: number;
+  type: string;
   title: string;
   content: string;
   isRead: boolean;
@@ -33,6 +36,10 @@ export function NotificationsTab(props: {
   notificationListRef: React.RefObject<HTMLDivElement>;
   onNoticeListScroll: (event: React.UIEvent<HTMLDivElement>) => void;
   notices: NoticeItem[];
+  chatSummaryModal: { title: string; content: string } | null;
+  chatSummaryModalTitle: string;
+  chatSummaryModalCloseLabel: string;
+  onCloseChatSummaryModal: () => void;
   onOpenNotice: (notice: NoticeItem) => void;
   onToggleSelect: (id: number) => void;
   isChecked: (id: number) => boolean;
@@ -54,13 +61,39 @@ export function NotificationsTab(props: {
     notificationListRef,
     onNoticeListScroll,
     notices,
+    chatSummaryModal,
+    chatSummaryModalTitle,
+    chatSummaryModalCloseLabel,
+    onCloseChatSummaryModal,
     onOpenNotice,
     onToggleSelect,
     isChecked,
   } = props;
 
+  const summaryModalNode = chatSummaryModal && typeof document !== 'undefined'
+    ? createPortal(
+      <div className="fixed inset-0 z-[240] bg-slate-950/60 backdrop-blur-sm p-4 md:p-8">
+        <div className="h-full max-w-4xl mx-auto flex items-center justify-center">
+          <div className="w-full max-h-[90vh] glass-card sleep-depth-near rounded-2xl p-4 md:p-6 flex flex-col">
+            <div className="flex items-center justify-between gap-4 mb-4 shrink-0">
+              <h4 className="text-xl font-black">{chatSummaryModalTitle || localizeServerText(language, chatSummaryModal.title)}</h4>
+              <button type="button" className="w-9 h-9 rounded-lg glass-card flex items-center justify-center" onClick={onCloseChatSummaryModal} aria-label={chatSummaryModalCloseLabel} title={chatSummaryModalCloseLabel}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="min-h-0 overflow-y-auto pr-1">
+              <MarkdownRenderer content={localizeServerText(language, chatSummaryModal.content)} className="bot-markdown text-sm leading-7" />
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    )
+    : null;
+
   return (
-    <motion.div key="notice" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid p-8 rounded-2xl">
+    <>
+      <motion.div key="notice" animate={{ opacity: 1 }} className="glass-card sleep-depth-mid p-8 rounded-2xl">
       <div className="flex items-center justify-between gap-3 mb-6">
         <h3 className="text-2xl font-black">{t.notifications}</h3>
         <div className="flex items-center gap-2 relative">
@@ -103,13 +136,19 @@ export function NotificationsTab(props: {
               </button>
               <div>
                 <p className="font-black">{localizeServerText(language, notice.title)} {notice.unreadCount > 1 ? `(${notice.unreadCount})` : ''}</p>
-                <p className="text-sm text-muted mt-1">{localizeServerText(language, notice.content)}</p>
+                <p className="text-sm text-muted mt-1">
+                  {notice.type === 'bot_summary'
+                    ? buildNoticePreviewText(language, notice.content, 140)
+                    : localizeServerText(language, notice.content)}
+                </p>
               </div>
             </div>
           </article>
         ))}
       </div>
-    </motion.div>
+      </motion.div>
+      {summaryModalNode}
+    </>
   );
 }
 

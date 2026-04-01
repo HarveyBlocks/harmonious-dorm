@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: Params) {
     const { id } = await params;
     const billId = Number(id);
     if (!Number.isInteger(billId) || billId <= 0) {
-      throw new ApiError(400, '账单 ID 无效');
+      throw new ApiError(400, 'Invalid bill id', { code: 'bill.id.invalid' });
     }
 
     const body = markPaySchema.parse(await parseJson<{ userId?: number; paid?: boolean }>(request));

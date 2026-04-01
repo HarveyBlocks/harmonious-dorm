@@ -14,7 +14,7 @@ export async function PUT(_request: Request, { params }: Params) {
     const { id: rawId } = await params;
     const id = Number(rawId);
     if (!Number.isInteger(id) || id <= 0) {
-      throw new ApiError(400, '通知 ID 无效');
+      throw new ApiError(400, 'Invalid notification id', { code: 'notification.id.invalid' });
     }
 
     await markNotificationRead(session.dormId, session.userId, id);

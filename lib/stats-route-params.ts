@@ -16,17 +16,17 @@ export function parseStatsQuery(request: Request, defaultPeriodType: StatsPeriod
   const lineGranularity = (searchParams.get('lineGranularity') || 'day') as StatsLineGranularity;
 
   if (!['month', 'quarter', 'year'].includes(periodType)) {
-    throw new ApiError(400, '请求参数校验失败');
+    throw new ApiError(400, 'Invalid stats query', { code: 'stats.query.invalid_period_type' });
   }
   if (!['month', 'day'].includes(lineGranularity)) {
-    throw new ApiError(400, '请求参数校验失败');
+    throw new ApiError(400, 'Invalid stats query', { code: 'stats.query.invalid_line_granularity' });
   }
   if (!Number.isInteger(year) || year < 1900 || year > 2999) {
-    throw new ApiError(400, '请求参数校验失败');
+    throw new ApiError(400, 'Invalid stats query', { code: 'stats.query.invalid_year' });
   }
   const markerMax = periodType === 'quarter' ? 4 : 12;
   if (!Number.isInteger(marker) || marker < 1 || marker > markerMax) {
-    throw new ApiError(400, '请求参数校验失败');
+    throw new ApiError(400, 'Invalid stats query', { code: 'stats.query.invalid_marker', report: { markerMax } });
   }
 
   return { periodType, year, marker, lineGranularity };

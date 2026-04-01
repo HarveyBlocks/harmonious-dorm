@@ -1,4 +1,4 @@
-﻿import { Camera, CircleAlert, Plus, X } from 'lucide-react';
+import { Camera, CircleAlert, Plus, X } from 'lucide-react';
 import { LIMITS } from '@/lib/limits';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
@@ -48,6 +48,15 @@ export function BotSettingsCard(props: {
   botOtherContent: string;
   setBotOtherContent: (v: string) => void;
   botOtherContentPlaceholder: string;
+  botChatSummaryLabel: string;
+  botChatSummaryCountLabel: string;
+  botChatSummaryHint: string;
+  botChatSummarySubmitLabel: string;
+  botChatSummaryPendingLabel: string;
+  chatSummaryMessageCount: string;
+  setChatSummaryMessageCount: (value: string) => void;
+  requestChatSummary: () => void;
+  requestChatSummaryPending: boolean;
   dispatchToast: (type: 'error' | 'success' | 'info', message: string) => void;
 }) {
   const p = props;
@@ -202,6 +211,37 @@ export function BotSettingsCard(props: {
               {p.botOtherContent.trim() ? <MarkdownRenderer content={p.botOtherContent} className="bot-markdown text-[15px] leading-7" /> : <p className="text-muted text-[14px]">{p.botOtherContentPlaceholder}</p>}
             </div>
           )}
+        </div>
+
+        <div className="pt-5 border-t border-slate-200/20 space-y-3">
+          <p className="text-[11px] text-muted font-bold">{p.botChatSummaryLabel}</p>
+          <div className="w-full max-w-[420px] rounded-xl custom-field px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted">{p.botChatSummaryCountLabel}</p>
+              <span className="text-sm font-black px-2 py-0.5 rounded-lg bg-[var(--accent)]/15 text-[var(--accent)]">
+                {p.chatSummaryMessageCount}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={10}
+              value={Number(p.chatSummaryMessageCount || '30')}
+              onChange={(e) => p.setChatSummaryMessageCount(e.target.value)}
+              disabled={p.requestChatSummaryPending}
+              className="w-full h-2 accent-[var(--accent)] cursor-pointer"
+            />
+            <p className="text-xs text-muted">{p.botChatSummaryHint}</p>
+            <button
+              type="button"
+              onClick={p.requestChatSummary}
+              disabled={p.requestChatSummaryPending}
+              className="w-full px-4 py-2.5 rounded-xl accent-bg text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {p.requestChatSummaryPending ? p.botChatSummaryPendingLabel : p.botChatSummarySubmitLabel}
+            </button>
+          </div>
         </div>
       </div>
       <input ref={p.botAvatarInputRef} className="hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => p.setBotAvatarFile(e.target.files?.[0] || null)} />

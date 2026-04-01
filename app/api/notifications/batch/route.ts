@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const body = await parseJson<unknown>(request);
 
     if (!isBatchBody(body)) {
-      throw new ApiError(400, '批量操作参数无效');
+      throw new ApiError(400, 'Invalid batch payload', { code: 'notification.batch_payload.invalid' });
     }
 
     const result = await bulkOperateNotifications({

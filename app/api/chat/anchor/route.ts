@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get('from');
     if (!from) {
-      throw new ApiError(400, '时间参数错误');
+      throw new ApiError(400, 'Invalid time param', { code: 'chat.time_param.invalid' });
     }
     const anchorId = await findChatAnchorByTime(session, from);
     return NextResponse.json({ anchorId });

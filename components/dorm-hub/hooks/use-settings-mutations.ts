@@ -1,4 +1,4 @@
-﻿import { useMutation, type QueryClient } from '@tanstack/react-query';
+import { useMutation, type QueryClient } from '@tanstack/react-query';
 import type { MutableRefObject } from 'react';
 
 import { apiRequest } from '@/lib/client-api';
@@ -93,6 +93,14 @@ export function useSettingsMutations(options: {
     },
   });
 
+  const requestChatSummaryMutation = useMutation({
+    mutationFn: (payload: { messageCount: number }) =>
+      apiRequest<{ accepted: true; messageCount: number }>('/api/dorm/bot/chat-summary', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+  });
+
   const updateBotToolPermissionsBatchMutation = useMutation({
     mutationFn: (payload: { toolPermissions: Record<string, 'allow' | 'deny'> }) =>
       apiRequest<{ toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }>('/api/dorm/bot/tool-permissions/batch', {
@@ -171,6 +179,7 @@ export function useSettingsMutations(options: {
     updateDormMutation,
     updateBotMutation,
     updateBotSettingsMutation,
+    requestChatSummaryMutation,
     updateBotToolPermissionsBatchMutation,
     updateDescriptionsMutation,
     transferMutation,

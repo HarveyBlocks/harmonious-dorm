@@ -137,3 +137,7 @@ export const sendChatSchema = z.object({
 export const chatPrivacySchema = z.object({
   isPrivateForBot: z.boolean(),
 });
+
+export const requestChatSummarySchema = z.object({
+  messageCount: z.number().int().min(0, { message: '总结条数不能小于 0' }).max(100, { message: '总结条数不能大于 100' }).refine((value) => value % 10 === 0, { message: '总结条数必须以 10 为粒度' }),
+});

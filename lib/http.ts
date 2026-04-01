@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { ZodError } from 'zod';
 
-import { ApiError } from '@/lib/errors';
-import { translateBackendMessage, type LanguageCode } from '@/lib/i18n';
+import { ApiError, BackendErrorCodeMissingError } from '@/lib/errors';
+import { translateBackendErrorByCode, type LanguageCode } from '@/lib/i18n';
 import { logError, logInfo, logWarn } from '@/lib/logger';
 import { sessionCookieConfig } from '@/lib/session';
 
@@ -20,7 +20,26 @@ export async function parseJson<T>(request: Request): Promise<T> {
   try {
     return (await request.json()) as T;
   } catch {
-    throw new ApiError(400, '请求体 JSON 格式错误');
+    throw new ApiError(400, 'Invalid JSON body', { code: 'request.json.invalid' });
+  }
+}
+
+function responseByErrorCode(
+  lang: LanguageCode,
+  status: number,
+  code: string,
+  params?: Record<string, unknown>,
+): NextResponse {
+  try {
+    const message = translateBackendErrorByCode(lang, code, params);
+    return NextResponse.json({ code, message }, { status });
+  } catch (translateError) {
+    if (translateError instanceof BackendErrorCodeMissingError) {
+      logError('backend_error_code_missing', translateError, { code: translateError.missingCode, status });
+      return NextResponse.json({ code: translateError.missingCode, message: translateError.missingCode }, { status: 500 });
+    }
+    logError('backend_error_translate_failed', translateError, { code, status });
+    return NextResponse.json({ code, message: code }, { status: 500 });
   }
 }
 
@@ -40,7 +59,7 @@ export async function handleApiError(error: unknown): Promise<NextResponse> {
     } else {
       logError('api_error', error, meta);
     }
-    const response = NextResponse.json({ message: translateBackendMessage(lang, error.message) }, { status: error.status });
+    const response = responseByErrorCode(lang, error.status, error.code, error.report);
     if (error.status === 401) {
       response.cookies.set({
         ...sessionCookieConfig,
@@ -52,20 +71,24 @@ export async function handleApiError(error: unknown): Promise<NextResponse> {
   }
 
   if (error instanceof ZodError) {
-    const message = error.issues[0]?.message || '请求参数校验失败';
-    logWarn('zod_error', { message, issues: error.issues });
-    return NextResponse.json({ message: translateBackendMessage(lang, message) }, { status: 400 });
+    const issue = error.issues[0];
+    const path = (issue?.path || []).join('.');
+    logWarn('zod_error', { issue, issues: error.issues });
+    return responseByErrorCode(lang, 400, 'request.validation.invalid', {
+      path: path || '-',
+      issueCode: issue?.code || '-',
+    });
   }
 
   if (error instanceof Error) {
     if (error.message.includes('Dynamic server usage')) {
       logInfo('next_dynamic_server_usage_detected', { message: error.message });
-      return NextResponse.json({ message: translateBackendMessage(lang, '动态接口') }, { status: 500 });
+      return responseByErrorCode(lang, 500, 'request.dynamic_api');
     }
     logError('unexpected_api_error', error);
-    return NextResponse.json({ message: translateBackendMessage(lang, '请求处理失败') }, { status: 500 });
+    return responseByErrorCode(lang, 500, 'request.processing.failed');
   }
 
   logError('unknown_api_error', error);
-  return NextResponse.json({ message: translateBackendMessage(lang, '请求处理失败') }, { status: 500 });
+  return responseByErrorCode(lang, 500, 'request.processing.failed');
 }

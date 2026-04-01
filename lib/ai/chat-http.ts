@@ -1,4 +1,4 @@
-﻿import { ApiError, UpstreamServiceError } from '@/lib/errors';
+import { ApiError, UpstreamServiceError } from '@/lib/errors';
 import { logInfo, logWarn } from '@/lib/logger';
 import { estimateTokens } from '@/lib/ai/chat-parse';
 import type { BaseChatInput, ChatClientConfig } from '@/lib/ai/chat-types';
@@ -19,7 +19,7 @@ export function buildRequestBody(config: ChatClientConfig, input: BaseChatInput,
 
 export function ensureConfig(config: ChatClientConfig) {
   if (!config.baseUrl || !config.apiKey || !config.model) {
-    throw new ApiError(500, 'AI chat config missing');
+    throw new ApiError(500, 'AI chat config missing', { code: 'ai.config.missing' });
   }
 }
 
@@ -76,6 +76,7 @@ export async function assertSuccessfulResponse(
   throw new UpstreamServiceError({
     status: 502,
     message: isRateLimit ? 'AI service rate limited' : 'AI service request failed',
+    code: isRateLimit ? 'ai.upstream.rate_limited' : 'ai.upstream.request_failed',
     upstreamService: config.provider,
     upstreamStatus: resp.status,
     upstreamCode: upstream.code,
@@ -108,6 +109,7 @@ export function normalizeUnknownFailure(config: ChatClientConfig, error: unknown
     throw new UpstreamServiceError({
       status: 504,
       message: 'AI service timeout',
+      code: 'ai.upstream.timeout',
       upstreamService: config.provider,
       upstreamStatus: 504,
       retryable: false,
@@ -116,6 +118,7 @@ export function normalizeUnknownFailure(config: ChatClientConfig, error: unknown
   throw new UpstreamServiceError({
     status: 502,
     message: 'AI service request failed',
+    code: 'ai.upstream.request_failed',
     upstreamService: config.provider,
     retryable: false,
   });

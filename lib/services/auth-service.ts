@@ -1,4 +1,4 @@
-﻿import { INVITE_CODE_LENGTH } from '@/lib/constants';
+import { INVITE_CODE_LENGTH } from '@/lib/constants';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
 import type { LoginResult } from '@/lib/types';
@@ -24,7 +24,7 @@ async function generateUniqueInviteCode(): Promise<string> {
       return candidate;
     }
   }
-  throw new ApiError(500, '邀请码生成失败，请重试');
+  throw new ApiError(500, 'Invite code generation failed', { code: 'auth.invite_code.generation_failed' });
 }
 
 async function createDormAndLeader(name: string, email: string): Promise<LoginResult> {
@@ -87,7 +87,7 @@ export async function loginOrRegister(
   const name = normalizeName(nameInput || '');
   const defaultName = buildDefaultName(email);
   if (!email) {
-    throw new ApiError(400, '邮箱不能为空');
+    throw new ApiError(400, 'Email cannot be empty', { code: 'auth.email.empty' });
   }
 
   const existedByEmail = await prisma.user.findUnique({
@@ -116,7 +116,7 @@ export async function loginOrRegister(
     };
   }
   if (mode === 'login') {
-    throw new ApiError(404, '该邮箱未注册，请先注册');
+    throw new ApiError(404, 'Email not registered', { code: 'auth.email.not_registered' });
   }
 
   const inviteCode = normalizeInviteCode(inviteCodeInput);
@@ -126,7 +126,7 @@ export async function loginOrRegister(
 
   const dorm = await prisma.dorm.findUnique({ where: { inviteCode } });
   if (!dorm) {
-    throw new ApiError(404, '邀请码不存在');
+    throw new ApiError(404, 'Invite code not found', { code: 'auth.invite_code.not_found' });
   }
 
   const user = await prisma.user.create({

@@ -14,7 +14,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     const { id } = await params;
     const dutyId = Number(id);
     if (!Number.isInteger(dutyId) || dutyId <= 0) {
-      throw new ApiError(400, '值日 ID 无效');
+      throw new ApiError(400, 'Invalid duty id', { code: 'duty.id.invalid' });
     }
     const result = await deleteDuty(session, dutyId);
     return NextResponse.json(result);

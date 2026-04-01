@@ -1,15 +1,25 @@
 export class ApiError extends Error {
   readonly status: number;
-  readonly code?: string;
+  readonly code: string;
   readonly controlled: boolean;
   readonly report?: Record<string, unknown>;
 
-  constructor(status: number, message: string, options?: { code?: string; controlled?: boolean; report?: Record<string, unknown> }) {
+  constructor(status: number, message: string, options: { code: string; controlled?: boolean; report?: Record<string, unknown> }) {
     super(message);
     this.status = status;
-    this.code = options?.code;
+    this.code = options.code;
     this.controlled = options?.controlled ?? true;
     this.report = options?.report;
+  }
+}
+
+export class BackendErrorCodeMissingError extends Error {
+  readonly missingCode: string;
+
+  constructor(code: string) {
+    super(`Backend error i18n code not found: ${code}`);
+    this.name = 'BackendErrorCodeMissingError';
+    this.missingCode = code;
   }
 }
 
@@ -22,6 +32,7 @@ export class UpstreamServiceError extends ApiError {
   constructor(input: {
     status?: number;
     message: string;
+    code: string;
     upstreamService: string;
     upstreamStatus?: number;
     upstreamCode?: string;
@@ -29,7 +40,7 @@ export class UpstreamServiceError extends ApiError {
     report?: Record<string, unknown>;
   }) {
     super(input.status ?? 502, input.message, {
-      code: 'UPSTREAM_ERROR',
+      code: input.code,
       controlled: true,
       report: input.report,
     });
@@ -42,7 +53,7 @@ export class UpstreamServiceError extends ApiError {
 
 export class StreamAbortError extends ApiError {
   constructor(message = 'Stream aborted') {
-    super(499, message, { code: 'STREAM_ABORTED', controlled: true });
+    super(499, message, { code: 'stream.aborted', controlled: true });
   }
 }
 

@@ -1,4 +1,4 @@
-﻿import path from 'node:path';
+import path from 'node:path';
 
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/errors';
@@ -52,11 +52,11 @@ export async function ensureDormBotUser(dormId: number) {
 export async function updateDormBotName(session: SessionUser, name: string): Promise<{ name: string; avatarPath: string | null }> {
   const me = await ensureSessionUser(session);
   if (!me.isLeader) {
-    throw new ApiError(403, '只有舍长可以设置机器人');
+    throw new ApiError(403, 'Leader permission required', { code: 'bot.settings.leader_required' });
   }
   const nextName = normalizeName(name);
   if (nextName.length > LIMITS.BOT_NAME) {
-    throw new ApiError(400, `机器人名称不能超过 ${LIMITS.BOT_NAME} 字`);
+    throw new ApiError(400, 'Bot name too long', { code: 'bot.name.too_long', report: { max: LIMITS.BOT_NAME } });
   }
   const bot = await ensureDormBotUser(session.dormId);
   const updated = await prisma.user.update({
@@ -90,7 +90,7 @@ export async function updateDormBotName(session: SessionUser, name: string): Pro
 export async function updateDormBotAvatar(session: SessionUser, file: File): Promise<{ avatarPath: string }> {
   const me = await ensureSessionUser(session);
   if (!me.isLeader) {
-    throw new ApiError(403, '只有舍长可以设置机器人');
+    throw new ApiError(403, 'Leader permission required', { code: 'bot.settings.leader_required' });
   }
   const bot = await ensureDormBotUser(session.dormId);
   const relativePath = await saveImageToPublic({
@@ -115,16 +115,19 @@ export async function updateDormBotSettings(
 ): Promise<{ settings: Array<{ key: string; value: string }>; otherContent: string; memoryWindow: number; toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }> {
   const me = await ensureSessionUser(session);
   if (!me.isLeader) {
-    throw new ApiError(403, '只有舍长可以设置机器人');
+    throw new ApiError(403, 'Leader permission required', { code: 'bot.settings.leader_required' });
   }
   const normalizedOtherContent = (otherContent || '').trim();
   if (normalizedOtherContent.length > LIMITS.BOT_OTHER_CONTENT) {
-    throw new ApiError(400, `机器人其他内容不能超过 ${LIMITS.BOT_OTHER_CONTENT} 字`);
+    throw new ApiError(400, 'Bot other content too long', { code: 'bot.other_content.too_long', report: { max: LIMITS.BOT_OTHER_CONTENT } });
   }
   const rawMemoryWindow = memoryWindow ?? BOT_MEMORY_WINDOW_DEFAULT;
   const normalizedMemoryWindow = normalizeBotMemoryWindow(rawMemoryWindow);
   if (!Number.isInteger(Number(rawMemoryWindow)) || Number(rawMemoryWindow) < BOT_MEMORY_WINDOW_MIN || Number(rawMemoryWindow) > BOT_MEMORY_WINDOW_MAX) {
-    throw new ApiError(400, `短期记忆长度必须在 ${BOT_MEMORY_WINDOW_MIN}-${BOT_MEMORY_WINDOW_MAX}`);
+    throw new ApiError(400, 'Bot memory window out of range', {
+      code: 'bot.memory_window.range',
+      report: { min: BOT_MEMORY_WINDOW_MIN, max: BOT_MEMORY_WINDOW_MAX },
+    });
   }
 
   const normalized = settings
@@ -135,15 +138,15 @@ export async function updateDormBotSettings(
     .filter((item) => item.key.length > 0);
 
   if (normalized.length > LIMITS.BOT_SETTINGS_ITEMS) {
-    throw new ApiError(400, `机器人设定不能超过 ${LIMITS.BOT_SETTINGS_ITEMS} 条`);
+    throw new ApiError(400, 'Bot settings too many items', { code: 'bot.settings.items.too_many', report: { max: LIMITS.BOT_SETTINGS_ITEMS } });
   }
 
   for (const item of normalized) {
     if (item.key.length > LIMITS.BOT_SETTING_KEY) {
-      throw new ApiError(400, `机器人设定键不能超过 ${LIMITS.BOT_SETTING_KEY} 字`);
+      throw new ApiError(400, 'Bot setting key too long', { code: 'bot.settings.key.too_long', report: { max: LIMITS.BOT_SETTING_KEY } });
     }
     if (item.value.length > LIMITS.BOT_SETTING_VALUE) {
-      throw new ApiError(400, `机器人设定值不能超过 ${LIMITS.BOT_SETTING_VALUE} 字`);
+      throw new ApiError(400, 'Bot setting value too long', { code: 'bot.settings.value.too_long', report: { max: LIMITS.BOT_SETTING_VALUE } });
     }
   }
 
@@ -183,7 +186,7 @@ export async function updateDormBotToolPermissionsBatch(
 ): Promise<{ toolPermissions: Array<{ tool: string; permission: 'allow' | 'deny' }> }> {
   const me = await ensureSessionUser(session);
   if (!me.isLeader) {
-    throw new ApiError(403, '只有舍长可以设置机器人');
+    throw new ApiError(403, 'Leader permission required', { code: 'bot.settings.leader_required' });
   }
 
   const normalizedToolPermissions = Object.entries(toolPermissions || {})

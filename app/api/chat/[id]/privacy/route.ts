@@ -15,7 +15,7 @@ export async function POST(
     const { id } = await context.params;
     const messageId = Number(id);
     if (!Number.isInteger(messageId) || messageId <= 0) {
-      throw new ApiError(400, '消息 ID 无效');
+      throw new ApiError(400, 'Invalid message id', { code: 'chat.message_id.invalid' });
     }
     const body = chatPrivacySchema.parse(await parseJson<{ isPrivateForBot: boolean }>(request));
     const payload = await toggleChatMessagePrivacy(session, messageId, body.isPrivateForBot);
