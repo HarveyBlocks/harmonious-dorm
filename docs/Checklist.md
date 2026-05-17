@@ -260,8 +260,6 @@
 
    总结之后返回给客户端
 
-
-
 - 欸, 定时任务的性能损耗令人伤心
 - 如果引入了更复杂的Agent Loop, 那么就可以让机器人依据年月日的总结, 去查询某一条具体消息的出处了
 
@@ -314,7 +312,6 @@
 ![Agent调用流程图](https://raw.githubusercontent.com/HarveyBlocks/blog_assets/refs/heads/main/D/IT_study/source/agent/harmonious-dorm/docs/Checklist/Agent调用流程图.svg)
 
 
-
 ```mermaid.
 stateDiagram-v2
     [*] --> 用户发起请求: 用户操作
@@ -336,7 +333,7 @@ stateDiagram-v2
     
     state 进入确认环节 {
         [*] --> 展示需求等待用户操作
-        
+
         展示需求等待用户操作 --> 用户接受
         展示需求等待用户操作 --> 用户拒绝并修改
         展示需求等待用户操作 --> 用户放弃

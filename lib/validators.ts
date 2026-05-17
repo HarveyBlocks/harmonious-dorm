@@ -141,3 +141,15 @@ export const chatPrivacySchema = z.object({
 export const requestChatSummarySchema = z.object({
   messageCount: z.number().int().min(0, { message: '总结条数不能小于 0' }).max(100, { message: '总结条数不能大于 100' }).refine((value) => value % 10 === 0, { message: '总结条数必须以 10 为粒度' }),
 });
+
+export const radarStatusInputSchema = z.object({
+  device_id: z.string().trim().min(1, { message: 'device_id 不能为空' }).max(128, { message: 'device_id 过长' }),
+  status: z.enum(['Out', 'Sleeping', 'Studying', 'Gaming', 'Unknown']),
+  target_state: z.number().int().min(0).max(3),
+  motion_distance: z.number().int().min(0).max(10000),
+  static_distance: z.number().int().min(0).max(10000),
+  motion_energy: z.number().int().min(0).max(100),
+  static_energy: z.number().int().min(0).max(100),
+  detect_distance: z.number().int().min(0).max(10000).optional(),
+  light_sensor: z.number().int().min(-1).max(255).optional(),
+});

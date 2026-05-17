@@ -92,8 +92,26 @@ model User {
   billShares BillParticipant[]
   chats      ChatMessage[]
   notifications Notification[]
+  devices      Device[]
 
   @@map("users")
+}
+
+model Device {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dormId    Int      @map("dorm_id")
+  deviceId  String   @unique @map("device_id")
+  name      String
+  kind      String   @default("radar")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([dormId])
+  @@map("devices")
 }
 
 model Duty {
