@@ -106,12 +106,54 @@ model Device {
   name      String
   kind      String   @default("radar")
   enabled   Boolean  @default(true)
+  authToken String?  @map("auth_token")
+  lastHeartbeat DateTime? @map("last_heartbeat")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([userId])
   @@index([dormId])
   @@map("devices")
+}
+
+model DeviceLatestStatus {
+  deviceId       String   @id @map("device_id")
+  dormId         Int      @map("dorm_id")
+  userId         Int      @map("user_id")
+  status         String
+  targetState    Int      @map("target_state")
+  motionDistance Int      @map("motion_distance")
+  staticDistance Int      @map("static_distance")
+  motionEnergy   Int      @map("motion_energy")
+  staticEnergy   Int      @map("static_energy")
+  detectDistance Int?     @map("detect_distance")
+  lightSensor    Int?     @map("light_sensor")
+  lastHeartbeat  DateTime @map("last_heartbeat")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([dormId, userId])
+  @@map("device_latest_status")
+}
+
+model StatusHistory {
+  id             Int      @id @default(autoincrement())
+  deviceId       String   @map("device_id")
+  dormId         Int      @map("dorm_id")
+  userId         Int      @map("user_id")
+  status         String
+  targetState    Int      @map("target_state")
+  motionDistance Int      @map("motion_distance")
+  staticDistance Int      @map("static_distance")
+  motionEnergy   Int      @map("motion_energy")
+  staticEnergy   Int      @map("static_energy")
+  detectDistance Int?     @map("detect_distance")
+  lightSensor    Int?     @map("light_sensor")
+  receivedAt     DateTime @default(now()) @map("received_at")
+
+  @@index([deviceId, receivedAt])
+  @@index([dormId, receivedAt])
+  @@index([userId, receivedAt])
+  @@map("status_history")
 }
 
 model Duty {

@@ -8,7 +8,8 @@ import { radarStatusInputSchema } from '@/lib/validators';
 export async function POST(request: Request) {
   return withApiGuard(async () => {
     const body = radarStatusInputSchema.parse(await parseJson(request));
-    await ingestRadarStatus(body);
+    const token = request.headers.get('x-device-token');
+    await ingestRadarStatus(body, { authToken: token });
     return NextResponse.json({
       code: 200,
       msg: 'success',

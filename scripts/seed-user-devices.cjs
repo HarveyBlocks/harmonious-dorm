@@ -48,12 +48,51 @@ async function main() {
     created += 1;
   }
 
+  const dorms = await prisma.dorm.findMany({
+    select: { id: true, name: true },
+    orderBy: { id: 'asc' },
+  });
+
+  let dutyCreated = 0;
+  let dutySkipped = 0;
+  for (const dorm of dorms) {
+    const dutyDeviceId = `DUTY_${dorm.id}`;
+    const existed = await prisma.device.findUnique({
+      where: { deviceId: dutyDeviceId },
+      select: { id: true },
+    });
+    if (existed) {
+      dutySkipped += 1;
+      continue;
+    }
+    const leader = await prisma.user.findFirst({
+      where: { dormId: dorm.id, isLeader: true },
+      select: { id: true },
+    });
+    const fallbackUser = leader || (await prisma.user.findFirst({ where: { dormId: dorm.id }, select: { id: true } }));
+    if (!fallbackUser) continue;
+    await prisma.device.create({
+      data: {
+        userId: fallbackUser.id,
+        dormId: dorm.id,
+        deviceId: dutyDeviceId,
+        name: `${dorm.name} 值日传感器`,
+        kind: 'duty_sensor',
+        enabled: true,
+      },
+    });
+    dutyCreated += 1;
+  }
+
   const totalDevices = await prisma.device.count();
 
   console.log(JSON.stringify({
     totalUsers: users.length,
     created,
     skipped,
+    totalDorms: dorms.length,
+    dutyCreated,
+    dutySkipped,
     totalDevices,
   }, null, 2));
 }
